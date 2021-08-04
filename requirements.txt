@@ -1,0 +1,9 @@
+copy
+dateutil
+json
+os
+rdflib
+rdflib-jsonld
+SPARQLWrapper
+tqdm
+zipfile
