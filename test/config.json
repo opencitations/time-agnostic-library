@@ -5,7 +5,7 @@
     },
     "provenance": {
         "triplestore_urls": [],
-        "file_paths": ["./test/prov.json"]
+        "file_paths": ["test/prov.json"]
     },
     "blazegraph_full_text_search": "yes",
     "cache_triplestore_url": "http://localhost:19999/blazegraph/sparql"

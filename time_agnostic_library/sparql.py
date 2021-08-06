@@ -14,9 +14,9 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-from pprint import pprint
-from typing import Set, Tuple, Union
+from typing import Set, Tuple
 
+import json
 from SPARQLWrapper import SPARQLWrapper, POST, RDFXML, JSON
 from rdflib import ConjunctiveGraph, XSD
 from rdflib.term import _toPythonMapping
@@ -24,12 +24,8 @@ from rdflib.term import URIRef, Literal
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.sparql import Query
 from rdflib.plugins.sparql.parserutils import CompValue
-from rdflib.plugins.stores import sparqlstore
 
-
-from time_agnostic_library.support import FileManager
 from time_agnostic_library.prov_entity import ProvEntity
-
 
 CONFIG_PATH = "./config.json"
 
@@ -61,13 +57,12 @@ class Sparql:
         self.query = query
         config_path = config_path
         prov_properties = ProvEntity.get_prov_properties()
-        config:list = FileManager(config_path).import_json()
+        with open(config_path, encoding="utf8") as json_file:
+            config:list = json.load(json_file)
         if any(uri in query for uri in prov_properties):
             self.storer:dict = config["provenance"]
         else:
             self.storer:dict = config["dataset"]
-        if self.storer["triplestore_urls"]:
-            pass
         self._hack_dates()
 
     @classmethod
@@ -124,7 +119,7 @@ class Sparql:
                         results_list.append(None)
                 output.add(tuple(results_list))
         return output
-        
+            
     def run_construct_query(self) -> ConjunctiveGraph:
         """
         Given a CONSTRUCT query, it returns the results in a ConjunctiveGraph. 
@@ -191,7 +186,7 @@ class Sparql:
             elif algebra.name == "ConstructQuery":
                 sparql.setReturnFormat(RDFXML)
                 cg += sparql.queryAndConvert()            
-        return cg
+        return cg        
     
     def _cut_by_limit(self, input):
         algebra:CompValue = prepareQuery(self.query).algebra
@@ -200,9 +195,3 @@ class Sparql:
             input = input[:limit]
         return input
     
-    def upload_on_ts(graph:ConjunctiveGraph, ts_url):
-        store = sparqlstore.SPARQLUpdateStore()
-        store.open((ts_url, ts_url))
-        store.add_graph(graph)
-
-

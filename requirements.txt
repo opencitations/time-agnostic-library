@@ -1,9 +1,8 @@
 copy
 dateutil
 json
-os
+oc_ocdm
 rdflib
 rdflib-jsonld
 SPARQLWrapper
 tqdm
-zipfile

@@ -42,7 +42,7 @@ class AgnosticEntity:
         self.res = res
         self.related_entities_history = related_entities_history
 
-    def get_history(self, include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
+    def get_history(self, include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict[URIRef, Dict[str, Dict[str, str]]]]:
         """
         Given the URI of a resource, it reconstructs its entire history, 
         returning a dictionary according to the following model: ::
@@ -166,6 +166,11 @@ class AgnosticEntity:
         return entity_cg, entity_snapshot, None
     
     def _include_prov_metadata(self, triples_generated_at_time:list, current_state:ConjunctiveGraph) -> dict:
+        prov_properties = [
+            ProvEntity.iri_was_attributed_to, 
+            ProvEntity.iri_had_primary_source, 
+            ProvEntity.iri_description
+        ] 
         prov_metadata = {
             self.res: dict()
         }
@@ -179,18 +184,11 @@ class AgnosticEntity:
             }
         for entity, metadata in dict(prov_metadata).items():
             for se, _ in metadata.items():
-                triples_was_attributed_to = current_state.triples(
-                    (URIRef(se), ProvEntity.iri_was_attributed_to, None))
-                triples_iri_had_primary_source = current_state.triples(
-                    (URIRef(se), ProvEntity.iri_had_primary_source, None))
-                triples_iri_description = current_state.triples(
-                    (URIRef(se), ProvEntity.iri_description, None))
-                for triple in triples_was_attributed_to:
-                    prov_metadata[entity][str(triple[0])][str(triple[1])] = str(triple[2])
-                for triple in triples_iri_had_primary_source:
-                    prov_metadata[entity][str(triple[0])][str(triple[1])] = str(triple[2])
-                for triple in triples_iri_description:
-                    prov_metadata[entity][str(triple[0])][str(triple[1])] = str(triple[2])
+                for prov_property in prov_properties:
+                    triples_with_property = current_state.triples(
+                    (URIRef(se), prov_property, None))
+                    for triple in triples_with_property:
+                        prov_metadata[entity][str(triple[0])][str(triple[1])] = str(triple[2])
         return prov_metadata
 
     def _get_entity_current_state(self, include_prov_metadata:bool=False) -> list:
@@ -212,6 +210,7 @@ class AgnosticEntity:
         for quad in self._query_provenance(include_prov_metadata).quads():
             current_state.add(quad)
         if len(current_state) == 0:
+            entity_current_state.append(None)
             return entity_current_state
         triples_generated_at_time = list(current_state.triples(
             (None, ProvEntity.iri_generated_at_time, None)))
