@@ -24,6 +24,7 @@ from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib import ConjunctiveGraph, Graph, URIRef, Literal, Variable
+from rdflib.paths import InvPath
 from oc_ocdm.support.query_utils import get_insert_query
 from tqdm import tqdm
 from dateutil import parser
@@ -102,13 +103,8 @@ class AgnosticQuery:
         triples_checked = set()
         for triple in self.triples:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
-                solvable_triple = [el.n3() for el in triple]
-                query_to_identify = f"""
-                    CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
-                    WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
-                """
+                query_to_identify = self._get_query_to_identify(triple)
                 present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
-                print(f"[AgnosticQuery:INFO] Rebuilding current relevant entities for the triple {solvable_triple}.")
                 # pbar = tqdm(total=len(present_results))
                 for result in present_results:
                     self._rebuild_relevant_entity(result[0])
@@ -132,7 +128,7 @@ class AgnosticQuery:
                 if relevant_timestamps_in_cache:
                     self._store_relevant_timestamps(entity, relevant_timestamps_in_cache)
                     return
-            agnostic_entity = AgnosticEntity(entity, related_entities_history=False)
+            agnostic_entity = AgnosticEntity(entity, related_entities_history=False, config_path=self.config_path)
             if self.on_time:
                 entity_at_time = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=True) 
                 if entity_at_time[0]:
@@ -324,7 +320,23 @@ class AgnosticQuery:
             vars_to_explicit_by_time[se] = new_triples 
         self.vars_to_explicit_by_time = vars_to_explicit_by_time
     
-    def _get_query_to_identify(self, triple:tuple) -> str:
+    def _get_query_to_identify(self, triple:list) -> str:
+        solvable_triple = [el.n3() for el in triple]
+        print(f"[AgnosticQuery:INFO] Rebuilding current relevant entities for the triple {solvable_triple}.")
+        if isinstance(triple[1], InvPath):
+            predicate = solvable_triple[1].replace("^", "", 1)
+            query_to_identify = f"""
+                CONSTRUCT {{{solvable_triple[2]} {predicate} {solvable_triple[0]}}}
+                WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
+            """
+        elif isinstance(triple[1], URIRef):
+            query_to_identify = f"""
+                CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
+                WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
+            """
+        return query_to_identify
+
+    def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = f"""
             SELECT DISTINCT ?updateQuery 
@@ -341,7 +353,7 @@ class AgnosticQuery:
     def _find_entities_in_update_queries(self, triple:tuple):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = set()
-        query_to_identify = self._get_query_to_identify(triple)
+        query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
             # pbar = tqdm(total=len(results))
@@ -406,7 +418,7 @@ class AgnosticQuery:
         self.sparql.setQuery(query_timestamps)
         self.sparql.setReturnFormat(JSON)
         results = self.sparql.queryAndConvert()
-        provenance = Sparql(query = query_provenance).run_select_query()
+        provenance = Sparql(query = query_provenance, config_path=self.config_path).run_select_query()
         if len(results["results"]["bindings"]) == len(provenance) and len(provenance) > 0:
             for timestamp in provenance:
                 relevant_timestamps.add(timestamp[1])
@@ -463,7 +475,7 @@ class BlazegraphQuery(AgnosticQuery):
             raise ValueError("Enter a valid value for 'blazegraph_full_text_search' in the configuration file, for example 'yes' or 'no'.")
         super(BlazegraphQuery, self).__init__(query, on_time, config_path)    
 
-    def _get_query_to_identify(self, triple:tuple) -> str:
+    def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = f"""
             PREFIX bds: <http://www.bigdata.com/rdf/search#>

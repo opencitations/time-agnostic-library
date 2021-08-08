@@ -55,7 +55,6 @@ class Sparql:
     """
     def __init__(self, query:str, config_path:str=CONFIG_PATH):
         self.query = query
-        config_path = config_path
         prov_properties = ProvEntity.get_prov_properties()
         with open(config_path, encoding="utf8") as json_file:
             config:list = json.load(json_file)

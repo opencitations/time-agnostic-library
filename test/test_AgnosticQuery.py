@@ -14,17 +14,15 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest, datetime, rdflib, json
+import unittest, rdflib, json
 
-from rdflib.graph import ConjunctiveGraph
+from rdflib.paths import InvPath
+from rdflib import Variable, URIRef
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from pprint import pprint
 
-from time_agnostic_library.sparql import Sparql
-from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.agnostic_entity import AgnosticEntity
-from time_agnostic_library.agnostic_query import AgnosticQuery, BlazegraphQuery
-from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_nt_sorted_list, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph, empty_the_cache
+from time_agnostic_library.agnostic_query import AgnosticQuery
+from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph
 
 CONFIG_PATH = "test/config.json"
 
@@ -976,7 +974,27 @@ class Test_AgnosticQuery(unittest.TestCase):
 
         self.assertEqual(agnostic_query.vars_to_explicit_by_time, expected_output)
 
-    def test__get_query_to_identify(self):
+    def test__get_query_to_identify_inverse_property(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT DISTINCT ?o ?id ?value
+            WHERE {
+                ?o ^pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ar/15519>.
+            }
+        """
+        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        triple = agnostic_query._process_query()[0]
+        query_to_identify = agnostic_query._get_query_to_identify(triple).replace(" ", "").replace("\n", "")
+        expected_query_to_identify = """
+            CONSTRUCT { 
+                <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> ?o 
+            } WHERE { 
+                ?o ^<http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ar/15519>
+            }
+        """.replace(" ", "").replace("\n", "")
+        self.assertEqual(query_to_identify, expected_query_to_identify)
+
+    def test__get_query_to_update_queries(self):
         query = """
             prefix literal: <http://www.essepuntato.it/2010/06/literalreification/>
             SELECT DISTINCT ?o ?id ?value
@@ -985,7 +1003,7 @@ class Test_AgnosticQuery(unittest.TestCase):
             }
         """
         triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
-        query_to_identify = AgnosticQuery(query, config_path=CONFIG_PATH)._get_query_to_identify(triple).replace(" ", "").replace("\n", "")
+        query_to_identify = AgnosticQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify = """
             SELECT DISTINCT ?updateQuery 
             WHERE {

@@ -26,6 +26,7 @@ from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.support import _to_nt_sorted_list
 
+CONFIG_PATH = "./config.json"
 
 class AgnosticEntity:
     """
@@ -39,9 +40,10 @@ class AgnosticEntity:
     :type related_entities_history: bool.
     """
 
-    def __init__(self, res: str, related_entities_history: bool = False):
+    def __init__(self, res: str, related_entities_history: bool = False, config_path:str=CONFIG_PATH):
         self.res = res
         self.related_entities_history = related_entities_history
+        self.config_path = config_path
 
     def get_history(self, include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict[URIRef, Dict[str, Dict[str, str]]]]:
         """
@@ -135,7 +137,7 @@ class AgnosticEntity:
                 }}
             }}
         """
-        results = list(Sparql(query_snapshots).run_select_query())
+        results = list(Sparql(query_snapshots, config_path=self.config_path).run_select_query())
         if not results:
             return None, None, None
         results.sort(key=lambda x:self._convert_to_datetime(x[1]), reverse=True)
@@ -344,7 +346,7 @@ class AgnosticEntity:
                     BIND (<{self.res}> AS ?s) 
                 }}   
             """
-        return Sparql(query_dataset).run_construct_query()
+        return Sparql(query_dataset, config_path=self.config_path).run_construct_query()
 
     def _query_provenance(self, include_prov_metadata:bool=False) -> ConjunctiveGraph:
         if include_prov_metadata:
@@ -383,7 +385,7 @@ class AgnosticEntity:
                     }}   
                 }}
             """
-        return Sparql(query_provenance).run_construct_query()
+        return Sparql(query_provenance, config_path=self.config_path).run_construct_query()
 
     @classmethod
     def _convert_to_datetime(cls, time_string: str) -> datetime:

@@ -29,7 +29,7 @@ from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_nt_so
 CONFIG_PATH = "test/config.json"
 
 class Test_BlazegraphQuery(unittest.TestCase):
-    def test__get_query_to_identify(self):
+    def test__get_query_to_update_queries(self):
         query = """
             prefix literal: <http://www.essepuntato.it/2010/06/literalreification/>
             SELECT DISTINCT ?br ?id ?value
@@ -38,7 +38,7 @@ class Test_BlazegraphQuery(unittest.TestCase):
             }   
         """
         triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
-        query_to_identify = BlazegraphQuery(query, config_path=CONFIG_PATH)._get_query_to_identify(triple).replace(" ", "").replace("\n", "")
+        query_to_identify = BlazegraphQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify = """
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
             SELECT DISTINCT ?updateQuery 
