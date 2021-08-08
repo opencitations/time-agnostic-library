@@ -24,6 +24,7 @@ from dateutil import parser
 
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.prov_entity import ProvEntity
+from time_agnostic_library.support import _to_nt_sorted_list
 
 
 class AgnosticEntity:
@@ -135,6 +136,8 @@ class AgnosticEntity:
             }}
         """
         results = list(Sparql(query_snapshots).run_select_query())
+        if not results:
+            return None, None, None
         results.sort(key=lambda x:self._convert_to_datetime(x[1]), reverse=True)
         results_after_time = list()
         for result in results:
@@ -147,14 +150,19 @@ class AgnosticEntity:
         entity_cg = self._query_dataset()
         self._manage_update_queries(entity_cg, sum_update_queries)
         entity_snapshot = dict()
-        snapshot_to_return = min(results, key=lambda x:abs(self._convert_to_datetime(x[1])-datetime_time))
-        entity_snapshot[snapshot_to_return[0]] = {
-            str(ProvEntity.iri_generated_at_time): snapshot_to_return[1],
-            str(ProvEntity.iri_was_attributed_to): snapshot_to_return[2],
-            str(ProvEntity.iri_had_primary_source): snapshot_to_return[4]
-        }
+        snaphots_before_time = [se for se in results if self._convert_to_datetime(se[1]) <= datetime_time]
+        if snaphots_before_time:
+            snapshot_to_return = max(snaphots_before_time)
+            entity_snapshot[snapshot_to_return[0]] = {
+                str(ProvEntity.iri_generated_at_time): snapshot_to_return[1],
+                str(ProvEntity.iri_was_attributed_to): snapshot_to_return[2],
+                str(ProvEntity.iri_had_primary_source): snapshot_to_return[4]
+            }
+        else:
+            snapshot_to_return = dict()
+            entity_snapshot = dict()
         if include_prov_metadata:
-            results.remove(snapshot_to_return)
+            results = [snapshot for snapshot in results if snapshot != snapshot_to_return]
             other_snapshots = dict()
             for result_tuple in results:
                 other_snapshots[result_tuple[0]] = {
@@ -166,6 +174,8 @@ class AgnosticEntity:
         return entity_cg, entity_snapshot, None
     
     def _include_prov_metadata(self, triples_generated_at_time:list, current_state:ConjunctiveGraph) -> dict:
+        if list(current_state.triples((URIRef(self.res), URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), ProvEntity.iri_entity))): 
+            return dict()
         prov_properties = [
             ProvEntity.iri_was_attributed_to, 
             ProvEntity.iri_had_primary_source, 
@@ -210,7 +220,7 @@ class AgnosticEntity:
         for quad in self._query_provenance(include_prov_metadata).quads():
             current_state.add(quad)
         if len(current_state) == 0:
-            entity_current_state.append(None)
+            entity_current_state.append(dict())
             return entity_current_state
         triples_generated_at_time = list(current_state.triples(
             (None, ProvEntity.iri_generated_at_time, None)))
@@ -264,11 +274,8 @@ class AgnosticEntity:
                                                    ] = previous_graph
         for time in list(entity_current_state[0][self.res]):
             cg_no_pro = entity_current_state[0][self.res].pop(time)
-            cg_no_pro.remove((None, ProvEntity.iri_generated_at_time, None))
-            cg_no_pro.remove((None, ProvEntity.iri_was_attributed_to, None))
-            cg_no_pro.remove((None, ProvEntity.iri_had_primary_source, None))
-            cg_no_pro.remove((None, ProvEntity.iri_has_update_query, None))
-            cg_no_pro.remove((None, ProvEntity.iri_description, None))
+            for prov_property in ProvEntity.get_prov_properties():
+                cg_no_pro.remove((None, prov_property, None))
             time_no_tz = self._convert_to_datetime(time)
             entity_current_state[0][self.res][time_no_tz.strftime("%Y-%m-%dT%H:%M:%S")] = cg_no_pro
         return entity_current_state

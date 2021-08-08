@@ -94,10 +94,9 @@ class Sparql:
         for file_path in storer:
             file_cg = ConjunctiveGraph()
             file_cg.parse(location=file_path, format="json-ld")
-            results = file_cg.query(self.query)
+            results = file_cg.query(self.query)._get_bindings()
             for result in results:
-                result_tuple = tuple(str(var) for var in result)
-                output.add(result_tuple)
+                self._get_tuples_set(self.query, result, output)
         return output
     
     def _get_tuples_from_triplestores(self) -> Set[Tuple]:
@@ -109,15 +108,8 @@ class Sparql:
             sparql.setQuery(self.query)
             sparql.setReturnFormat(JSON)
             results = sparql.queryAndConvert()
-            vars_list = prepareQuery(self.query).algebra["PV"]
             for result_dict in results["results"]["bindings"]:
-                results_list = list()
-                for var in vars_list:
-                    if str(var) in result_dict:
-                        results_list.append(result_dict[str(var)]["value"])
-                    else:
-                        results_list.append(None)
-                output.add(tuple(results_list))
+                self._get_tuples_set(self.query, result_dict, output)
         return output
             
     def run_construct_query(self) -> ConjunctiveGraph:
@@ -187,6 +179,17 @@ class Sparql:
                 sparql.setReturnFormat(RDFXML)
                 cg += sparql.queryAndConvert()            
         return cg        
+    
+    @classmethod
+    def _get_tuples_set(cls, query:str, result_dict:dict, output:set):
+        vars_list = prepareQuery(query).algebra["PV"]
+        results_list = list()
+        for var in vars_list:
+            if str(var) in result_dict:
+                results_list.append(str(result_dict[str(var)]["value"] if "value" in result_dict[str(var)] else result_dict[str(var)]))
+            else:
+                results_list.append(None)
+        output.add(tuple(results_list))
     
     def _cut_by_limit(self, input):
         algebra:CompValue = prepareQuery(self.query).algebra

@@ -23,7 +23,7 @@ from SPARQLWrapper.Wrapper import SPARQLWrapper, POST, JSON, RDFXML
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
-from rdflib import ConjunctiveGraph, URIRef, Literal, Variable
+from rdflib import ConjunctiveGraph, Graph, URIRef, Literal, Variable
 from oc_ocdm.support.query_utils import get_insert_query
 from tqdm import tqdm
 from dateutil import parser
@@ -48,17 +48,21 @@ class AgnosticQuery:
     .. CAUTION::
         Depending on the amount of snapshots, reconstructing the past state of knowledge may take a long time. For example, reconstructing 26 different states in each of which 23,000 entities have changed takes about 12 hours. The experiment was performed with an Intel Core i5 8500, a 1 TB SSD Nvme Pcie 3.0, and 32 GB RAM DDR4 3000 Mhz CL15.
     """
-    def __init__(self, query:str, config_path:str=CONFIG_PATH):
+    def __init__(self, query:str, on_time:str="", config_path:str=CONFIG_PATH):
         with open(config_path, encoding="utf8") as json_file:
             self.cache_triplestore_url:str = json.load(json_file)["cache_triplestore_url"]
         if self.cache_triplestore_url:
             self.sparql = SPARQLWrapper(self.cache_triplestore_url)
+        if on_time:
+            self.on_time = AgnosticEntity._convert_to_datetime(on_time).strftime("%Y-%m-%dT%H:%M:%S")
+        else:
+            self.on_time = on_time
         self.query = query
         self.config_path = config_path
         self.vars_to_explicit_by_time:Dict[str, Set[Tuple]] = dict()
         self.reconstructed_entities = set()
         self.relevant_entities_graphs:Dict[URIRef, Dict[str, ConjunctiveGraph]] = dict()
-        self.relevant_graphs:Dict[str, ConjunctiveGraph] = dict()
+        self.relevant_graphs:Dict[str, Union[ConjunctiveGraph, Set]] = dict()
         self.triples = self._process_query()
         self._rebuild_relevant_graphs()
     
@@ -105,12 +109,12 @@ class AgnosticQuery:
                 """
                 present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
                 print(f"[AgnosticQuery:INFO] Rebuilding current relevant entities for the triple {solvable_triple}.")
-                pbar = tqdm(total=len(present_results))
+                # pbar = tqdm(total=len(present_results))
                 for result in present_results:
                     self._rebuild_relevant_entity(result[0])
                     self._rebuild_relevant_entity(result[2])
-                    pbar.update(1)
-                pbar.close()
+                #     pbar.update(1)
+                # pbar.close()
                 self._find_entities_in_update_queries(triple)
             else:
                 self._rebuild_relevant_entity(triple[0])
@@ -120,28 +124,45 @@ class AgnosticQuery:
         # Then, the graphs of the entities obtained from the hooks are reconstructed
         self._solve_variables()
 
-    def _rebuild_relevant_entity(self, entity:Union[URIRef, Literal]):
+    def _rebuild_relevant_entity(self, entity:Union[URIRef, Literal]) -> None:
         if isinstance(entity, URIRef) and entity not in self.reconstructed_entities:
-            if self.cache_triplestore_url:
-                if self._entity_in_cache(entity):
-                    self._store_relevant_timestamps(entity)
-                    return
-            agnostic_entity = AgnosticEntity(entity, False)
-            entity_history = agnostic_entity.get_history(include_prov_metadata=False)[0]
-            if entity_history[entity]:
-                if self.cache_triplestore_url:
-                    # cache
-                    for _, reconstructed_graphs in entity_history.items():
-                        for timestamp, reconstructed_graph in reconstructed_graphs.items(): 
-                            self._cache_entity_graph(reconstructed_graph, timestamp)
-                    for entity, snapshots in entity_history.items():
-                        for timestamp, _ in snapshots.items():
-                            self.relevant_graphs.setdefault(timestamp, set())
-                            self.relevant_graphs[timestamp].add(entity)
-                else:
-                    # store in RAM
-                    self.relevant_entities_graphs.update(entity_history) 
             self.reconstructed_entities.add(entity)
+            if self.cache_triplestore_url:
+                relevant_timestamps_in_cache = self._get_relevant_timestamps_from_cache(entity)
+                if relevant_timestamps_in_cache:
+                    self._store_relevant_timestamps(entity, relevant_timestamps_in_cache)
+                    return
+            agnostic_entity = AgnosticEntity(entity, related_entities_history=False)
+            if self.on_time:
+                entity_at_time = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=True) 
+                if entity_at_time[0]:
+                    if len(entity_at_time[0]):
+                        (_, metadata), = entity_at_time[1].items()
+                        relevant_timestamp = metadata[str(ProvEntity.iri_generated_at_time)]
+                        relevant_timestamp = AgnosticEntity._convert_to_datetime(relevant_timestamp).strftime("%Y-%m-%dT%H:%M:%S")
+                        if self.cache_triplestore_url:
+                            # cache
+                            self._cache_entity_graph(entity, entity_at_time[0], relevant_timestamp, entity_at_time[1])
+                            self.relevant_graphs.setdefault(relevant_timestamp, set()).add(entity)
+                            for _, metadata in entity_at_time[2].items():
+                                timestamp = metadata[str(ProvEntity.iri_generated_at_time)]
+                                timestamp = AgnosticEntity._convert_to_datetime(timestamp).strftime("%Y-%m-%dT%H:%M:%S")
+                                self.relevant_graphs.setdefault(timestamp, set()).add(entity)
+                        else:
+                            # store in RAM
+                            self.relevant_entities_graphs.setdefault(entity, dict())[relevant_timestamp] = entity_at_time[0]
+            else:
+                entity_history = agnostic_entity.get_history(include_prov_metadata=True)
+                if entity_history[0][entity]:
+                    if self.cache_triplestore_url:
+                        # cache
+                        for entity, reconstructed_graphs in entity_history[0].items():
+                            for timestamp, reconstructed_graph in reconstructed_graphs.items(): 
+                                self._cache_entity_graph(entity, reconstructed_graph, timestamp, entity_history[1])
+                                self.relevant_graphs.setdefault(timestamp, set()).add(entity)
+                    else:
+                        # store in RAM
+                        self.relevant_entities_graphs.update(entity_history[0]) 
     
     def _align_snapshots(self) -> None:
         if self.cache_triplestore_url:
@@ -168,7 +189,7 @@ class AgnosticQuery:
                             self.sparql.setReturnFormat(RDFXML)
                             subj_graph = self.sparql.queryAndConvert()
                             self.relevant_graphs[se].add(subject)
-                            self._cache_entity_graph(subj_graph, se)
+                            self._cache_entity_graph(subject, subj_graph, se, dict())
         else:
             # Merge entities based on snapshots
             for _, snapshots in self.relevant_entities_graphs.items():
@@ -323,7 +344,7 @@ class AgnosticQuery:
         query_to_identify = self._get_query_to_identify(triple)
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
-            pbar = tqdm(total=len(results))
+            # pbar = tqdm(total=len(results))
             print(f"[AgnosticQuery:INFO] Searching for relevant entities in relevant update queries.")
             for result in results:
                 update = parseUpdate(result[0])
@@ -334,51 +355,68 @@ class AgnosticQuery:
                             relevant_entities = set(triple).difference(uris_in_triple) if len(uris_in_triple.intersection(triple)) == len(uris_in_triple) else None
                             if relevant_entities is not None:
                                 relevant_entities_found.update(relevant_entities)
-                pbar.update(1)
-            pbar.close()
+            #     pbar.update(1)
+            # pbar.close()
         new_entities_found = relevant_entities_found.difference(self.reconstructed_entities)
         if new_entities_found:
             print(f"[AgnosticQuery:INFO] Rebuilding relevant entities' history.")
-            pbar = tqdm(total=len(new_entities_found))
+            # pbar = tqdm(total=len(new_entities_found))
             for new_entity_found in new_entities_found:
                 self._rebuild_relevant_entity(new_entity_found)
-                pbar.update(1)
-            pbar.close()
+            #     pbar.update(1)
+            # pbar.close()
 
-    def _cache_entity_graph(self, reconstructed_graph:ConjunctiveGraph, timestamp:str) -> None:
+    def _cache_entity_graph(self, entity:str, reconstructed_graph:ConjunctiveGraph, timestamp:str, prov_metadata:dict) -> None:
         graph_iri = f"https://github.com/opencitations/time-agnostic-library/{timestamp}"
         insert_query = get_insert_query(graph_iri=graph_iri, data=reconstructed_graph)[0]
         if insert_query:
             self.sparql.setQuery(insert_query)
             self.sparql.setMethod(POST)
             self.sparql.query()
+        prov_graph = Graph()
+        for en, metadata in prov_metadata.items(): 
+            if str(ProvEntity.iri_generated_at_time) in metadata:
+                self._cache_provenance(prov_graph, en, entity)
+            else:
+                for se, _ in metadata.items():
+                    self._cache_provenance(prov_graph, se, en)
     
-    def _entity_in_cache(self, entity:URIRef) -> bool:
+    def _cache_provenance(self, prov_graph:Graph, se_uri:str, entity:str) -> None:
+        prov_graph.add((URIRef(se_uri), ProvEntity.iri_specialization_of, URIRef(entity)))
+        insert_query = get_insert_query(graph_iri="", data=prov_graph)[0]
+        self.sparql.setQuery(insert_query)
+        self.sparql.setMethod(POST)
+        self.sparql.query()
+
+    def _get_relevant_timestamps_from_cache(self, entity:URIRef) -> set:
+        relevant_timestamps = set()
         query_timestamps = f"""
-            SELECT DISTINCT ?g 
-            WHERE {{GRAPH ?g {{<{entity}> ?p ?o}}}}
+            SELECT DISTINCT ?se
+            WHERE {{
+                ?se <{ProvEntity.iri_specialization_of}> <{entity}>.
+            }}
         """
-        self.sparql.setQuery(query_timestamps)
-        self.sparql.setReturnFormat(JSON)
-        results = self.sparql.queryAndConvert()
-        return bool(results["results"]["bindings"])
-    
-    def _store_relevant_timestamps(self, entity:URIRef):
-        query_timestamps = f"""
-            SELECT DISTINCT ?timestamp
+        query_provenance = f"""
+            SELECT DISTINCT ?se ?timestamp
             WHERE {{
                 ?se <{ProvEntity.iri_specialization_of}> <{entity}>;
                     <{ProvEntity.iri_generated_at_time}> ?timestamp.
             }}
         """
-        sparql = Sparql(query_timestamps)
-        results = sparql.run_select_query()
-        for result in results:
-            for timestamp in result:
-                timestamp = AgnosticEntity._convert_to_datetime(timestamp).strftime("%Y-%m-%dT%H:%M:%S")
-                self.relevant_graphs.setdefault(timestamp, set())
-                self.relevant_graphs[timestamp].add(entity)
-                self.reconstructed_entities.add(entity)
+        self.sparql.setQuery(query_timestamps)
+        self.sparql.setReturnFormat(JSON)
+        results = self.sparql.queryAndConvert()
+        provenance = Sparql(query = query_provenance).run_select_query()
+        if len(results["results"]["bindings"]) == len(provenance) and len(provenance) > 0:
+            for timestamp in provenance:
+                relevant_timestamps.add(timestamp[1])
+        return relevant_timestamps
+    
+    def _store_relevant_timestamps(self, entity:URIRef, relevant_timestamps:list):
+        for timestamp in relevant_timestamps:
+            timestamp = AgnosticEntity._convert_to_datetime(timestamp).strftime("%Y-%m-%dT%H:%M:%S")
+            self.relevant_graphs.setdefault(timestamp, set()).add(entity)
+            self.reconstructed_entities.add(entity)
         
     def run_agnostic_query(self) -> Dict[str, Set[Tuple]]:
         """
@@ -390,7 +428,6 @@ class AgnosticQuery:
         """
         agnostic_result:dict[str, Set[Tuple]] = dict()
         if self.cache_triplestore_url:
-            vars_list = prepareQuery(self.query).algebra["PV"]
             for timestamp, _ in self.relevant_graphs.items():
                 output = set()
                 split_by_where = re.split(pattern="where", string=self.query, maxsplit=1, flags=re.IGNORECASE)
@@ -399,26 +436,23 @@ class AgnosticQuery:
                 self.sparql.setReturnFormat(JSON)
                 results = self.sparql.queryAndConvert()
                 for result_dict in results["results"]["bindings"]:
-                    results_list = list()
-                    for var in vars_list:
-                        if str(var) in result_dict:
-                            results_list.append(result_dict[str(var)]["value"])
-                        else:
-                            results_list.append(None)
-                    output.add(tuple(results_list))
+                    Sparql._get_tuples_set(self.query, result_dict, output)
                 agnostic_result[timestamp] = output
         else:
             for snapshot, graph in self.relevant_graphs.items():
-                results = graph.query(self.query)
+                results = graph.query(self.query)._get_bindings()
                 output = set()
                 for result in results:
-                    result_tuple = tuple(str(var) if var else None for var in result)
-                    output.add(result_tuple)
+                    Sparql._get_tuples_set(self.query, result, output)
                 agnostic_result[snapshot] = output
+        if self.on_time:
+            on_time_datetime = AgnosticEntity._convert_to_datetime(self.on_time)
+            timestamp = max([timestamp for timestamp in agnostic_result.keys() if AgnosticEntity._convert_to_datetime(timestamp) <= on_time_datetime])
+            agnostic_result = {timestamp: agnostic_result[timestamp]}
         return agnostic_result
 
 class BlazegraphQuery(AgnosticQuery):
-    def __init__(self, query:str, config_path:str = CONFIG_PATH):
+    def __init__(self, query:str, on_time:str="", config_path:str = CONFIG_PATH):
         with open(config_path, encoding="utf8") as json_file:
             blazegraph_full_text_search:str = json.load(json_file)["blazegraph_full_text_search"]
         if blazegraph_full_text_search.lower() in {"true", "1", 1, "t", "y", "yes", "ok"}:
@@ -427,7 +461,7 @@ class BlazegraphQuery(AgnosticQuery):
             self.blazegraph_full_text_search = False
         else:
             raise ValueError("Enter a valid value for 'blazegraph_full_text_search' in the configuration file, for example 'yes' or 'no'.")
-        super(BlazegraphQuery, self).__init__(query, config_path)    
+        super(BlazegraphQuery, self).__init__(query, on_time, config_path)    
 
     def _get_query_to_identify(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
