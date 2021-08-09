@@ -1,12 +1,11 @@
 # Custom
-/db
 /.vscode
-/test/blazegraph.jnl
-/test/blazegraph_copia.jnl
-/test/rules.log
-/test/info_dir/
-/test/blazegraph.jar
-/test/cache/
+/tests/blazegraph.jnl
+/tests/blazegraph_copia.jnl
+/tests/rules.log
+/tests/info_dir/
+/tests/blazegraph.jar
+/tests/cache/
 setup.py
 execution_example.py
 
@@ -38,6 +37,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+pyproject.toml
+setup.cfg 
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

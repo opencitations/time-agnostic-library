@@ -15,16 +15,11 @@
 # SOFTWARE.
 
 import unittest, rdflib, json
-
-from rdflib.paths import InvPath
-from rdflib import Variable, URIRef
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
-from pprint import pprint
-
 from time_agnostic_library.agnostic_query import AgnosticQuery
 from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph
 
-CONFIG_PATH = "test/config.json"
+CONFIG_PATH = "tests/config.json"
 
 class Test_AgnosticQuery(unittest.TestCase):        
     def test__tree_traverse_no_options(self):

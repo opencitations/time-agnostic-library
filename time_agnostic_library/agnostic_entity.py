@@ -217,13 +217,13 @@ class AgnosticEntity:
         """
         entity_current_state = [{self.res: dict()}]
         current_state = ConjunctiveGraph()
-        for quad in self._query_dataset().quads():
-            current_state.add(quad)
         for quad in self._query_provenance(include_prov_metadata).quads():
             current_state.add(quad)
         if len(current_state) == 0:
             entity_current_state.append(dict())
             return entity_current_state
+        for quad in self._query_dataset().quads():
+            current_state.add(quad)
         triples_generated_at_time = list(current_state.triples(
             (None, ProvEntity.iri_generated_at_time, None)))
         most_recent_time = None

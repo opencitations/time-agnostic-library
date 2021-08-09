@@ -14,19 +14,11 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest, datetime, rdflib, json
-
-from rdflib.graph import ConjunctiveGraph
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
-from pprint import pprint
-
-from time_agnostic_library.sparql import Sparql
-from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.agnostic_entity import AgnosticEntity
-from time_agnostic_library.agnostic_query import AgnosticQuery, BlazegraphQuery
+import unittest, json
+from SPARQLWrapper import SPARQLWrapper, JSON
 from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_nt_sorted_list, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph, empty_the_cache
 
-CONFIG_PATH = "test/config.json"
+CONFIG_PATH = "tests/config.json"
 
 class Test_Support(unittest.TestCase):
     def test_empty_the_cache(self):

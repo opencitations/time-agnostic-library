@@ -329,7 +329,7 @@ class AgnosticQuery:
                 CONSTRUCT {{{solvable_triple[2]} {predicate} {solvable_triple[0]}}}
                 WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
             """
-        elif isinstance(triple[1], URIRef):
+        elif isinstance(triple[1], URIRef) or isinstance(triple[1], Variable):
             query_to_identify = f"""
                 CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
                 WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
