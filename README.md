@@ -2,6 +2,8 @@
 
 **time-agnostic-library** is a Python &ge;3.7 library that enables the user to perform time-travel queries on RDF datasets compliant with the [OCDM v2.0.1](https://figshare.com/articles/Metadata_for_the_OpenCitations_Corpus/3443876) provenance specification.
 
+Documentation can be found here: [https://time-agnostic-library.readthedocs.io](https://time-agnostic-library.readthedocs.io).
+
 ## User's guide
 
 This package can be installed with **pip**:
@@ -174,3 +176,24 @@ The configuration file is mainly used to indicate to the library where to search
       "cache_triplestore_url": "TRIPLESTORE_URL"
   }
 ```
+
+## Developer's guide
+
+### How to build the documentation
+
+  1. Move inside the `docs` folder:
+``` bash
+    cd docs
+```
+  2. Use the Makefile provided to build the docs:
+      + _on Windows_
+        ```
+            ./make.bat html
+        ```
+      + _on Linux and MacOs_
+        ```
+            make html
+        ```
+  3. Open the `_build/html/index.html` file with a web browser of your choice!
+
+
