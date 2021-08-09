@@ -1,0 +1,6 @@
+oc_ocdm
+rdflib
+rdflib-jsonld
+SPARQLWrapper
+sphinx-material
+tqdm
