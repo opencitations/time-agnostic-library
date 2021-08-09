@@ -34,9 +34,9 @@ class AgnosticEntity:
     
     :param res: The URI of the entity
     :type res: str
-    :param related_entities_history: True, if you also want to return information on related entities, those that have the URI of the res parameter as an object, False otherwise, defaults to False
+    :param related_entities_history: True, if you also want to return information on related entities, those that have the URI of the res parameter as an object, False otherwise.
     :type related_entities_history: bool, optional
-    :param config_path: The path to the configuration file, defaults to "./config.json"
+    :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
 
@@ -49,7 +49,7 @@ class AgnosticEntity:
         """
         It materializes all versions of an entity. If **related_entities_history** is True, 
         it also materializes all versions of all related entities, 
-        which have res as object rather than subject. 
+        which have **res** as object rather than subject. 
         If **include_prov_metadata** is True, 
         the provenance metadata of the returned entity/entities is also returned.
         The output has the following format: ::
@@ -76,7 +76,7 @@ class AgnosticEntity:
                 } 
             )
 
-        :returns:  Tuple[dict, Union[dict, None]] -- The output is always a two-element tuple. The first is a dictionary containing all the versions of a given resource. The second is a dictionary containing all the provenance metadata linked to that resource if include_prov_metadata is True, None if False
+        :returns:  Tuple[dict, Union[dict, None]] -- The output is always a two-element tuple. The first is a dictionary containing all the versions of a given resource. The second is a dictionary containing all the provenance metadata linked to that resource if **include_prov_metadata** is True, None if False.
         """
         if self.related_entities_history:
             entities_to_query = {self.res}
@@ -127,11 +127,11 @@ class AgnosticEntity:
                 }
             )
 
-        :param time: Any time value, not necessarily the exact value of a snapshot. The status of the resource will be returned to the most recent past snapshot compared to the specified time. The time can be specified using any existing standard
+        :param time: Any time value, not necessarily the exact value of a snapshot. The status of the resource will be returned to the most recent past snapshot compared to the specified time. The time can be specified using any existing standard.
         :type time: str.
-        :param include_prov_metadata: If True, hooks are returned to the previous and subsequent snapshots, defaults to False
+        :param include_prov_metadata: If True, hooks are returned to the previous and subsequent snapshots.
         :type include_prov_metadata: bool, optional
-        :returns: Tuple[Graph, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is the resource rdflib.Graph at that time, the second is the snapshot metadata of which the state has been returned. If the include_prov_metadata parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists
+        :returns: Tuple[Graph, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is the resource rdflib.Graph at that time, the second is the snapshot metadata of which the state has been returned. If the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
         """
         datetime_time = self._convert_to_datetime(time)
         query_snapshots = f"""

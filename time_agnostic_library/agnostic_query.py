@@ -38,11 +38,11 @@ class AgnosticQuery:
     """
     This class allows time-travel queries, both on a single version and all versions of the dataset.
 
-    :param query: The SPARQL query string
+    :param query: The SPARQL query string.
     :type query: str
-    :param on_time: If you want to query a specific version, specify the time here. The specified time can be any time, not necessarily the exact time of a snapshot. In addition, it can be specified in any existing standard, defaults to ""
-    :type query: str, optional
-    :param config_path: The path to the configuration file, defaults to "./config.json"
+    :param on_time: If you want to query a specific version, specify the time here. The specified time can be any time, not necessarily the exact time of a snapshot. In addition, it can be specified in any existing standard.
+    :type on_time: str, optional
+    :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
     def __init__(self, query:str, on_time:str="", config_path:str=CONFIG_PATH):
@@ -431,7 +431,7 @@ class AgnosticQuery:
         Run the query provided as a time-travel query. 
         If the **on_time** argument was specified, it runs on a single version, on all versions otherwise.
         
-        :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query
+        :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
         """
         agnostic_result:dict[str, Set[Tuple]] = dict()
         if self.cache_triplestore_url:

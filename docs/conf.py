@@ -32,8 +32,15 @@ release = '1.0.0-beta'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode'
+    'sphinx.ext.viewcode',
+    'sphinx_autodoc_defaultargs'
 ]
+
+rst_prolog = """
+.. |default| raw:: html
+
+    <div class="default-value-section">""" + \
+    ' <span class="default-value-label">Default:</span>'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

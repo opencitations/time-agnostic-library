@@ -38,8 +38,10 @@ class Sparql:
     There are two types of sources: dataset and provenance sources and they need to be specified separately.
     Both triplestores and JSON files are supported. 
     In addition, some optional values can be set to make executions faster and more efficient.
+
     - **blazegraph_full_text_search**: Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure. The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
     - **cache_triplestore_url**: Specifies the triplestore URL to use as a cache to make queries faster.
+    
     Here is an example of the configuration file content: ::
 
         {
@@ -55,7 +57,7 @@ class Sparql:
             "cache_triplestore_url": "http://localhost:19999/blazegraph/sparql"
         }            
 
-    :param config_path: The path to the configuration file, defaults to "./config.json"
+    :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
     def __init__(self, query:str, config_path:str=CONFIG_PATH):
@@ -80,7 +82,7 @@ class Sparql:
         """
         Given a SELECT query, it returns the results in a set of tuples. 
 
-        :returns:  Set[Tuple] -- A set of tuples, in which the positional value of the elements in the tuples is equivalent to the variables indicated in the query
+        :returns:  Set[Tuple] -- A set of tuples, in which the positional value of the elements in the tuples is equivalent to the variables indicated in the query.
         """
         output = set()
         if self.storer["file_paths"]:
@@ -118,7 +120,7 @@ class Sparql:
         """
         Given a CONSTRUCT query, it returns the results in a ConjunctiveGraph. 
 
-        :returns:  ConjunctiveGraph -- A ConjunctiveGraph containing the results of the query 
+        :returns:  ConjunctiveGraph -- A ConjunctiveGraph containing the results of the query.
         """
         cg = ConjunctiveGraph()
         if self.storer["file_paths"]:

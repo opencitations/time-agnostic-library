@@ -26,7 +26,7 @@ def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
     """
     It empties the entire cache.
         
-    :param config_path: The path to the configuration file, defaults to "./config.json"
+    :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
     with open(config_path, encoding="utf8") as json_file:
