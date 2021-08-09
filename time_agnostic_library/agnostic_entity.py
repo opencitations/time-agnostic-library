@@ -14,58 +14,69 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-from typing import List, Tuple, Dict, Set
+from typing import List, Tuple, Dict, Set, Union
 import copy, re
 from datetime import datetime
-from rdflib.graph import ConjunctiveGraph
+from rdflib.graph import ConjunctiveGraph, Graph
 from rdflib.term import URIRef
 from rdflib.plugins.sparql.processor import processUpdate
 from dateutil import parser
 
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.support import _to_nt_sorted_list
 
 CONFIG_PATH = "./config.json"
 
 class AgnosticEntity:
     """
-    An entity you want to obtain information about.
-    Not only the present ones, but also the past ones, 
-    based on the snapshots available for that entity.
-
-    :param res: The URI of the entity.
-    :type res: str.
-    :param related_entities_history: True if you also want to return information on related entities, that is, the ones that have the URI of the res parameter as object, False otherwise. The default is False. 
-    :type related_entities_history: bool.
+    The entity of which you want to materialize one or all versions, 
+    based on the provenance snapshots available for that entity.
+    
+    :param res: The URI of the entity
+    :type res: str
+    :param related_entities_history: True, if you also want to return information on related entities, those that have the URI of the res parameter as an object, False otherwise, defaults to False
+    :type related_entities_history: bool, optional
+    :param config_path: The path to the configuration file, defaults to "./config.json"
+    :type config_path: str, optional
     """
 
-    def __init__(self, res: str, related_entities_history: bool = False, config_path:str=CONFIG_PATH):
+    def __init__(self, res:str, related_entities_history:bool=False, config_path:str=CONFIG_PATH):
         self.res = res
         self.related_entities_history = related_entities_history
         self.config_path = config_path
 
-    def get_history(self, include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict[URIRef, Dict[str, Dict[str, str]]]]:
+    def get_history(self, include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]]]:
         """
-        Given the URI of a resource, it reconstructs its entire history, 
-        returning a dictionary according to the following model: ::
+        It materializes all versions of an entity. If **related_entities_history** is True, 
+        it also materializes all versions of all related entities, 
+        which have res as object rather than subject. 
+        If **include_prov_metadata** is True, 
+        the provenance metadata of the returned entity/entities is also returned.
+        The output has the following format: ::
 
-            {
-                "entity_URI": {
-                    "time_snapshot_1": graph_at_time_1,
-                    "time_snapshot_2": graph_at_time_2,
-                    "time_snapshot_n": graph_at_time_n
-                }
-            }
+            (
+                {
+                    RES_URI: {
+                            TIME_1: ENTITY_GRAPH_AT_TIME_1, 
+                            TIME_2: ENTITY_GRAPH_AT_TIME_2
+                    }
+                },
+                {
+                    RES_URI: {
+                        SNAPSHOT_URI_AT_TIME_1': {
+                            'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
+                            'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+                            'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                        }, 
+                        SNAPSHOT_URI_AT_TIME_2: {
+                            'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
+                            'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+                            'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                    }
+                } 
+            )
 
-        What is meant by graph? By graph we mean all the triples that have 
-        the entity as subject plus the provenance information present at time t 
-        (not all existing ones, only those existing at that given instant).
-        If the object of type AgnosticEntity has been instantiated by passing the 
-        related_entities_history parameter as True, the graph also contains the related entities, 
-        that is, those that have the entity as an object.
-
-        :returns:  Dict[str, Dict[str, ConjunctiveGraph]] -- A dictionary containing the graphs related to each considered entities in each of the existing snapshots of these entities.
+        :returns:  Tuple[dict, Union[dict, None]] -- The output is always a two-element tuple. The first is a dictionary containing all the versions of a given resource. The second is a dictionary containing all the provenance metadata linked to that resource if include_prov_metadata is True, None if False
         """
         if self.related_entities_history:
             entities_to_query = {self.res}
@@ -75,7 +86,7 @@ class AgnosticEntity:
             for entity in related_entities:
                 if ProvEntity.PROV not in entity[1]:
                     entities_to_query.add(str(entity[0]))
-            return get_entities_histories(entities_to_query, include_prov_metadata)
+            return _get_entities_histories(entities_to_query, include_prov_metadata)
         entity_history = self._get_entity_current_state(include_prov_metadata)
         entity_history = self._get_old_graphs(entity_history)
         return tuple(entity_history)
@@ -84,43 +95,43 @@ class AgnosticEntity:
         self, 
         time: str, 
         include_prov_metadata: bool = False, 
-        ) -> Tuple[ConjunctiveGraph, Dict[str, str], Dict[str, str]]:
+        ) -> Tuple[Graph, dict, Union[dict, None]]:
         """
         Given a time, the function returns the resource's state at that time, the returned snapshot metadata
         and, optionally, the hooks to the previous and subsequent states.
         Snapshot metadata includes generation time, the responsible agent and the primary source.
         The specified time can be any time, not necessarily the exact time of a snapshot. 
         In addition, it can be specified in any existing standard. 
-        Here is an example of possible output: ::
+        The output has the following format: ::
 
             (
-                <Graph identifier=N75add58bd55b4d9f88082787e3e2c888 (<class 'rdflib.graph.ConjunctiveGraph'>)>,
+                ENTITY_GRAPH_AT_TIME, 
                 {
-                    'https://github.com/arcangelo7/time_agnostic/id/1/prov/se/2': {
-                        'http://www.w3.org/ns/prov#generatedAtTime': '2021-06-04T09:36:53.000Z',
-                        'http://www.w3.org/ns/prov#hadPrimarySource': None,
-                        'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
+                    SNAPSHOT_URI_AT_TIME: {
+                        'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
+                        'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+                        'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
                     }
-                },
+                }, 
                 {
-                    'https://github.com/arcangelo7/time_agnostic/id/1/prov/se/1': {
-                        'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-29T16:20:22.000Z',
-                        'http://www.w3.org/ns/prov#hadPrimarySource': None,
-                        'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
-                    },
-                    'https://github.com/arcangelo7/time_agnostic/id/1/prov/se/3': {
-                        'http://www.w3.org/ns/prov#generatedAtTime': '2021-06-04T11:15:32.000Z',
-                        'http://www.w3.org/ns/prov#hadPrimarySource': None,
-                        'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
+                    OTHER_SNAPSHOT_URI_1: {
+                        'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
+                        'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+                        'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                    }, 
+                    OTHER_SNAPSHOT_URI_2: {
+                        'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
+                        'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+                        'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
                     }
                 }
             )
 
-        :param time: Any time value, not necessarily the exact value of a snapshot. The status of the resource will be returned to the most recent past snapshot compared to the specified time. The time can be specified using any existing standard.
+        :param time: Any time value, not necessarily the exact value of a snapshot. The status of the resource will be returned to the most recent past snapshot compared to the specified time. The time can be specified using any existing standard
         :type time: str.
-        :param include_prov_metadata: If True, hooks are returned to the previous and subsequent snapshots. The default value is False.
-        :type include_prov_metadata: bool.
-        :returns: tuple --   The method always returns a tuple of three elements: the first is the resource conjunctive graph at that time, the second is the snapshot metadata of which the state has been returned. If the include_prov_metadata parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
+        :param include_prov_metadata: If True, hooks are returned to the previous and subsequent snapshots, defaults to False
+        :type include_prov_metadata: bool, optional
+        :returns: Tuple[Graph, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is the resource rdflib.Graph at that time, the second is the snapshot metadata of which the state has been returned. If the include_prov_metadata parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists
         """
         datetime_time = self._convert_to_datetime(time)
         query_snapshots = f"""
@@ -204,17 +215,6 @@ class AgnosticEntity:
         return prov_metadata
 
     def _get_entity_current_state(self, include_prov_metadata:bool=False) -> list:
-        """
-        Given the URI of a resource, it outputs a dictionary populating only 
-        the instant at time t, that is the present one, according to the following model:
-        {
-            "entity_URI": {
-                "time_snapshot_1": graph_at_time_1,
-                "time_snapshot_2": None,
-                "time_snapshot_n": None
-            }
-        }        
-        """
         entity_current_state = [{self.res: dict()}]
         current_state = ConjunctiveGraph()
         for quad in self._query_provenance(include_prov_metadata).quads():
@@ -245,10 +245,6 @@ class AgnosticEntity:
         return entity_current_state
 
     def _get_old_graphs(self, entity_current_state:List[Dict[str, Dict[str, ConjunctiveGraph]]]) -> list:
-        """
-        Given as input the output of _get_entity_current_state, it populates the graphs 
-        relating to the past snapshots of the resource.        
-        """
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
             entity_current_state[0][self.res].items(),
             key=lambda x: self._convert_to_datetime(x[0]),
@@ -392,37 +388,7 @@ class AgnosticEntity:
         return parser.parse(time_string).replace(tzinfo=None)
 
 
-def get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
-    """
-    Given a set of entities URIs it returns the history of those entities. 
-    You can also specify via the related_entities_history parameter
-    if you are also interested in the history of related entities.
-    It returns a dictionary according to the following model: ::
-
-        {
-            "entity_1_URI": {
-                "time_snapshot_1": graph_at_time_1,
-                "time_snapshot_2": graph_at_time_2,
-                "time_snapshot_n": graph_at_time_n
-            },
-            "entity_2_URI": {
-                "time_snapshot_1": graph_at_time_1,
-                "time_snapshot_2": graph_at_time_2,
-                "time_snapshot_n": graph_at_time_n
-            },
-            "entity_n_URI": {
-                "time_snapshot_1": graph_at_time_1,
-                "time_snapshot_2": graph_at_time_2,
-                "time_snapshot_n": graph_at_time_n
-            }
-        }
-
-    :param res_set: A set of the entities URI you want to retrieve the history about.
-    :type res_set: set.
-    :param related_entities_history: True if you also want to return information on related entities, that is, the ones that have the URIs in the res_set parameter as object, False otherwise. The default is False. 
-    :type related_entities_history: bool.
-    :returns:  Dict[str, Dict[str, ConjunctiveGraph]] -- A dictionary containing the graphs related to each considered entities in each of the existing snapshots of these entities.
-    """
+def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
     entities_histories = [dict(), dict()]
     for res in res_set:
         agnosticEntity = AgnosticEntity(res, related_entities_history=False)

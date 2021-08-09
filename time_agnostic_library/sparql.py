@@ -35,9 +35,12 @@ class Sparql:
     It is instantiated by passing as a parameter 
     the path to a configuration file, whose default location is "./config.json".
     The configuration file must be in JSON format and contain information on the sources to be queried. 
-    There are two types of sources, dataset sources and provenance sources, and they need to be specified separately. 
-    Each must contain the URLs of the triplestore on which to search for information and/or the paths of the files that 
-    contain the information. The files must be in JSON format. Here is an example of the configuration file content: ::
+    There are two types of sources: dataset and provenance sources and they need to be specified separately.
+    Both triplestores and JSON files are supported. 
+    In addition, some optional values can be set to make executions faster and more efficient.
+    - **blazegraph_full_text_search**: Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure. The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
+    - **cache_triplestore_url**: Specifies the triplestore URL to use as a cache to make queries faster.
+    Here is an example of the configuration file content: ::
 
         {
             "dataset": {
@@ -46,12 +49,14 @@ class Sparql:
             },
             "provenance": {
                 "triplestore_urls": [],
-                "file_paths": ["./test/scientometrics_prov.json"]
-            }
+                "file_paths": ["./prov.json"]
+            },
+            "blazegraph_full_text_search": "yes",
+            "cache_triplestore_url": "http://localhost:19999/blazegraph/sparql"
         }            
 
-    :param config_path: The path to the configuration file.
-    :type config_path: str.
+    :param config_path: The path to the configuration file, defaults to "./config.json"
+    :type config_path: str, optional
     """
     def __init__(self, query:str, config_path:str=CONFIG_PATH):
         self.query = query
@@ -75,9 +80,7 @@ class Sparql:
         """
         Given a SELECT query, it returns the results in a set of tuples. 
 
-        :param query: A SELECT query.
-        :type query: str.
-        :returns:  Set[Tuple] -- A set of tuples, in which the positional value of the tuples corresponds to the positional value of the variables indicated in the query.
+        :returns:  Set[Tuple] -- A set of tuples, in which the positional value of the elements in the tuples is equivalent to the variables indicated in the query
         """
         output = set()
         if self.storer["file_paths"]:
@@ -115,9 +118,7 @@ class Sparql:
         """
         Given a CONSTRUCT query, it returns the results in a ConjunctiveGraph. 
 
-        :param query: A CONSTRUCT query.
-        :type query: str.
-        :returns:  ConjunctiveGraph -- A ConjunctiveGraph containing the results of the query. 
+        :returns:  ConjunctiveGraph -- A ConjunctiveGraph containing the results of the query 
         """
         cg = ConjunctiveGraph()
         if self.storer["file_paths"]:

@@ -80,7 +80,7 @@ In this case, the output is always a two-element tuple. The first is a dictionar
             'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
             'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
         }
-    }, 
+    } 
   )
 ```
 

@@ -15,7 +15,6 @@
 # SOFTWARE.
 
 from typing import Set, Tuple, Dict, List, Union
-from pprint import pprint
 
 import re, json
 from copy import deepcopy
@@ -37,17 +36,14 @@ CONFIG_PATH = "./config.json"
 
 class AgnosticQuery:
     """
-    This class represents a time agnostic query, that is, it is executed both on the present state of knowledge and on those passed.
+    This class allows time-travel queries, both on a single version and all versions of the dataset.
 
-    :param past_graphs_location: Path of a file or URL of a triplestore from which to derive the past graphs. If nothing is indicated, the graphs are automatically reconstructed to the destination indicated in the parameter "past_graphs_destination".
-    :type past_graphs_location: str
-    :param past_graphs_destination: Destination to save past graphs to. You can specify both a path or the URL of a triplestore. If nothing is indicated, by default it is a file named "past_graphs.json" in the current directory.
-    :type past_graphs_destination: str
-    :param query: The query to execute on all the present and passed states of all the graphs.
+    :param query: The SPARQL query string
     :type query: str
-
-    .. CAUTION::
-        Depending on the amount of snapshots, reconstructing the past state of knowledge may take a long time. For example, reconstructing 26 different states in each of which 23,000 entities have changed takes about 12 hours. The experiment was performed with an Intel Core i5 8500, a 1 TB SSD Nvme Pcie 3.0, and 32 GB RAM DDR4 3000 Mhz CL15.
+    :param on_time: If you want to query a specific version, specify the time here. The specified time can be any time, not necessarily the exact time of a snapshot. In addition, it can be specified in any existing standard, defaults to ""
+    :type query: str, optional
+    :param config_path: The path to the configuration file, defaults to "./config.json"
+    :type config_path: str, optional
     """
     def __init__(self, query:str, on_time:str="", config_path:str=CONFIG_PATH):
         with open(config_path, encoding="utf8") as json_file:
@@ -432,11 +428,10 @@ class AgnosticQuery:
         
     def run_agnostic_query(self) -> Dict[str, Set[Tuple]]:
         """
-        It launches a time agnostic query, 
-        which returns the result not only with respect to the current state of knowledge, 
-        but also with respect to past ones.
-
-        :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
+        Run the query provided as a time-travel query. 
+        If the **on_time** argument was specified, it runs on a single version, on all versions otherwise.
+        
+        :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query
         """
         agnostic_result:dict[str, Set[Tuple]] = dict()
         if self.cache_triplestore_url:

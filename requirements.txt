@@ -1,5 +1,0 @@
-oc_ocdm
-rdflib
-rdflib-jsonld
-SPARQLWrapper
-tqdm
