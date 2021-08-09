@@ -1,5 +1,5 @@
-dateutil
 oc_ocdm
+python-dateutil
 rdflib
 rdflib-jsonld
 SPARQLWrapper
