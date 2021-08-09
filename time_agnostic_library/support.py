@@ -28,7 +28,6 @@ def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
         
     :param config_path: The path to the configuration file, defaults to "./config.json"
     :type config_path: str, optional
-    :returns None
     """
     with open(config_path, encoding="utf8") as json_file:
         cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]
