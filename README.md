@@ -147,18 +147,18 @@ The output is a dictionary in which the keys are the snapshots relevant to that 
   }
 ```
 
-<h2 id="configuration-file">Configuration file</h2>
+<h3 id="configuration-file">Configuration file</h3>
 
 The configuration file is mainly used to indicate to the library where to search for data and provenance. In addition, some optional values can be set to make executions faster and more efficient.
 
-- **dataset**
+- **dataset** (required)
   - **triplestore_urls**: Specify a list of triplestore URLs containing data.  
   - **file_paths**: Specify a list of paths of files containing data.   
-- **provenance**:
+- **provenance** (required)
   - **triplestore_urls**: Specify a list of triplestore URLs containing provenance metadata.    
-  - **file_paths**: Specify a list of paths of files containing provenance metadata.      
-- **blazegraph_full_text_search**: Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see [https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure](https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure). The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
-- **cache_triplestore_url**: Specifies the triplestore URL to use as a cache to make queries faster.
+  - **file_paths** Specify a list of paths of files containing provenance metadata.      
+- **blazegraph_full_text_search** (optional): Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see [https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure](https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure). The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
+- **cache_triplestore_url** (optional): Specifies the triplestore URL to use as a cache to make queries faster.
 
 ``` json
   {
