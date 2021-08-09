@@ -174,3 +174,24 @@ The configuration file is mainly used to indicate to the library where to search
       "cache_triplestore_url": "TRIPLESTORE_URL"
   }
 ```
+
+## Developer's guide
+
+### How to build the documentation
+
+  1. Move inside the `docs` folder:
+``` bash
+    cd docs
+```
+  2. Use the Makefile provided to build the docs:
+      + _on Windows_
+        ```
+            ./make.bat html
+        ```
+      + _on Linux and MacOs_
+        ```
+            make html
+        ```
+  3. Open the `_build/html/index.html` file with a web browser of your choice!
+
+
