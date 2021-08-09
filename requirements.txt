@@ -1,6 +1,3 @@
-copy
-dateutil
-json
 oc_ocdm
 rdflib
 rdflib-jsonld

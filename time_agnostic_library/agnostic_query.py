@@ -105,12 +105,12 @@ class AgnosticQuery:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 query_to_identify = self._get_query_to_identify(triple)
                 present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
-                # pbar = tqdm(total=len(present_results))
+                pbar = tqdm(total=len(present_results))
                 for result in present_results:
                     self._rebuild_relevant_entity(result[0])
                     self._rebuild_relevant_entity(result[2])
-                #     pbar.update(1)
-                # pbar.close()
+                    pbar.update(1)
+                pbar.close()
                 self._find_entities_in_update_queries(triple)
             else:
                 self._rebuild_relevant_entity(triple[0])
@@ -356,7 +356,7 @@ class AgnosticQuery:
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
-            # pbar = tqdm(total=len(results))
+            pbar = tqdm(total=len(results))
             print(f"[AgnosticQuery:INFO] Searching for relevant entities in relevant update queries.")
             for result in results:
                 update = parseUpdate(result[0])
@@ -367,16 +367,16 @@ class AgnosticQuery:
                             relevant_entities = set(triple).difference(uris_in_triple) if len(uris_in_triple.intersection(triple)) == len(uris_in_triple) else None
                             if relevant_entities is not None:
                                 relevant_entities_found.update(relevant_entities)
-            #     pbar.update(1)
-            # pbar.close()
+                pbar.update(1)
+            pbar.close()
         new_entities_found = relevant_entities_found.difference(self.reconstructed_entities)
         if new_entities_found:
             print(f"[AgnosticQuery:INFO] Rebuilding relevant entities' history.")
-            # pbar = tqdm(total=len(new_entities_found))
+            pbar = tqdm(total=len(new_entities_found))
             for new_entity_found in new_entities_found:
                 self._rebuild_relevant_entity(new_entity_found)
-            #     pbar.update(1)
-            # pbar.close()
+                pbar.update(1)
+            pbar.close()
 
     def _cache_entity_graph(self, entity:str, reconstructed_graph:ConjunctiveGraph, timestamp:str, prov_metadata:dict) -> None:
         graph_iri = f"https://github.com/opencitations/time-agnostic-library/{timestamp}"
@@ -436,7 +436,7 @@ class AgnosticQuery:
         which returns the result not only with respect to the current state of knowledge, 
         but also with respect to past ones.
 
-        :returns Dict[str, Set[Tuple]] -- A dictionary is returned in which the keys correspond to the recorded snapshots, while the values correspond to a set of tuples containing the query results at that snapshot, where the positional value of the elements in the tuples is equivalent to the order of the variables indicated in the query.
+        :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
         """
         agnostic_result:dict[str, Set[Tuple]] = dict()
         if self.cache_triplestore_url:
