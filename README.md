@@ -4,6 +4,15 @@
 
 Documentation can be found here: [https://time-agnostic-library.readthedocs.io](https://time-agnostic-library.readthedocs.io).
 
+## Table of Contents
+
+- [User's guide](#users-guide)
+  * [Version materialization](#version-materialization)
+  * [Single-version structured query](#single-version-structured-query)
+  * [Cross-version structured query](#cross-version-structured-query)
+- [Developer's guide](#developers-guide)
+  * [How to build the documentation](#how-to-build-the-documentation)
+
 ## User's guide
 
 This package can be installed with **pip**:
