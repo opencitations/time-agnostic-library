@@ -16,12 +16,12 @@
 
 import unittest, rdflib, json
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
-from time_agnostic_library.agnostic_query import AgnosticQuery
+from time_agnostic_library.agnostic_query import VersionQuery
 from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph
 
 CONFIG_PATH = "tests/config.json"
 
-class Test_AgnosticQuery(unittest.TestCase):        
+class Test_VersionQuery(unittest.TestCase):        
     def test__tree_traverse_no_options(self):
         query = """
             prefix pro: <http://purl.org/spar/pro/>
@@ -40,7 +40,7 @@ class Test_AgnosticQuery(unittest.TestCase):
         }
         input2 = "triples"
         output = list()
-        AgnosticQuery(query, config_path=CONFIG_PATH)._tree_traverse(input1, input2, output)
+        VersionQuery(query, config_path=CONFIG_PATH)._tree_traverse(input1, input2, output)
         expected_output = [(rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o'))]
         self.assertEqual(output, expected_output)
 
@@ -64,7 +64,7 @@ class Test_AgnosticQuery(unittest.TestCase):
         }
         input2 = "triples"
         output = list()
-        AgnosticQuery(query, config_path=CONFIG_PATH)._tree_traverse(input1, input2, output)
+        VersionQuery(query, config_path=CONFIG_PATH)._tree_traverse(input1, input2, output)
         expected_output = [
             (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef('http://purl.org/spar/pro/RoleInTime')), 
             (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o'))
@@ -121,7 +121,7 @@ class Test_AgnosticQuery(unittest.TestCase):
         }
         input2 = "triples"
         output = list()
-        AgnosticQuery(query, config_path=CONFIG_PATH)._tree_traverse(input1, input2, output)
+        VersionQuery(query, config_path=CONFIG_PATH)._tree_traverse(input1, input2, output)
         expected_output = [
             (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
             (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef('http://purl.org/spar/pro/RoleInTime')), 
@@ -145,7 +145,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        output = AgnosticQuery(input, config_path=CONFIG_PATH)._process_query()
+        output = VersionQuery(input, config_path=CONFIG_PATH)._process_query()
         expected_output = [
             (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
             (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef('http://purl.org/spar/pro/RoleInTime')), 
@@ -160,7 +160,7 @@ class Test_AgnosticQuery(unittest.TestCase):
             WHERE {<https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o}
         """
         with self.assertRaises(ValueError):
-            AgnosticQuery(input)._process_query()
+            VersionQuery(input)._process_query()
 
     def test__align_snapshots(self):
         query = """
@@ -177,7 +177,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.relevant_entities_graphs = _to_dict_of_conjunctive_graphs({
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-06-01T18:46:41+00:00': [
@@ -241,7 +241,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.relevant_entities_graphs = _to_dict_of_conjunctive_graphs({
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-06-01T18:46:41+00:00': [
@@ -397,7 +397,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.relevant_entities_graphs = _to_dict_of_conjunctive_graphs({
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-05-31T18:19:47': [
@@ -491,7 +491,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
         agnostic_query.relevant_entities_graphs = _to_dict_of_conjunctive_graphs({
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
@@ -624,7 +624,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?o datacite:hasIdentifier ?id.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519999')}
         agnostic_query.relevant_entities_graphs = dict()
         expected_reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519999')}
@@ -647,7 +647,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.vars_to_explicit_by_time = dict()
         agnostic_query.relevant_graphs = _to_dict_of_conjunctive_graphs({
             '2021-06-01T18:46:41': [
@@ -703,7 +703,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.vars_to_explicit_by_time = {
             '2021-06-01T18:46:41': {
                 (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
@@ -739,7 +739,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         output = agnostic_query._there_are_variables()
         self.assertEqual(output, False)
     
@@ -759,7 +759,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/4>.
             }
         """    
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         variable = rdflib.term.Variable('a')
         triple =  (rdflib.term.Variable('a'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
         other_triples = {t for t in agnostic_query.triples if t != triple}
@@ -781,7 +781,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """    
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         variable = rdflib.term.Variable('id')
         triple =  (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
         other_triples = {t for t in agnostic_query.triples if t != triple}
@@ -804,7 +804,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/4>.
             }
         """        
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         triple =  (rdflib.term.Variable('a'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
         output = agnostic_query._is_isolated(triple)
         self.assertEqual(output, True)
@@ -820,7 +820,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 FILTER (?id_1 != ?id_2)
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         triple =  (rdflib.term.Variable('elt_1'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id_1'))
         output = agnostic_query._is_isolated(triple)
         self.assertEqual(output, True)
@@ -840,7 +840,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """        
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         triple = (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
         output = agnostic_query._is_isolated(triple)
         self.assertEqual(output, False)
@@ -860,7 +860,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.vars_to_explicit_by_time = {
             '2021-06-01T18:46:41': {
                 (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
@@ -913,7 +913,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.vars_to_explicit_by_time = {
             '2021-06-01T18:46:41': {
                 (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
@@ -977,7 +977,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?o ^pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ar/15519>.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         triple = agnostic_query._process_query()[0]
         query_to_identify = agnostic_query._get_query_to_identify(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify = """
@@ -998,7 +998,7 @@ class Test_AgnosticQuery(unittest.TestCase):
             }
         """
         triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
-        query_to_identify = AgnosticQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
+        query_to_identify = VersionQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify = """
             SELECT DISTINCT ?updateQuery 
             WHERE {
@@ -1022,7 +1022,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.
             }
         """        
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.relevant_entities_graphs = dict()
         agnostic_query.reconstructed_entities = set()
         triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
@@ -1074,7 +1074,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         if agnostic_query.cache_triplestore_url:
             recostructed_grah = _to_conjunctive_graph([
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
@@ -1129,7 +1129,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         if agnostic_query.cache_triplestore_url:
             output = agnostic_query._get_relevant_timestamps_from_cache("https://github.com/arcangelo7/time_agnostic/ar/15519")
             self.assertEqual(output, {'2021-05-07T09:59:15+00:00', '2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00'})
@@ -1144,7 +1144,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.relevant_graphs = dict()
         agnostic_query.reconstructed_entities = set()
         agnostic_query._store_relevant_timestamps("https://github.com/arcangelo7/time_agnostic/ar/15519", {"2021-06-01T18:46:41", "2021-05-07T09:59:15", "2021-05-31T18:19:47"})
@@ -1162,7 +1162,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-05-07T09:59:15': set(), '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}}
         self.assertEqual(output, expected_output)
@@ -1177,7 +1177,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}, '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-05-07T09:59:15': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}}
         self.assertEqual(output, expected_output)
@@ -1196,7 +1196,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-31T18:19:47': {
@@ -1231,7 +1231,7 @@ class Test_AgnosticQuery(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -1260,7 +1260,7 @@ class Test_AgnosticQuery(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -1281,7 +1281,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?s pro:isHeldBy ?o.
             }        
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -1308,7 +1308,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }   
         """
-        agnostic_query = AgnosticQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': set(),
@@ -1351,10 +1351,26 @@ class Test_AgnosticQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = AgnosticQuery(query, on_time="2021-05-31T18:19:47", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time="2021-05-31T18:19:47", config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}}
         self.assertEqual(output, expected_output)
+
+    def test_run_agnostic_query_easy_on_time_no_results(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            SELECT DISTINCT ?o
+            WHERE {
+                <https://github.com/arcangelo7/time_agnostic/ar/15519> pro:isHeldBy ?o;
+                    rdf:type pro:RoleInTime.
+            }
+        """
+        agnostic_query = VersionQuery(query, on_time="2021-05-06", config_path=CONFIG_PATH)
+        output = agnostic_query.run_agnostic_query()
+        expected_output = dict()
+        self.assertEqual(output, expected_output)
+
 
     def test_run_agnostic_query_optional_on_time(self):
         query = """
@@ -1366,7 +1382,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
             }
         """
-        agnostic_query = AgnosticQuery(query, on_time="2021-06-02", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time="2021-06-02", config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}}
         self.assertEqual(output, expected_output)
@@ -1385,7 +1401,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = AgnosticQuery(query, on_time="2021-05-07T09:59:15", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time="2021-05-07T09:59:15", config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -1410,7 +1426,7 @@ class Test_AgnosticQuery(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = AgnosticQuery(query, on_time="2021-05-08", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time="2021-05-08", config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -1433,7 +1449,7 @@ class Test_AgnosticQuery(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = AgnosticQuery(query, on_time="2021-05-8", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time="2021-05-8", config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -1450,7 +1466,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?s pro:isHeldBy ?o.
             }        
         """
-        agnostic_query = AgnosticQuery(query, on_time="2021-05-31T18:19:47", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time="2021-05-31T18:19:47", config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-31T18:19:47': {
@@ -1471,7 +1487,7 @@ class Test_AgnosticQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }   
         """
-        agnostic_query = AgnosticQuery(query, on_time="2021-05-30T19:41:57", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time="2021-05-30T19:41:57", config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-30T19:41:57': {

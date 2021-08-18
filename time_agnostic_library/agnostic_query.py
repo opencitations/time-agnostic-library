@@ -34,7 +34,15 @@ from time_agnostic_library.agnostic_entity import AgnosticEntity
 
 CONFIG_PATH = "./config.json"
 
-class AgnosticQuery:
+
+class AgnosticQuery(object):
+    def __init__(self, query:str, on_time:str="", config_path:str=CONFIG_PATH):
+        self.query = query
+        self.config_path = config_path
+        self.on_time = on_time
+
+
+class VersionQuery(AgnosticQuery):
     """
     This class allows time-travel queries, both on a single version and all versions of the dataset.
 
@@ -50,12 +58,11 @@ class AgnosticQuery:
             self.cache_triplestore_url:str = json.load(json_file)["cache_triplestore_url"]
         if self.cache_triplestore_url:
             self.sparql = SPARQLWrapper(self.cache_triplestore_url)
+        super(VersionQuery, self).__init__(query, on_time, config_path)    
         if on_time:
             self.on_time = AgnosticEntity._convert_to_datetime(on_time).strftime("%Y-%m-%dT%H:%M:%S")
         else:
             self.on_time = on_time
-        self.query = query
-        self.config_path = config_path
         self.vars_to_explicit_by_time:Dict[str, Set[Tuple]] = dict()
         self.reconstructed_entities = set()
         self.relevant_entities_graphs:Dict[URIRef, Dict[str, ConjunctiveGraph]] = dict()
@@ -318,7 +325,7 @@ class AgnosticQuery:
     
     def _get_query_to_identify(self, triple:list) -> str:
         solvable_triple = [el.n3() for el in triple]
-        print(f"[AgnosticQuery:INFO] Rebuilding current relevant entities for the triple {solvable_triple}.")
+        print(f"[VersionQuery:INFO] Rebuilding current relevant entities for the triple {solvable_triple}.")
         if isinstance(triple[1], InvPath):
             predicate = solvable_triple[1].replace("^", "", 1)
             query_to_identify = f"""
@@ -353,7 +360,7 @@ class AgnosticQuery:
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
             pbar = tqdm(total=len(results))
-            print(f"[AgnosticQuery:INFO] Searching for relevant entities in relevant update queries.")
+            print(f"[VersionQuery:INFO] Searching for relevant entities in relevant update queries.")
             for result in results:
                 update = parseUpdate(result[0])
                 for request in update["request"]:
@@ -367,7 +374,7 @@ class AgnosticQuery:
             pbar.close()
         new_entities_found = relevant_entities_found.difference(self.reconstructed_entities)
         if new_entities_found:
-            print(f"[AgnosticQuery:INFO] Rebuilding relevant entities' history.")
+            print(f"[VersionQuery:INFO] Rebuilding relevant entities' history.")
             pbar = tqdm(total=len(new_entities_found))
             for new_entity_found in new_entities_found:
                 self._rebuild_relevant_entity(new_entity_found)
@@ -454,11 +461,16 @@ class AgnosticQuery:
                 agnostic_result[snapshot] = output
         if self.on_time:
             on_time_datetime = AgnosticEntity._convert_to_datetime(self.on_time)
-            timestamp = max([timestamp for timestamp in agnostic_result.keys() if AgnosticEntity._convert_to_datetime(timestamp) <= on_time_datetime])
-            agnostic_result = {timestamp: agnostic_result[timestamp]}
+            timestamps_before_time = [timestamp for timestamp in agnostic_result.keys() if AgnosticEntity._convert_to_datetime(timestamp) <= on_time_datetime]
+            if timestamps_before_time:
+                timestamp = max(timestamps_before_time)
+                agnostic_result = {timestamp: agnostic_result[timestamp]}
+            else:
+                agnostic_result = dict()
         return agnostic_result
 
-class BlazegraphQuery(AgnosticQuery):
+
+class BlazegraphQuery(VersionQuery):
     def __init__(self, query:str, on_time:str="", config_path:str = CONFIG_PATH):
         with open(config_path, encoding="utf8") as json_file:
             blazegraph_full_text_search:str = json.load(json_file)["blazegraph_full_text_search"]
@@ -484,9 +496,65 @@ class BlazegraphQuery(AgnosticQuery):
             if self.blazegraph_full_text_search:
                 query_to_identify += f"?updateQuery bds:search '<{uri}>'."
             else:
-                query_to_identify += f"FILTER CONTAINS (?updateQuery, '<{uri}>')"
+                query_to_identify += f"FILTER CONTAINS (?updateQuery, {uri})"
         query_to_identify += "}"
         return query_to_identify
+
+
+class DeltaQuery(AgnosticQuery):
+    def __init__(self, query:str, on_time:tuple=(), changed_properties:Set[str]=set(), config_path:str = CONFIG_PATH):
+        super(DeltaQuery, self).__init__(query, on_time, config_path)    
+        self.changed_properties = changed_properties
+    
+    def _identify_entities(self):
+        output = set()
+        sparql = Sparql(self.query, self.config_path)
+        results = sparql.run_select_query()
+        for result_tuple in results:
+            output.update(result_tuple)
+        return output
+    
+    def _identify_changed_entities(self, identifies_entities:set):
+        output = dict()
+        for identified_entity in identifies_entities:
+            output[identified_entity] = dict()
+            query = f"""
+                SELECT DISTINCT ?time ?updateQuery
+                WHERE {{
+                    ?se <{ProvEntity.iri_specialization_of}> <{identified_entity}>;
+                        <{ProvEntity.iri_generated_at_time}> ?time;
+                        <{ProvEntity.iri_has_update_query}> ?updateQuery.
+            """
+            for changed_property in self.changed_properties:
+                query += f"FILTER CONTAINS (?updateQuery, '{changed_property}')."
+            query += "}"
+            results = Sparql(query, self.config_path).run_select_query()
+            for result_tuple in results:
+                time = AgnosticEntity._convert_to_datetime(result_tuple[0]).strftime("%Y-%m-%dT%H:%M:%S")
+                output[identified_entity][time] = result_tuple[1]
+        return output
+
+    def run_agnostic_query(self) -> Dict[str, Dict[str, str]]:
+        identified_entities = self._identify_entities()
+        agnostic_result:Dict[str, Dict[str, str]] = self._identify_changed_entities(identified_entities)
+        if self.on_time:
+            after_time = AgnosticEntity._convert_to_datetime(self.on_time[0])
+            before_time = AgnosticEntity._convert_to_datetime(self.on_time[1])
+            agnostic_result_on_time = dict()
+            for entity, snapshots in agnostic_result.items():
+                timestamps_after_time = {timestamp for timestamp in snapshots if AgnosticEntity._convert_to_datetime(timestamp) >= after_time} if after_time else set()
+                timestamps_before_time = {timestamp for timestamp in snapshots if AgnosticEntity._convert_to_datetime(timestamp) <= before_time} if before_time else set()
+                if timestamps_after_time and timestamps_before_time:
+                    relevant_timestamps = timestamps_after_time.intersection(timestamps_before_time)
+                else: 
+                    relevant_timestamps = timestamps_after_time.union(timestamps_before_time)
+                for relevant_timestamp in relevant_timestamps:
+                    agnostic_result_on_time[entity] = dict()
+                    update_query = agnostic_result[entity][relevant_timestamp]
+                    agnostic_result_on_time[entity][relevant_timestamp] = update_query
+            return agnostic_result_on_time
+        else:
+            return agnostic_result
     
 
 

@@ -384,8 +384,9 @@ class AgnosticEntity:
         return Sparql(query_provenance, config_path=self.config_path).run_construct_query()
 
     @classmethod
-    def _convert_to_datetime(cls, time_string: str) -> datetime:
-        return parser.parse(time_string).replace(tzinfo=None)
+    def _convert_to_datetime(cls, time_string:str) -> datetime:
+        if time_string:
+            return parser.parse(time_string).replace(tzinfo=None)
 
 
 def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:

@@ -106,10 +106,10 @@ Finally, the history of an entity and all related entities, along with their pro
 
 Performing a single-version structured query means running a SPARQL query on a specified version.
 
-To obtain this result, instantiate the **AgnosticQuery** class, passing as an argument the SPARQL query string (QUERY_STRING), the time of interest (TIME) and the configuration file's path (CONFIG_PATH). For more information about the configuration file, see [Configuration file](#configuration-file). The specified time can be any time, not necessarily the exact time of a snapshot. In addition, it can be specified in any existing standard. **Please note**: only SELECT queries are allowed. Finally, execute the **run_agnostic_query** method.
+To obtain this result, instantiate the **VersionQuery** class, passing as an argument the SPARQL query string (QUERY_STRING), the time of interest (TIME) and the configuration file's path (CONFIG_PATH). For more information about the configuration file, see [Configuration file](#configuration-file). The specified time can be any time, not necessarily the exact time of a snapshot. In addition, it can be specified in any existing standard. **Please note**: only SELECT queries are allowed. Finally, execute the **run_agnostic_query** method.
 
 ``` python
-  agnostic_query = AgnosticQuery(query=QUERY_STRING, on_time=TIME, config_path=CONFIG_PATH)
+  agnostic_query = VersionQuery(query=QUERY_STRING, on_time=TIME, config_path=CONFIG_PATH)
   agnostic_query.run_agnostic_query()
 ```
 
@@ -129,10 +129,10 @@ The output is a dictionary in which the key is the requested snapshot. The value
 
 Performing a cross-version structured query means running a SPARQL query on all the dataset's versions.
 
-To obtain this result, instantiate the **AgnosticQuery** class, passing as an argument the SPARQL query string (QUERY_STRING) and the configuration file's path (CONFIG_PATH). For more information about the configuration file, see [Configuration file](#configuration-file). **Please note**: only SELECT queries are allowed. Finally, execute **the run_agnostic_query** method.
+To obtain this result, instantiate the **VersionQuery** class, passing as an argument the SPARQL query string (QUERY_STRING) and the configuration file's path (CONFIG_PATH). For more information about the configuration file, see [Configuration file](#configuration-file). **Please note**: only SELECT queries are allowed. Finally, execute **the run_agnostic_query** method.
 
 ``` python
-  agnostic_query = AgnosticQuery(query=QUERY_STRING, config_path=CONFIG_PATH)
+  agnostic_query = VersionQuery(query=QUERY_STRING, config_path=CONFIG_PATH)
   agnostic_query.run_agnostic_query()
 ```
 
