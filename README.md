@@ -195,5 +195,3 @@ The configuration file is mainly used to indicate to the library where to search
             make html
         ```
   3. Open the `_build/html/index.html` file with a web browser of your choice!
-
-
