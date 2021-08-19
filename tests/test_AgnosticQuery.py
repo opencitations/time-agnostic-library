@@ -1351,7 +1351,7 @@ class Test_VersionQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, on_time="2021-05-31T18:19:47", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}}
         self.assertEqual(output, expected_output)
@@ -1366,7 +1366,7 @@ class Test_VersionQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, on_time="2021-05-06", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-06", "2021-05-06"), config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = dict()
         self.assertEqual(output, expected_output)
@@ -1382,7 +1382,7 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time="2021-06-02", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-06-01T18:46:41", "2021-06-01T18:46:41"), config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}}
         self.assertEqual(output, expected_output)
@@ -1401,7 +1401,7 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time="2021-05-07T09:59:15", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -1426,7 +1426,7 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time="2021-05-08", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -1449,7 +1449,7 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time="2021-05-8", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -1466,7 +1466,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?s pro:isHeldBy ?o.
             }        
         """
-        agnostic_query = VersionQuery(query, on_time="2021-05-31T18:19:47", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-31T18:19:47': {
@@ -1487,7 +1487,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }   
         """
-        agnostic_query = VersionQuery(query, on_time="2021-05-30T19:41:57", config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-30T19:41:57", "2021-05-30T19:41:57"), config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-30T19:41:57': {

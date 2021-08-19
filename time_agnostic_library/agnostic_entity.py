@@ -93,22 +93,29 @@ class AgnosticEntity:
 
     def get_state_at_time(
         self, 
-        time: str, 
+        time: Tuple[Union[str, None]], 
         include_prov_metadata: bool = False, 
         ) -> Tuple[Graph, dict, Union[dict, None]]:
         """
-        Given a time, the function returns the resource's state at that time, the returned snapshot metadata
-        and, optionally, the hooks to the previous and subsequent states.
+        Given a time interval, the function returns the resource's states within the interval, the returned snapshots metadata
+        and, optionally, the hooks to the previous and subsequent snapshots.
+        The time can be specified in any existing standard. 
         Snapshot metadata includes generation time, the responsible agent and the primary source.
-        The specified time can be any time, not necessarily the exact time of a snapshot. 
-        In addition, it can be specified in any existing standard. 
         The output has the following format: ::
 
             (
-                ENTITY_GRAPH_AT_TIME, 
                 {
-                    SNAPSHOT_URI_AT_TIME: {
-                        'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
+                    TIME_1: ENTITY_GRAPH_AT_TIME_1, 
+                    TIME_2: ENTITY_GRAPH_AT_TIME_2
+                },
+                {
+                    SNAPSHOT_URI_AT_TIME_1: {
+                        'http://www.w3.org/ns/prov#generatedAtTime': TIME_1, 
+                        'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+                        'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                    },
+                    SNAPSHOT_URI_AT_TIME_2: {
+                        'http://www.w3.org/ns/prov#generatedAtTime': TIME_2, 
                         'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
                         'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
                     }
@@ -127,13 +134,12 @@ class AgnosticEntity:
                 }
             )
 
-        :param time: Any time value, not necessarily the exact value of a snapshot. The status of the resource will be returned to the most recent past snapshot compared to the specified time. The time can be specified using any existing standard.
-        :type time: str.
+        :param time: A time interval, in the form (AFTER, BEFORE). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
+        :type time: Tuple[Union[str, None]].
         :param include_prov_metadata: If True, hooks are returned to the previous and subsequent snapshots.
         :type include_prov_metadata: bool, optional
-        :returns: Tuple[Graph, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is the resource rdflib.Graph at that time, the second is the snapshot metadata of which the state has been returned. If the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
+        :returns: Tuple[dict, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is a dictionary that associates graphs and timestamps within the specified interval; the second is the snapshots metadata of which the states has been returned. If the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
         """
-        datetime_time = self._convert_to_datetime(time)
         query_snapshots = f"""
             SELECT ?snapshot ?time ?responsibleAgent ?updateQuery ?primarySource
             WHERE {{
@@ -152,30 +158,27 @@ class AgnosticEntity:
         if not results:
             return None, None, None
         results.sort(key=lambda x:self._convert_to_datetime(x[1]), reverse=True)
-        results_after_time = list()
-        for result in results:
-            if self._convert_to_datetime(result[1]) > datetime_time:
-                results_after_time.append(result)
-        sum_update_queries = ""
-        for result in results_after_time:
-            if result[3] is not None:
-                sum_update_queries += result[3] + ";"
-        entity_cg = self._query_dataset()
-        self._manage_update_queries(entity_cg, sum_update_queries)
-        entity_snapshot = dict()
-        snaphots_before_time = [se for se in results if self._convert_to_datetime(se[1]) <= datetime_time]
-        if snaphots_before_time:
-            snapshot_to_return = max(snaphots_before_time)
-            entity_snapshot[snapshot_to_return[0]] = {
-                str(ProvEntity.iri_generated_at_time): snapshot_to_return[1],
-                str(ProvEntity.iri_was_attributed_to): snapshot_to_return[2],
-                str(ProvEntity.iri_had_primary_source): snapshot_to_return[4]
+        relevant_results = _filter_timestamps_by_interval(time, results, time_index=1)
+        entity_snapshots = dict()
+        entity_graphs = dict()
+        relevant_snapshots = set()
+        for relevant_result in relevant_results:
+            sum_update_queries = ""
+            for result in results:
+                if result[3]:
+                    if self._convert_to_datetime(result[1]) > self._convert_to_datetime(relevant_result[1]):
+                        sum_update_queries += (result[3]) +  ";"   
+            entity_cg = self._query_dataset()
+            self._manage_update_queries(entity_cg, sum_update_queries)
+            entity_graphs[relevant_result[1]] = entity_cg
+            entity_snapshots[relevant_result[0]] = {
+                str(ProvEntity.iri_generated_at_time): relevant_result[1],
+                str(ProvEntity.iri_was_attributed_to): relevant_result[2],
+                str(ProvEntity.iri_had_primary_source): relevant_result[4]
             }
-        else:
-            snapshot_to_return = dict()
-            entity_snapshot = dict()
+            relevant_snapshots.add(relevant_result[0])
         if include_prov_metadata:
-            results = [snapshot for snapshot in results if snapshot != snapshot_to_return]
+            results = [snapshot for snapshot in results if snapshot[0] not in relevant_snapshots]
             other_snapshots = dict()
             for result_tuple in results:
                 other_snapshots[result_tuple[0]] = {
@@ -183,8 +186,8 @@ class AgnosticEntity:
                     str(ProvEntity.iri_was_attributed_to): result_tuple[2],
                     str(ProvEntity.iri_had_primary_source): result_tuple[4]
             }
-            return entity_cg, entity_snapshot, other_snapshots
-        return entity_cg, entity_snapshot, None
+            return entity_graphs, entity_snapshots, other_snapshots
+        return entity_graphs, entity_snapshots, None
     
     def _include_prov_metadata(self, triples_generated_at_time:list, current_state:ConjunctiveGraph) -> dict:
         if list(current_state.triples((URIRef(self.res), URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), ProvEntity.iri_entity))): 
@@ -384,10 +387,12 @@ class AgnosticEntity:
         return Sparql(query_provenance, config_path=self.config_path).run_construct_query()
 
     @classmethod
-    def _convert_to_datetime(cls, time_string:str) -> datetime:
+    def _convert_to_datetime(cls, time_string:str, stringify:bool=False) -> datetime:
         if time_string:
-            return parser.parse(time_string).replace(tzinfo=None)
-
+            time = parser.parse(time_string).replace(tzinfo=None)
+            if stringify:
+                time = time.strftime("%Y-%m-%dT%H:%M:%S")
+            return time
 
 def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
     entities_histories = [dict(), dict()]
@@ -401,3 +406,20 @@ def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False)
             metadata = history_and_metadata[1]
             entities_histories[1].update(metadata)
     return tuple(entities_histories)
+
+def _filter_timestamps_by_interval(interval:Tuple[str, str], iterator:list, time_index:int=None) -> set:
+    after_time = AgnosticEntity._convert_to_datetime(interval[0])
+    before_time = AgnosticEntity._convert_to_datetime(interval[1])
+    relevant_timestamps = set()
+    for timestamp in iterator:
+        time = AgnosticEntity._convert_to_datetime(timestamp[time_index]) if time_index else AgnosticEntity._convert_to_datetime(timestamp)
+        if after_time and before_time:
+            if time >= after_time and time <= before_time:
+                relevant_timestamps.add(timestamp)
+        if after_time and not before_time:
+            if time >= after_time:
+                relevant_timestamps.add(timestamp)
+        if before_time and not after_time:
+            if time <= before_time:
+                relevant_timestamps.add(timestamp)
+    return relevant_timestamps

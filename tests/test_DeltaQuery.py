@@ -52,9 +52,12 @@ class Test_DeltaQuery(unittest.TestCase):
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
         delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_path=CONFIG_PATH)
         output = delta_query._identify_changed_entities(identifies_entities)
-        print(output)
-        # expected_output = {"https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3"}
-        # self.assertEqual(output, expected_output)
+        expected_output = {
+            'https://github.com/arcangelo7/time_agnostic/ar/15519': {
+                '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
+            }
+        }
+        self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_cross_delta(self):
         query = """

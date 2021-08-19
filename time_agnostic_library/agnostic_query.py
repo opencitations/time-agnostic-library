@@ -30,17 +30,21 @@ from dateutil import parser
 
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.agnostic_entity import AgnosticEntity
+from time_agnostic_library.agnostic_entity import AgnosticEntity, _filter_timestamps_by_interval
 
 CONFIG_PATH = "./config.json"
 
 
 class AgnosticQuery(object):
-    def __init__(self, query:str, on_time:str="", config_path:str=CONFIG_PATH):
+    def __init__(self, query:str, on_time:Tuple[Union[str, None]]=(None, None), config_path:str=CONFIG_PATH):
         self.query = query
         self.config_path = config_path
-        self.on_time = on_time
-
+        if on_time:
+            after_time = AgnosticEntity._convert_to_datetime(on_time[0], stringify=True)
+            before_time = AgnosticEntity._convert_to_datetime(on_time[1], stringify=True)
+            self.on_time = (after_time, before_time)
+        else:
+            self.on_time = None
 
 class VersionQuery(AgnosticQuery):
     """
@@ -48,21 +52,17 @@ class VersionQuery(AgnosticQuery):
 
     :param query: The SPARQL query string.
     :type query: str
-    :param on_time: If you want to query a specific version, specify the time here. The specified time can be any time, not necessarily the exact time of a snapshot. In addition, it can be specified in any existing standard.
-    :type on_time: str, optional
+    :param on_time: If you want to query a specific version, specify the time interval here. The format is (AFTER, BEFORE). If one of the two values is None, only the other is considered. Finally, the time can be specified using any existing standard.
+    :type on_time: Tuple[Union[str, None]], optional
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time:str="", config_path:str=CONFIG_PATH):
+    def __init__(self, query:str, on_time:Tuple[Union[str, None]]="", config_path:str=CONFIG_PATH):
         with open(config_path, encoding="utf8") as json_file:
             self.cache_triplestore_url:str = json.load(json_file)["cache_triplestore_url"]
         if self.cache_triplestore_url:
             self.sparql = SPARQLWrapper(self.cache_triplestore_url)
         super(VersionQuery, self).__init__(query, on_time, config_path)    
-        if on_time:
-            self.on_time = AgnosticEntity._convert_to_datetime(on_time).strftime("%Y-%m-%dT%H:%M:%S")
-        else:
-            self.on_time = on_time
         self.vars_to_explicit_by_time:Dict[str, Set[Tuple]] = dict()
         self.reconstructed_entities = set()
         self.relevant_entities_graphs:Dict[URIRef, Dict[str, ConjunctiveGraph]] = dict()
@@ -133,23 +133,16 @@ class VersionQuery(AgnosticQuery):
                     return
             agnostic_entity = AgnosticEntity(entity, related_entities_history=False, config_path=self.config_path)
             if self.on_time:
-                entity_at_time = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=True) 
+                entity_at_time = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=True)
                 if entity_at_time[0]:
-                    if len(entity_at_time[0]):
-                        (_, metadata), = entity_at_time[1].items()
-                        relevant_timestamp = metadata[str(ProvEntity.iri_generated_at_time)]
-                        relevant_timestamp = AgnosticEntity._convert_to_datetime(relevant_timestamp).strftime("%Y-%m-%dT%H:%M:%S")
+                    for relevant_timestamp, cg in entity_at_time[0].items():
                         if self.cache_triplestore_url:
                             # cache
-                            self._cache_entity_graph(entity, entity_at_time[0], relevant_timestamp, entity_at_time[1])
+                            self._cache_entity_graph(entity, cg, relevant_timestamp, entity_at_time[1])
                             self.relevant_graphs.setdefault(relevant_timestamp, set()).add(entity)
-                            for _, metadata in entity_at_time[2].items():
-                                timestamp = metadata[str(ProvEntity.iri_generated_at_time)]
-                                timestamp = AgnosticEntity._convert_to_datetime(timestamp).strftime("%Y-%m-%dT%H:%M:%S")
-                                self.relevant_graphs.setdefault(timestamp, set()).add(entity)
                         else:
                             # store in RAM
-                            self.relevant_entities_graphs.setdefault(entity, dict())[relevant_timestamp] = entity_at_time[0]
+                            self.relevant_entities_graphs.setdefault(entity, dict())[relevant_timestamp] = cg
             else:
                 entity_history = agnostic_entity.get_history(include_prov_metadata=True)
                 if entity_history[0][entity]:
@@ -215,7 +208,7 @@ class VersionQuery(AgnosticQuery):
     def _sort_relevant_graphs(self):
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
             self.relevant_graphs.items(),
-            key=lambda x: parser.parse(x[0]),
+            key=lambda x: AgnosticEntity._convert_to_datetime(x[0]),
             reverse=False # That is, from past to present, assuming that the past influences the present and not the opposite like in Dark
         )
         return ordered_data
@@ -429,14 +422,14 @@ class VersionQuery(AgnosticQuery):
     
     def _store_relevant_timestamps(self, entity:URIRef, relevant_timestamps:list):
         for timestamp in relevant_timestamps:
-            timestamp = AgnosticEntity._convert_to_datetime(timestamp).strftime("%Y-%m-%dT%H:%M:%S")
+            timestamp = AgnosticEntity._convert_to_datetime(timestamp, stringify=True)
             self.relevant_graphs.setdefault(timestamp, set()).add(entity)
             self.reconstructed_entities.add(entity)
         
     def run_agnostic_query(self) -> Dict[str, Set[Tuple]]:
         """
         Run the query provided as a time-travel query. 
-        If the **on_time** argument was specified, it runs on a single version, on all versions otherwise.
+        If the **on_time** argument was specified, it runs on versions within the specified interval, on all versions otherwise.
         
         :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
         """
@@ -460,17 +453,19 @@ class VersionQuery(AgnosticQuery):
                     Sparql._get_tuples_set(self.query, result, output)
                 agnostic_result[snapshot] = output
         if self.on_time:
-            on_time_datetime = AgnosticEntity._convert_to_datetime(self.on_time)
-            timestamps_before_time = [timestamp for timestamp in agnostic_result.keys() if AgnosticEntity._convert_to_datetime(timestamp) <= on_time_datetime]
-            if timestamps_before_time:
-                timestamp = max(timestamps_before_time)
-                agnostic_result = {timestamp: agnostic_result[timestamp]}
-            else:
-                agnostic_result = dict()
+            agnostic_result_on_time = dict()
+            relevant_timestamps = _filter_timestamps_by_interval(self.on_time, agnostic_result)
+            for relevant_timestamp in relevant_timestamps:
+                normalized_timestamp = AgnosticEntity._convert_to_datetime(relevant_timestamp, stringify=True)
+                agnostic_result_on_time[normalized_timestamp] = agnostic_result[relevant_timestamp]
+            return agnostic_result_on_time
         return agnostic_result
 
 
 class BlazegraphQuery(VersionQuery):
+    """
+    Use this class instead of VersionQuery in case the triplestore used is Blazegraph. 
+    """
     def __init__(self, query:str, on_time:str="", config_path:str = CONFIG_PATH):
         with open(config_path, encoding="utf8") as json_file:
             blazegraph_full_text_search:str = json.load(json_file)["blazegraph_full_text_search"]
@@ -502,7 +497,19 @@ class BlazegraphQuery(VersionQuery):
 
 
 class DeltaQuery(AgnosticQuery):
-    def __init__(self, query:str, on_time:tuple=(), changed_properties:Set[str]=set(), config_path:str = CONFIG_PATH):
+    """
+    This class allows single time and cross-time delta structured queries.
+
+    :param query: A SPARQL query string. It is useful to identify the entities whose change you want to investigate.
+    :type query: str
+    :param on_time: If you want to query specific snapshots, specify the time interval here. The format is (AFTER, BEFORE). If one of the two values is None, only the other is considered. Finally, the time can be specified using any existing standard.
+    :type on_time: Tuple[Union[str, None]], optional
+    :param changed_properties: A set of properties. It narrows the field to those entities where the properties specified in the set have changed.
+    :type changed_properties: Set[str], optional
+    :param config_path: The path to the configuration file.
+    :type config_path: str, optional
+    """
+    def __init__(self, query:str, on_time:Tuple[Union[str, None]]=(), changed_properties:Set[str]=set(), config_path:str = CONFIG_PATH):
         super(DeltaQuery, self).__init__(query, on_time, config_path)    
         self.changed_properties = changed_properties
     
@@ -530,24 +537,44 @@ class DeltaQuery(AgnosticQuery):
             query += "}"
             results = Sparql(query, self.config_path).run_select_query()
             for result_tuple in results:
-                time = AgnosticEntity._convert_to_datetime(result_tuple[0]).strftime("%Y-%m-%dT%H:%M:%S")
+                time = AgnosticEntity._convert_to_datetime(result_tuple[0], stringify=True)
                 output[identified_entity][time] = result_tuple[1]
         return output
 
     def run_agnostic_query(self) -> Dict[str, Dict[str, str]]:
+        """
+        Queries the deltas relevant to the query and the properties set 
+        in the specified time interval. If no property was indicated, 
+        any changes are considered. If no time interval was selected, 
+        the whole dataset's history is considered.
+        The output has the following format: ::
+
+            {
+                RES_URI_1: {
+                    TIMESTAMP_1: UPDATE_QUERY_1,
+                    TIMESTAMP_2: UPDATE_QUERY_2,
+                    TIMESTAMP_N: UPDATE_QUERY_N
+                },
+                RES_URI_2: {
+                    TIMESTAMP_1: UPDATE_QUERY_1,
+                    TIMESTAMP_2: UPDATE_QUERY_2,
+                    TIMESTAMP_N: UPDATE_QUERY_N
+                },
+                RES_URI_N: {
+                    TIMESTAMP_1: UPDATE_QUERY_1,
+                    TIMESTAMP_2: UPDATE_QUERY_2,
+                    TIMESTAMP_N: UPDATE_QUERY_N
+                },		
+            }            
+
+        :returns Dict[str, Set[Tuple]] -- The output is a dictionary that reports the modified entities, in what time they have changed and how.
+        """
         identified_entities = self._identify_entities()
         agnostic_result:Dict[str, Dict[str, str]] = self._identify_changed_entities(identified_entities)
         if self.on_time:
-            after_time = AgnosticEntity._convert_to_datetime(self.on_time[0])
-            before_time = AgnosticEntity._convert_to_datetime(self.on_time[1])
             agnostic_result_on_time = dict()
             for entity, snapshots in agnostic_result.items():
-                timestamps_after_time = {timestamp for timestamp in snapshots if AgnosticEntity._convert_to_datetime(timestamp) >= after_time} if after_time else set()
-                timestamps_before_time = {timestamp for timestamp in snapshots if AgnosticEntity._convert_to_datetime(timestamp) <= before_time} if before_time else set()
-                if timestamps_after_time and timestamps_before_time:
-                    relevant_timestamps = timestamps_after_time.intersection(timestamps_before_time)
-                else: 
-                    relevant_timestamps = timestamps_after_time.union(timestamps_before_time)
+                relevant_timestamps = _filter_timestamps_by_interval(self.on_time, snapshots)
                 for relevant_timestamp in relevant_timestamps:
                     agnostic_result_on_time[entity] = dict()
                     update_query = agnostic_result[entity][relevant_timestamp]
@@ -555,6 +582,7 @@ class DeltaQuery(AgnosticQuery):
             return agnostic_result_on_time
         else:
             return agnostic_result
+
     
 
 
