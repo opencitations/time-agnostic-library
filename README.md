@@ -10,6 +10,8 @@ Documentation can be found here: [https://time-agnostic-library.readthedocs.io](
   * [Version materialization](#version-materialization)
   * [Single-version structured query](#single-version-structured-query)
   * [Cross-version structured query](#cross-version-structured-query)
+  * [Single-delta structured query](#single-delta-structured-query)
+  * [Cross-delta structured query](#cross-delta-structured-query)
 - [Developer's guide](#developers-guide)
   * [How to build the documentation](#how-to-build-the-documentation)
 
@@ -21,44 +23,53 @@ This package can be installed with **pip**:
   pip install time-agnostic-library
 ```
 
-The library allows three types of queries: versions materializations, single-version structured queries and cross-version structured queries.
+The library allows five types of queries: versions materializations, single-version structured queries, cross-version structured queries, single-delta structured queries and cross-delta structured queries.
 
 ### Version materialization
 
-Obtaining a version materialization means returning an entity version at a given time or at the closest past available time. 
+Obtaining a version materialization means returning an entity version at a given time. Time can be an interval, an instant, a before or an after.
 
-To do so, create an instance of the **AgnosticEntity** class, passing as an argument the entity URI (RES_URI) and the configuration file path (CONFIG_PATH). For more information about the configuration file, see [Configuration file](#configuration-file). Finally, run the **get_state_at_time method**, passing the time of interest as an argument and, if provenance metadata are needed, True to the **include_prov_metadata** field. The specified time can be any time, not necessarily the exact time of a snapshot. In addition, it can be specified in any existing standard. 
+To do so, create an instance of the **AgnosticEntity** class, passing as an argument the entity URI (RES_URI) and the configuration file path (CONFIG_PATH). For more information about the configuration file, see [Configuration file](#configuration-file). Finally, run the **get_state_at_time method**, passing the time of interest as an argument and, if provenance metadata are needed, True to the **include_prov_metadata** field. 
 
+The specified time is a tuple, in the form (AFTER, BEFORE). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
 
 ``` python
   agnostic_entity = AgnosticEntity(res=RES_URI, config_path=CONFIG_PATH)
-  agnostic_entity.get_state_at_time(time=TIME, include_prov_metadata=True)
+  agnostic_entity.get_state_at_time(time=(AFTER, BEFORE), include_prov_metadata=True)
 ```
 
-The output is always a tuple of three elements: the first is the rdflib.Graph of the resource at that time (ENTITY_GRAPH_AT_TIME), the second is a dictionary containing the reconstructed snapshot's provenance metadata, the third is a dictionary containing the other snapshots' provenance metadata if include_prov_metadata is True, None if False.
+The output is always a tuple of three elements: the first is a dictionary that associates graphs and timestamps within the specified interval; the second contains the snapshots metadata of which the states has been returned, the third is a dictionary including the other snapshots' provenance metadata if **include_prov_metadata** is True, None if False.
 
 ``` python
   (
-    ENTITY_GRAPH_AT_TIME, 
-    {
-        SNAPSHOT_URI_AT_TIME: {
-            'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-            'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-            'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
-        }
-    }, 
-    {
-        OTHER_SNAPSHOT_URI_1: {
-            'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-            'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-            'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
-        }, 
-        OTHER_SNAPSHOT_URI_2: {
-            'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-            'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-            'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
-        }
-    }
+      {
+          TIME_1: ENTITY_GRAPH_AT_TIME_1, 
+          TIME_2: ENTITY_GRAPH_AT_TIME_2
+      },
+      {
+          SNAPSHOT_URI_AT_TIME_1: {
+              'http://www.w3.org/ns/prov#generatedAtTime': TIME_1, 
+              'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+              'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+          },
+          SNAPSHOT_URI_AT_TIME_2: {
+              'http://www.w3.org/ns/prov#generatedAtTime': TIME_2, 
+              'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+              'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+          }
+      }, 
+      {
+          OTHER_SNAPSHOT_URI_1: {
+              'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
+              'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+              'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+          }, 
+          OTHER_SNAPSHOT_URI_2: {
+              'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
+              'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
+              'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+          }
+      }
   )
 ```
 
@@ -104,16 +115,22 @@ Finally, the history of an entity and all related entities, along with their pro
 
 ### Single-version structured query
 
-Performing a single-version structured query means running a SPARQL query on a specified version.
+Performing a single-version structured query means running a SPARQL query on a specified version. A version can be a time interval, an instant, a before or an after.
 
-To obtain this result, instantiate the **VersionQuery** class, passing as an argument the SPARQL query string (QUERY_STRING), the time of interest (TIME) and the configuration file's path (CONFIG_PATH). For more information about the configuration file, see [Configuration file](#configuration-file). The specified time can be any time, not necessarily the exact time of a snapshot. In addition, it can be specified in any existing standard. **Please note**: only SELECT queries are allowed. Finally, execute the **run_agnostic_query** method.
+To obtain this result, instantiate the **VersionQuery** class, passing as an argument the SPARQL query string (QUERY_STRING), the time of interest and the configuration file's path (CONFIG_PATH). Finally, execute the **run_agnostic_query** method.
+
+The specified time is a tuple, in the form (AFTER, BEFORE). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
+
+For more information about the configuration file, see [Configuration file](#configuration-file). 
+
+**Please note**: only SELECT queries are allowed. 
 
 ``` python
-  agnostic_query = VersionQuery(query=QUERY_STRING, on_time=TIME, config_path=CONFIG_PATH)
+  agnostic_query = VersionQuery(query=QUERY_STRING, on_time=(AFTER, BEFORE), config_path=CONFIG_PATH)
   agnostic_query.run_agnostic_query()
 ```
 
-The output is a dictionary in which the key is the requested snapshot. The value corresponds to a set of tuples containing the query results at that snapshot. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
+The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
 
 ``` python
   {
@@ -129,7 +146,11 @@ The output is a dictionary in which the key is the requested snapshot. The value
 
 Performing a cross-version structured query means running a SPARQL query on all the dataset's versions.
 
-To obtain this result, instantiate the **VersionQuery** class, passing as an argument the SPARQL query string (QUERY_STRING) and the configuration file's path (CONFIG_PATH). For more information about the configuration file, see [Configuration file](#configuration-file). **Please note**: only SELECT queries are allowed. Finally, execute **the run_agnostic_query** method.
+To obtain this result, instantiate the **VersionQuery** class, passing as an argument the SPARQL query string (QUERY_STRING) and the configuration file's path (CONFIG_PATH). Finally, execute **the run_agnostic_query** method.
+
+For more information about the configuration file, see [Configuration file](#configuration-file). 
+
+**Please note**: only SELECT queries are allowed. 
 
 ``` python
   agnostic_query = VersionQuery(query=QUERY_STRING, config_path=CONFIG_PATH)
@@ -158,7 +179,91 @@ The output is a dictionary in which the keys are the snapshots relevant to that 
   }
 ```
 
-<h3 id="configuration-file">Configuration file</h3>
+### Single-delta structured query
+
+Performing a single-delta query means that a structured queries must be satisfied on a specific change instance of the dataset. This information demand particularly focuses on the differences between two versions, which are typically but not always consecutive.
+
+To obtain this result, instantiate the **DeltaQuery** class, passing as an argument the SPARQL query string, the time of interest, a set of properties, and the configuration file's path. Finally, execute the **run_agnostic_query** method.
+
+The query string (QUERY_STRING) is useful to identify the entities whose change you want to investigate.
+
+The specified time is a tuple, in the form (AFTER, BEFORE). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
+
+The set of properties (PROPERTIES_SET) narrows the field to those entities where the properties specified in the set have changed. If no property was indicated, any changes are considered.
+
+For more information about the configuration file (CONFIG_PATH), see [Configuration file](#configuration-file). 
+
+**Please note**: only SELECT queries are allowed. 
+
+``` python
+  agnostic_entity = DeltaQuery(query=QUERY_STRING, on_time=(AFTER, BEFORE), changed_properties=PROPERTIES_SET, config_path=CONFIG_PATH)
+  agnostic_entity.run_agnostic_query()
+```
+
+The output is a dictionary that reports the modified entities, in what time they have changed and how.
+
+``` python
+  {
+      RES_URI_1: {
+          TIMESTAMP_1: UPDATE_QUERY_1,
+          TIMESTAMP_2: UPDATE_QUERY_2,
+          TIMESTAMP_N: UPDATE_QUERY_N
+      },
+      RES_URI_2: {
+          TIMESTAMP_1: UPDATE_QUERY_1,
+          TIMESTAMP_2: UPDATE_QUERY_2,
+          TIMESTAMP_N: UPDATE_QUERY_N
+      },
+      RES_URI_N: {
+          TIMESTAMP_1: UPDATE_QUERY_1,
+          TIMESTAMP_2: UPDATE_QUERY_2,
+          TIMESTAMP_N: UPDATE_QUERY_N
+      },		
+  }   
+```
+
+### Cross-delta structured query
+
+Performing a cross-delta query means that a structured queries must be satisfied across the differences of the dataset, thus allowing for fully fledged evolution studies.
+
+To obtain this result, instantiate the **DeltaQuery** class, passing as an argument the SPARQL query string, a set of properties, and the configuration file's path. Finally, execute the **run_agnostic_query** method.
+
+The query string (QUERY_STRING) is useful to identify the entities whose change you want to investigate.
+
+The set of properties (PROPERTIES_SET) narrows the field to those entities where the properties specified in the set have changed. If no property was indicated, any changes are considered.
+
+For more information about the configuration file (CONFIG_PATH), see [Configuration file](#configuration-file). 
+
+**Please note**: only SELECT queries are allowed. 
+
+``` python
+  agnostic_entity = DeltaQuery(query=QUERY_STRING, changed_properties=PROPERTIES_SET, config_path=CONFIG_PATH)
+  agnostic_entity.run_agnostic_query()
+```
+
+The output is a dictionary that reports the modified entities, in what time they have changed and how.
+
+``` python
+  {
+      RES_URI_1: {
+          TIMESTAMP_1: UPDATE_QUERY_1,
+          TIMESTAMP_2: UPDATE_QUERY_2,
+          TIMESTAMP_N: UPDATE_QUERY_N
+      },
+      RES_URI_2: {
+          TIMESTAMP_1: UPDATE_QUERY_1,
+          TIMESTAMP_2: UPDATE_QUERY_2,
+          TIMESTAMP_N: UPDATE_QUERY_N
+      },
+      RES_URI_N: {
+          TIMESTAMP_1: UPDATE_QUERY_1,
+          TIMESTAMP_2: UPDATE_QUERY_2,
+          TIMESTAMP_N: UPDATE_QUERY_N
+      },		
+  }   
+```
+
+### Configuration file
 
 The configuration file is mainly used to indicate to the library where to search for data and provenance. In addition, some optional values can be set to make executions faster and more efficient.
 
