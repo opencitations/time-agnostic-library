@@ -142,6 +142,8 @@ The output is a dictionary in which the keys are the snapshots relevant to that 
   }
 ```
 
+**Performance boost**: if the triplestore used is Blazegraph and you want to take advantage of the accelerations settable through the configuration file, the class to use is **BlazegraphQuery** instead of VersionQuery. The initialization and usage are identical.
+
 ### Cross-version structured query
 
 Performing a cross-version structured query means running a SPARQL query on all the dataset's versions.
@@ -178,6 +180,8 @@ The output is a dictionary in which the keys are the snapshots relevant to that 
     }
   }
 ```
+
+**Performance boost**: if the triplestore used is Blazegraph and you want to take advantage of the accelerations settable through the configuration file, the class to use is **BlazegraphQuery** instead of VersionQuery. The initialization and usage are identical.
 
 ### Single-delta structured query
 
