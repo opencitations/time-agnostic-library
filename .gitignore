@@ -5,7 +5,7 @@
 /tests/rules.log
 /tests/info_dir/
 /tests/blazegraph.jar
-/tests/cache/
+/tests/cache/blazegraph.jnl
 setup.py
 execution_example.py
 
