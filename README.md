@@ -13,6 +13,7 @@ Documentation can be found here: [https://time-agnostic-library.readthedocs.io](
   * [Single-delta structured query](#single-delta-structured-query)
   * [Cross-delta structured query](#cross-delta-structured-query)
 - [Developer's guide](#developers-guide)
+  * [How to run the tests](#how-to-run-the-tests)
   * [How to build the documentation](#how-to-build-the-documentation)
 
 ## User's guide
@@ -297,19 +298,29 @@ The configuration file is mainly used to indicate to the library where to search
 
 ## Developer's guide
 
+### How to run the tests
+
+ 1. Make sure that Java is installed on your computer.
+ 2. Simply launch the following command from the root folder:
+
+``` bash
+  python tests/run_all_tests.py
+```
+
+
 ### How to build the documentation
 
   1. Move inside the `docs` folder:
 ``` bash
-    cd docs
+  cd docs
 ```
   2. Use the Makefile provided to build the docs:
       + _on Windows_
         ```
-            ./make.bat html
+          ./make.bat html
         ```
       + _on Linux and MacOs_
         ```
-            make html
+          make html
         ```
   3. Open the `_build/html/index.html` file with a web browser of your choice!
