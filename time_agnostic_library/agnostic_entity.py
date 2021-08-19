@@ -138,7 +138,7 @@ class AgnosticEntity:
         :type time: Tuple[Union[str, None]].
         :param include_prov_metadata: If True, hooks are returned to the previous and subsequent snapshots.
         :type include_prov_metadata: bool, optional
-        :returns: Tuple[dict, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is a dictionary that associates graphs and timestamps within the specified interval; the second is the snapshots metadata of which the states has been returned. If the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
+        :returns: Tuple[dict, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is a dictionary that associates graphs and timestamps within the specified interval; the second contains the snapshots metadata of which the states has been returned. If the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
         """
         query_snapshots = f"""
             SELECT ?snapshot ?time ?responsibleAgent ?updateQuery ?primarySource

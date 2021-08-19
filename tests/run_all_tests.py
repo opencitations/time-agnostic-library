@@ -1,5 +1,5 @@
-import zipfile, os.path, multiprocessing, time
-from subprocess import run, CREATE_NEW_CONSOLE, PIPE, STDOUT, Popen
+import zipfile, os.path, time
+from subprocess import run, CREATE_NEW_CONSOLE, Popen
 
 
 def unzip(file:str, destination:str):
@@ -14,32 +14,17 @@ def launch_blazegraph(ts_dir:str, port:int):
     Launch Blazegraph triplestore at a given port.
     """
     Popen(
-        ["java", "-server", "-Xmx4g", f"-Djetty.port={port}", "-jar", f"{ts_dir}/blazegraph.jar"],
+        ["java", "-server", "-Xmx4g", F"-Dcom.bigdata.journal.AbstractJournal.file={ts_dir}/blazegraph.jnl",f"-Djetty.port={port}", "-jar", f"{ts_dir}/blazegraph.jar"],
         creationflags=CREATE_NEW_CONSOLE
-    )
-
-def test():
-    """
-    Run all unittests.
-    """
-    Popen(
-        ["python", "-m", "unittest", "discover", "-s", "tests", "-p", "test*.py", "-b"]
     )
 
 if not os.path.isfile("tests/blazegraph.jnl"):
     unzip("tests/triplestore.zip", "tests/")
 if not os.path.isfile("tests/cache/blazegraph.jnl"):
     unzip("tests/cache/cache.zip", "tests/cache/")
-Popen(["cd", "tests"])
-Popen(
-    ["java", "-server", "-Xmx4g", f"-Djetty.port=9999", "-jar", f"blazegraph.jar"], 
-    shell=True
-)
-Popen(["cd", "tests/cache/"])
-Popen(
-    ["java", "-server", "-Xmx4g", f"-Djetty.port=19999", "-jar", f"cache/blazegraph.jar"],
-    shell=True
-)
+launch_blazegraph("tests", 9999)
+launch_blazegraph("tests/cache", 19999)
 time.sleep(10)
-Popen(["cd", "../../"])
-test()
+Popen(
+    ["python", "-m", "unittest", "discover", "-s", "tests", "-p", "test*.py", "-b"]
+)
