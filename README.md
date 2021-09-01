@@ -205,26 +205,38 @@ For more information about the configuration file (CONFIG_PATH), see [Configurat
   agnostic_entity.run_agnostic_query()
 ```
 
-The output is a dictionary that reports the modified entities, in what time they have changed and how.
+The output is a dictionary that reports the modified entities, when they were created, modified, and deleted. Moreover, changes are reported as SPARQL UPDATE queries.
 
 ``` python
   {
       RES_URI_1: {
-          TIMESTAMP_1: UPDATE_QUERY_1,
-          TIMESTAMP_2: UPDATE_QUERY_2,
-          TIMESTAMP_N: UPDATE_QUERY_N
+          "created": TIMESTAMP_CREATION,
+          "modified": {
+              TIMESTAMP_1: UPDATE_QUERY_1,
+              TIMESTAMP_2: UPDATE_QUERY_2,
+              TIMESTAMP_N: UPDATE_QUERY_N
+          },
+          "deleted": TIMESTAMP_DELETION
       },
       RES_URI_2: {
-          TIMESTAMP_1: UPDATE_QUERY_1,
-          TIMESTAMP_2: UPDATE_QUERY_2,
-          TIMESTAMP_N: UPDATE_QUERY_N
+          "created": TIMESTAMP_CREATION,
+          "modified": {
+              TIMESTAMP_1: UPDATE_QUERY_1,
+              TIMESTAMP_2: UPDATE_QUERY_2,
+              TIMESTAMP_N: UPDATE_QUERY_N
+          },
+          "deleted": TIMESTAMP_DELETION
       },
       RES_URI_N: {
-          TIMESTAMP_1: UPDATE_QUERY_1,
-          TIMESTAMP_2: UPDATE_QUERY_2,
-          TIMESTAMP_N: UPDATE_QUERY_N
+          "created": TIMESTAMP_CREATION,
+          "modified": {
+              TIMESTAMP_1: UPDATE_QUERY_1,
+              TIMESTAMP_2: UPDATE_QUERY_2,
+              TIMESTAMP_N: UPDATE_QUERY_N
+          },
+          "deleted": TIMESTAMP_DELETION
       },		
-  }   
+  }    
 ```
 
 ### Cross-delta structured query
@@ -246,26 +258,38 @@ For more information about the configuration file (CONFIG_PATH), see [Configurat
   agnostic_entity.run_agnostic_query()
 ```
 
-The output is a dictionary that reports the modified entities, in what time they have changed and how.
+The output is a dictionary that reports the modified entities, when they were created, modified, and deleted. Changes are reported as SPARQL UPDATE queries. If the entity was not created or deleted within the indicated range, the "created" or "deleted" value is None. On the other hand, if the entity does not exist within the input interval, the "modified" value is an empty dictionary.
 
 ``` python
   {
       RES_URI_1: {
-          TIMESTAMP_1: UPDATE_QUERY_1,
-          TIMESTAMP_2: UPDATE_QUERY_2,
-          TIMESTAMP_N: UPDATE_QUERY_N
+          "created": TIMESTAMP_CREATION,
+          "modified": {
+              TIMESTAMP_1: UPDATE_QUERY_1,
+              TIMESTAMP_2: UPDATE_QUERY_2,
+              TIMESTAMP_N: UPDATE_QUERY_N
+          },
+          "deleted": TIMESTAMP_DELETION
       },
       RES_URI_2: {
-          TIMESTAMP_1: UPDATE_QUERY_1,
-          TIMESTAMP_2: UPDATE_QUERY_2,
-          TIMESTAMP_N: UPDATE_QUERY_N
+          "created": TIMESTAMP_CREATION,
+          "modified": {
+              TIMESTAMP_1: UPDATE_QUERY_1,
+              TIMESTAMP_2: UPDATE_QUERY_2,
+              TIMESTAMP_N: UPDATE_QUERY_N
+          },
+          "deleted": TIMESTAMP_DELETION
       },
       RES_URI_N: {
-          TIMESTAMP_1: UPDATE_QUERY_1,
-          TIMESTAMP_2: UPDATE_QUERY_2,
-          TIMESTAMP_N: UPDATE_QUERY_N
+          "created": TIMESTAMP_CREATION,
+          "modified": {
+              TIMESTAMP_1: UPDATE_QUERY_1,
+              TIMESTAMP_2: UPDATE_QUERY_2,
+              TIMESTAMP_N: UPDATE_QUERY_N
+          },
+          "deleted": TIMESTAMP_DELETION
       },		
-  }   
+  }    
 ```
 
 ### Configuration file

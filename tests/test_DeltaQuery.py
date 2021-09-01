@@ -14,10 +14,8 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest, rdflib, json
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
+import unittest
 from time_agnostic_library.agnostic_query import DeltaQuery
-from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph
 
 CONFIG_PATH = "tests/config.json"
 
@@ -54,7 +52,11 @@ class Test_DeltaQuery(unittest.TestCase):
         output = delta_query._identify_changed_entities(identifies_entities)
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
-                '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
+                "created": "2021-05-07T09:59:15",
+                "modified": {
+                    '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
+                },
+                "deleted": "2021-06-01T18:46:41"
             }
         }
         self.assertEqual(output, expected_output)
@@ -72,7 +74,11 @@ class Test_DeltaQuery(unittest.TestCase):
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
-                '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
+                "created": "2021-05-07T09:59:15",
+                "modified": {
+                    '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
+                },
+                "deleted": "2021-06-01T18:46:41"
             }
         }
         self.assertEqual(agnostic_results, expected_output)
@@ -91,7 +97,11 @@ class Test_DeltaQuery(unittest.TestCase):
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
-                '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
+                "created": "2021-05-07T09:59:15",
+                "modified": {
+                    '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
+                },
+                "deleted": "2021-06-01T18:46:41"
             }
         }
         self.assertEqual(agnostic_results, expected_output)
@@ -110,7 +120,11 @@ class Test_DeltaQuery(unittest.TestCase):
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
-                '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
+                "created": "2021-05-07T09:59:15",
+                "modified": {
+                    '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
+                },
+                "deleted": "2021-06-01T18:46:41"
             }
         }
         self.assertEqual(agnostic_results, expected_output)
@@ -128,7 +142,13 @@ class Test_DeltaQuery(unittest.TestCase):
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
         delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_PATH)
         agnostic_results = delta_query.run_agnostic_query()
-        expected_output = dict()
+        expected_output = {
+            'https://github.com/arcangelo7/time_agnostic/ar/15519': {
+                'created': '2021-05-07T09:59:15', 
+                'modified': {}, 
+                'deleted': None
+            }
+        }
         self.assertEqual(agnostic_results, expected_output)
 
 

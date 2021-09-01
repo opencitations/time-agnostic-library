@@ -524,7 +524,11 @@ class DeltaQuery(AgnosticQuery):
     def _identify_changed_entities(self, identifies_entities:set):
         output = dict()
         for identified_entity in identifies_entities:
-            output[identified_entity] = dict()
+            output[identified_entity] = {
+                "created": None,
+                "modified": dict(), 
+                "deleted": None
+            }
             query = f"""
                 SELECT DISTINCT ?time ?updateQuery
                 WHERE {{
@@ -535,10 +539,34 @@ class DeltaQuery(AgnosticQuery):
             for changed_property in self.changed_properties:
                 query += f"FILTER CONTAINS (?updateQuery, '{changed_property}')."
             query += "}"
+            query_creation = f"""
+                SELECT DISTINCT ?creationTime
+                WHERE {{
+                    ?se <{ProvEntity.iri_specialization_of}> <{identified_entity}>;
+                        <{ProvEntity.iri_generated_at_time}> ?creationTime.
+                    FILTER NOT EXISTS {{?se <{ProvEntity.iri_was_derived_from}> ?another_se}}
+                }}
+            """
+            query_deletion = f"""
+                SELECT DISTINCT ?deletionTime
+                WHERE {{
+                    ?se <{ProvEntity.iri_specialization_of}> <{identified_entity}>;
+                        <{ProvEntity.iri_generated_at_time}> ?deletionTime.
+                    FILTER NOT EXISTS {{?another_se <{ProvEntity.iri_was_derived_from}> ?se}}
+                }}
+            """
             results = Sparql(query, self.config_path).run_select_query()
+            creation_time = Sparql(query_creation, self.config_path).run_select_query()
+            deletion_time = Sparql(query_deletion, self.config_path).run_select_query()
             for result_tuple in results:
                 time = AgnosticEntity._convert_to_datetime(result_tuple[0], stringify=True)
-                output[identified_entity][time] = result_tuple[1]
+                output[identified_entity]["modified"][time] = result_tuple[1]
+            for result_tuple in creation_time:
+                time = AgnosticEntity._convert_to_datetime(result_tuple[0], stringify=True)
+                output[identified_entity]["created"] = time
+            for result_tuple in deletion_time:
+                time = AgnosticEntity._convert_to_datetime(result_tuple[0], stringify=True)
+                output[identified_entity]["deleted"] = time
         return output
 
     def run_agnostic_query(self) -> Dict[str, Dict[str, str]]:
@@ -551,34 +579,57 @@ class DeltaQuery(AgnosticQuery):
 
             {
                 RES_URI_1: {
-                    TIMESTAMP_1: UPDATE_QUERY_1,
-                    TIMESTAMP_2: UPDATE_QUERY_2,
-                    TIMESTAMP_N: UPDATE_QUERY_N
+                    "created": TIMESTAMP_CREATION,
+                    "modified": {
+                        TIMESTAMP_1: UPDATE_QUERY_1,
+                        TIMESTAMP_2: UPDATE_QUERY_2,
+                        TIMESTAMP_N: UPDATE_QUERY_N
+                    },
+                    "deleted": TIMESTAMP_DELETION
                 },
                 RES_URI_2: {
-                    TIMESTAMP_1: UPDATE_QUERY_1,
-                    TIMESTAMP_2: UPDATE_QUERY_2,
-                    TIMESTAMP_N: UPDATE_QUERY_N
+                    "created": TIMESTAMP_CREATION,
+                    "modified": {
+                        TIMESTAMP_1: UPDATE_QUERY_1,
+                        TIMESTAMP_2: UPDATE_QUERY_2,
+                        TIMESTAMP_N: UPDATE_QUERY_N
+                    },
+                    "deleted": TIMESTAMP_DELETION
                 },
                 RES_URI_N: {
-                    TIMESTAMP_1: UPDATE_QUERY_1,
-                    TIMESTAMP_2: UPDATE_QUERY_2,
-                    TIMESTAMP_N: UPDATE_QUERY_N
+                    "created": TIMESTAMP_CREATION,
+                    "modified": {
+                        TIMESTAMP_1: UPDATE_QUERY_1,
+                        TIMESTAMP_2: UPDATE_QUERY_2,
+                        TIMESTAMP_N: UPDATE_QUERY_N
+                    },
+                    "deleted": TIMESTAMP_DELETION
                 },		
             }            
 
-        :returns Dict[str, Set[Tuple]] -- The output is a dictionary that reports the modified entities, in what time they have changed and how.
+        :returns Dict[str, Set[Tuple]] -- The output is a dictionary that reports the modified entities, when they were created, modified, and deleted. Changes are reported as SPARQL UPDATE queries. If the entity was not created or deleted within the indicated range, the "created" or "deleted" value is None. On the other hand, if the entity does not exist within the input interval, the "modified" value is an empty dictionary.
         """
         identified_entities = self._identify_entities()
         agnostic_result:Dict[str, Dict[str, str]] = self._identify_changed_entities(identified_entities)
         if self.on_time:
             agnostic_result_on_time = dict()
-            for entity, snapshots in agnostic_result.items():
-                relevant_timestamps = _filter_timestamps_by_interval(self.on_time, snapshots)
-                for relevant_timestamp in relevant_timestamps:
-                    agnostic_result_on_time[entity] = dict()
-                    update_query = agnostic_result[entity][relevant_timestamp]
-                    agnostic_result_on_time[entity][relevant_timestamp] = update_query
+            for entity, operations in agnostic_result.items():
+                creation_time = agnostic_result[entity]["created"]
+                agnostic_result_on_time[entity] = {
+                    "created": creation_time,
+                    "modified": dict(), 
+                    "deleted": None
+                }
+                for operation, value in operations.items():
+                    if operation == "modified":
+                        relevant_timestamps = _filter_timestamps_by_interval(self.on_time, value)
+                        for relevant_timestamp in relevant_timestamps:
+                            update_query = agnostic_result[entity]["modified"][relevant_timestamp]
+                            agnostic_result_on_time[entity]["modified"][relevant_timestamp] = update_query
+                    elif operation == "deleted":
+                        relevant_deletion_time = _filter_timestamps_by_interval(self.on_time, [value])
+                        if relevant_deletion_time:
+                            agnostic_result_on_time[entity]["deleted"] = relevant_deletion_time.pop()
             return agnostic_result_on_time
         else:
             return agnostic_result
