@@ -52,7 +52,7 @@ class VersionQuery(AgnosticQuery):
 
     :param query: The SPARQL query string.
     :type query: str
-    :param on_time: If you want to query a specific version, specify the time interval here. The format is (AFTER, BEFORE). If one of the two values is None, only the other is considered. Finally, the time can be specified using any existing standard.
+    :param on_time: If you want to query a specific version, specify the time interval here. The format is (START, END). If one of the two values is None, only the other is considered. Finally, the time can be specified using any existing standard.
     :type on_time: Tuple[Union[str, None]], optional
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
@@ -502,7 +502,7 @@ class DeltaQuery(AgnosticQuery):
 
     :param query: A SPARQL query string. It is useful to identify the entities whose change you want to investigate.
     :type query: str
-    :param on_time: If you want to query specific snapshots, specify the time interval here. The format is (AFTER, BEFORE). If one of the two values is None, only the other is considered. Finally, the time can be specified using any existing standard.
+    :param on_time: If you want to query specific snapshots, specify the time interval here. The format is (START, END). If one of the two values is None, only the other is considered. Finally, the time can be specified using any existing standard.
     :type on_time: Tuple[Union[str, None]], optional
     :param changed_properties: A set of properties. It narrows the field to those entities where the properties specified in the set have changed.
     :type changed_properties: Set[str], optional

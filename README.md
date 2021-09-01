@@ -32,11 +32,11 @@ Obtaining a version materialization means returning an entity version at a given
 
 To do so, create an instance of the **AgnosticEntity** class, passing as an argument the entity URI (RES_URI) and the configuration file path (CONFIG_PATH). For more information about the configuration file, see [Configuration file](#configuration-file). Finally, run the **get_state_at_time method**, passing the time of interest as an argument and, if provenance metadata are needed, True to the **include_prov_metadata** field. 
 
-The specified time is a tuple, in the form (AFTER, BEFORE). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
+The specified time is a tuple, in the form (START, END). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
 
 ``` python
   agnostic_entity = AgnosticEntity(res=RES_URI, config_path=CONFIG_PATH)
-  agnostic_entity.get_state_at_time(time=(AFTER, BEFORE), include_prov_metadata=True)
+  agnostic_entity.get_state_at_time(time=(START, END), include_prov_metadata=True)
 ```
 
 The output is always a tuple of three elements: the first is a dictionary that associates graphs and timestamps within the specified interval; the second contains the snapshots metadata of which the states has been returned, the third is a dictionary including the other snapshots' provenance metadata if **include_prov_metadata** is True, None if False.
@@ -120,14 +120,14 @@ Performing a single-version structured query means running a SPARQL query on a s
 
 To obtain this result, instantiate the **VersionQuery** class, passing as an argument the SPARQL query string (QUERY_STRING), the time of interest and the configuration file's path (CONFIG_PATH). Finally, execute the **run_agnostic_query** method.
 
-The specified time is a tuple, in the form (AFTER, BEFORE). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
+The specified time is a tuple, in the form (START, END). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
 
 For more information about the configuration file, see [Configuration file](#configuration-file). 
 
 **Please note**: only SELECT queries are allowed. 
 
 ``` python
-  agnostic_query = VersionQuery(query=QUERY_STRING, on_time=(AFTER, BEFORE), config_path=CONFIG_PATH)
+  agnostic_query = VersionQuery(query=QUERY_STRING, on_time=(START, END), config_path=CONFIG_PATH)
   agnostic_query.run_agnostic_query()
 ```
 
@@ -192,7 +192,7 @@ To obtain this result, instantiate the **DeltaQuery** class, passing as an argum
 
 The query string (QUERY_STRING) is useful to identify the entities whose change you want to investigate.
 
-The specified time is a tuple, in the form (AFTER, BEFORE). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
+The specified time is a tuple, in the form (START, END). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
 
 The set of properties (PROPERTIES_SET) narrows the field to those entities where the properties specified in the set have changed. If no property was indicated, any changes are considered.
 
@@ -201,7 +201,7 @@ For more information about the configuration file (CONFIG_PATH), see [Configurat
 **Please note**: only SELECT queries are allowed. 
 
 ``` python
-  agnostic_entity = DeltaQuery(query=QUERY_STRING, on_time=(AFTER, BEFORE), changed_properties=PROPERTIES_SET, config_path=CONFIG_PATH)
+  agnostic_entity = DeltaQuery(query=QUERY_STRING, on_time=(START, END), changed_properties=PROPERTIES_SET, config_path=CONFIG_PATH)
   agnostic_entity.run_agnostic_query()
 ```
 

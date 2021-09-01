@@ -134,7 +134,7 @@ class AgnosticEntity:
                 }
             )
 
-        :param time: A time interval, in the form (AFTER, BEFORE). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
+        :param time: A time interval, in the form (START, END). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
         :type time: Tuple[Union[str, None]].
         :param include_prov_metadata: If True, hooks are returned to the previous and subsequent snapshots.
         :type include_prov_metadata: bool, optional
