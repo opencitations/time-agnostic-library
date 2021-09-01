@@ -14,6 +14,7 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
+from pprint import pprint
 import unittest
 from time_agnostic_library.agnostic_query import DeltaQuery
 
@@ -120,7 +121,7 @@ class Test_DeltaQuery(unittest.TestCase):
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
-                "created": "2021-05-07T09:59:15",
+                "created": None,
                 "modified": {
                     '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
                 },
@@ -144,7 +145,7 @@ class Test_DeltaQuery(unittest.TestCase):
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
-                'created': '2021-05-07T09:59:15', 
+                'created': None, 
                 'modified': {}, 
                 'deleted': None
             }

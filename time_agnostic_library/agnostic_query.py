@@ -614,9 +614,8 @@ class DeltaQuery(AgnosticQuery):
         if self.on_time:
             agnostic_result_on_time = dict()
             for entity, operations in agnostic_result.items():
-                creation_time = agnostic_result[entity]["created"]
                 agnostic_result_on_time[entity] = {
-                    "created": creation_time,
+                    "created": None,
                     "modified": dict(), 
                     "deleted": None
                 }
@@ -626,10 +625,10 @@ class DeltaQuery(AgnosticQuery):
                         for relevant_timestamp in relevant_timestamps:
                             update_query = agnostic_result[entity]["modified"][relevant_timestamp]
                             agnostic_result_on_time[entity]["modified"][relevant_timestamp] = update_query
-                    elif operation == "deleted":
+                    elif operation == "created" or operation == "deleted":
                         relevant_deletion_time = _filter_timestamps_by_interval(self.on_time, [value])
                         if relevant_deletion_time:
-                            agnostic_result_on_time[entity]["deleted"] = relevant_deletion_time.pop()
+                            agnostic_result_on_time[entity][operation] = relevant_deletion_time.pop()
             return agnostic_result_on_time
         else:
             return agnostic_result
