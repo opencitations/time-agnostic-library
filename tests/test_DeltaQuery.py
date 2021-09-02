@@ -14,7 +14,6 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-from pprint import pprint
 import unittest
 from time_agnostic_library.agnostic_query import DeltaQuery
 
@@ -22,21 +21,6 @@ CONFIG_PATH = "tests/config.json"
 
 
 class Test_DeltaQuery(unittest.TestCase):
-    def test__identify_entities(self):
-        query = """
-            prefix pro: <http://purl.org/spar/pro/>
-            SELECT DISTINCT ?ar
-            WHERE {
-                ?ar a pro:RoleInTime. 
-            }
-        """
-        delta_query = DeltaQuery(query, config_path=CONFIG_PATH)
-        output = delta_query._identify_entities()
-        expected_output = {
-            'https://github.com/arcangelo7/time_agnostic/ar/15519' 
-        }
-        self.assertEqual(output, expected_output)
-
     def test__identify_changed_entities(self):
         query = """
             prefix pro: <http://purl.org/spar/pro/>
@@ -45,19 +29,19 @@ class Test_DeltaQuery(unittest.TestCase):
                 ?ar a pro:RoleInTime. 
             }
         """
-        identifies_entities = {
-            'https://github.com/arcangelo7/time_agnostic/ar/15519' 
-        }   
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
         delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_path=CONFIG_PATH)
-        output = delta_query._identify_changed_entities(identifies_entities)
+        delta_query.reconstructed_entities = {
+            'https://github.com/arcangelo7/time_agnostic/ar/15519' 
+        }   
+        output = delta_query._identify_changed_entities()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 "created": "2021-05-07T09:59:15",
                 "modified": {
                     '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
                 },
-                "deleted": "2021-06-01T18:46:41"
+                "deleted": None
             }
         }
         self.assertEqual(output, expected_output)
@@ -79,7 +63,7 @@ class Test_DeltaQuery(unittest.TestCase):
                 "modified": {
                     '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
                 },
-                "deleted": "2021-06-01T18:46:41"
+                "deleted": None
             }
         }
         self.assertEqual(agnostic_results, expected_output)
@@ -102,7 +86,7 @@ class Test_DeltaQuery(unittest.TestCase):
                 "modified": {
                     '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
                 },
-                "deleted": "2021-06-01T18:46:41"
+                "deleted": None
             }
         }
         self.assertEqual(agnostic_results, expected_output)
@@ -125,7 +109,7 @@ class Test_DeltaQuery(unittest.TestCase):
                 "modified": {
                     '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
                 },
-                "deleted": "2021-06-01T18:46:41"
+                "deleted": None
             }
         }
         self.assertEqual(agnostic_results, expected_output)
@@ -149,6 +133,34 @@ class Test_DeltaQuery(unittest.TestCase):
                 'modified': {}, 
                 'deleted': None
             }
+        }
+        self.assertEqual(agnostic_results, expected_output)
+
+    def test_run_agnostic_query_on_deleted_entity(self):
+        query = """
+            prefix foaf: <http://xmlns.com/foaf/0.1/>
+            SELECT DISTINCT ?ra
+            WHERE {
+                ?ra a foaf:Agent. 
+            }
+        """
+        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        agnostic_results = delta_query.run_agnostic_query()
+        expected_output = {
+            'https://github.com/arcangelo7/time_agnostic/ra/15519': {
+                'created': '2021-05-07T09:59:15',
+                'deleted': '2021-06-01T18:46:41',
+                'modified': {
+                    '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> "Giulio Marini"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> "Giulio"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> "Marini"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }'
+                }   
+            },
+            'https://github.com/arcangelo7/time_agnostic/ra/4': {
+                'created': '2021-05-07T09:59:15',
+                'deleted': None,
+                'modified': {
+                    '2021-06-01T18:46:41': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been merged with 'https://github.com/arcangelo7/time_agnostic/ra/15519'."
+                }
+            }      
         }
         self.assertEqual(agnostic_results, expected_output)
 
