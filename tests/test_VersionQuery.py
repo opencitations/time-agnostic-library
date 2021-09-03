@@ -20,6 +20,7 @@ from time_agnostic_library.agnostic_query import VersionQuery
 from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph
 
 CONFIG_PATH = "tests/config.json"
+CONFIG_BLAZEGRAPH = "tests/config_blazegraph.json"
 
 class Test_VersionQuery(unittest.TestCase):        
     def test__tree_traverse_no_options(self):
@@ -1000,13 +1001,22 @@ class Test_VersionQuery(unittest.TestCase):
         triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
         query_to_identify = VersionQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify = """
+            PREFIX bds: <http://www.bigdata.com/rdf/search#>
             SELECT DISTINCT ?updateQuery 
             WHERE {
                 ?snapshot <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
-                FILTER CONTAINS (?updateQuery, '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>')
+                FILTER CONTAINS (?updateQuery, 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue').
             }
         """.replace(" ", "").replace("\n", "")
-        self.assertAlmostEqual(query_to_identify, expected_query_to_identify)
+        expected_query_to_identify_bds = """
+            PREFIX bds: <http://www.bigdata.com/rdf/search#>
+            SELECT DISTINCT ?updateQuery
+            WHERE {
+            ?snapshot <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
+            ?updateQuery bds:search 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'.
+            }
+        """.replace(" ", "").replace("\n", "")
+        assert (query_to_identify == expected_query_to_identify) or (query_to_identify == expected_query_to_identify_bds)
 
     def test__find_entities_in_update_queries(self):
         query = """
@@ -1231,8 +1241,9 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_BLAZEGRAPH)
         output = agnostic_query.run_agnostic_query()
+        print(output)
         expected_output = {
             '2021-05-07T09:59:15': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519', 'https://github.com/arcangelo7/time_agnostic/id/14')
@@ -1260,7 +1271,7 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_BLAZEGRAPH)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {

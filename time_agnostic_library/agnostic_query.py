@@ -39,7 +39,15 @@ class AgnosticQuery(object):
         self.query = query
         self.config_path = config_path
         with open(config_path, encoding="utf8") as json_file:
-            self.cache_triplestore_url:str = json.load(json_file)["cache_triplestore_url"]
+            config = json.load(json_file)
+        blazegraph_full_text_search:str = config["blazegraph_full_text_search"]
+        self.cache_triplestore_url:str = config["cache_triplestore_url"]
+        if blazegraph_full_text_search.lower() in {"true", "1", 1, "t", "y", "yes", "ok"}:
+            self.blazegraph_full_text_search = True
+        elif blazegraph_full_text_search.lower() in {"false", "0", 0, "n", "f", "no"}:
+            self.blazegraph_full_text_search = False
+        else:
+            raise ValueError("Enter a valid value for 'blazegraph_full_text_search' in the configuration file, for example 'yes' or 'no'.")
         if self.cache_triplestore_url:
             self.sparql = SPARQLWrapper(self.cache_triplestore_url)
         if on_time:
@@ -183,15 +191,20 @@ class AgnosticQuery(object):
     def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = f"""
+            PREFIX bds: <http://www.bigdata.com/rdf/search#>
             SELECT DISTINCT ?updateQuery 
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
         """ 
+        if self.blazegraph_full_text_search:
+            bds_search = "?updateQuery bds:search '" + ' '.join(uris_in_triple) +  "'.?updateQuery bds:matchAllTerms 'true'.}"
+            query_to_identify += bds_search
+        else:
+            filter_search = ").".join([f"FILTER CONTAINS (?updateQuery, '{uri}'" for uri in uris_in_triple]) + ").}"
+            query_to_identify += filter_search
         for uri in uris_in_triple:
             if triple.index(uri) == 0 or triple.index(uri) == 2:
                 self._rebuild_relevant_entity(uri)
-            query_to_identify += f"FILTER CONTAINS (?updateQuery, '<{uri}>')"
-        query_to_identify += "}"
         return query_to_identify
 
     def _find_entities_in_update_queries(self, triple:tuple):
@@ -461,40 +474,6 @@ class VersionQuery(AgnosticQuery):
         return agnostic_result
 
 
-class BlazegraphQuery(VersionQuery):
-    """
-    Use this class instead of VersionQuery in case the triplestore used is Blazegraph. 
-    """
-    def __init__(self, query:str, on_time:str="", config_path:str = CONFIG_PATH):
-        with open(config_path, encoding="utf8") as json_file:
-            blazegraph_full_text_search:str = json.load(json_file)["blazegraph_full_text_search"]
-        if blazegraph_full_text_search.lower() in {"true", "1", 1, "t", "y", "yes", "ok"}:
-            self.blazegraph_full_text_search = True
-        elif blazegraph_full_text_search.lower() in {"false", "0", 0, "n", "f", "no"}:
-            self.blazegraph_full_text_search = False
-        else:
-            raise ValueError("Enter a valid value for 'blazegraph_full_text_search' in the configuration file, for example 'yes' or 'no'.")
-        super(BlazegraphQuery, self).__init__(query, on_time, config_path)    
-
-    def _get_query_to_update_queries(self, triple:tuple) -> str:
-        uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
-        query_to_identify = f"""
-            PREFIX bds: <http://www.bigdata.com/rdf/search#>
-            SELECT DISTINCT ?updateQuery 
-            WHERE {{
-                ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-        """ 
-        for uri in uris_in_triple:
-            if triple.index(uri) == 0 or triple.index(uri) == 2:
-                self._rebuild_relevant_entity(uri)
-            if self.blazegraph_full_text_search:
-                query_to_identify += f"?updateQuery bds:search '<{uri}>'."
-            else:
-                query_to_identify += f"FILTER CONTAINS (?updateQuery, {uri})"
-        query_to_identify += "}"
-        return query_to_identify
-
-
 class DeltaQuery(AgnosticQuery):
     """
     This class allows single time and cross-time delta structured queries.
@@ -555,15 +534,20 @@ class DeltaQuery(AgnosticQuery):
     def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = f"""
+            PREFIX bds: <http://www.bigdata.com/rdf/search#>
             SELECT DISTINCT ?updateQuery 
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
         """ 
+        if self.blazegraph_full_text_search:
+            bds_search = "?updateQuery bds:search '" + ' '.join(uris_in_triple) +  "'.?updateQuery bds:matchAllTerms 'true'.}"
+            query_to_identify += bds_search
+        else:
+            filter_search = ").".join([f"FILTER CONTAINS (?updateQuery, '{uri}'" for uri in uris_in_triple]) + ").}"
+            query_to_identify += filter_search
         for uri in uris_in_triple:
             if triple.index(uri) == 0 or triple.index(uri) == 2:
                 self.reconstructed_entities.add(uri)
-            query_to_identify += f"FILTER CONTAINS (?updateQuery, '<{uri}>')"
-        query_to_identify += "}"
         return query_to_identify
         
     def _identify_changed_entities(self):
@@ -605,10 +589,10 @@ class DeltaQuery(AgnosticQuery):
                                     output[identified_entity]["modified"][time] = result_tuple[1]
                         elif result_tuple[1] and not self.changed_properties:
                             output[identified_entity]["modified"][time] = result_tuple[1]
-                        elif not result_tuple[1]:
+                        elif not result_tuple[1] and not self.changed_properties:
                             output[identified_entity]["modified"][time] = result_tuple[2]
                 if not exists:
-                    output[identified_entity]["deleted"] = AgnosticEntity._convert_to_datetime(results[-1][0], stringify=True)                          
+                    output[identified_entity]["deleted"] = AgnosticEntity._convert_to_datetime(results[-1][0], stringify=True)            
         return output
 
     def run_agnostic_query(self) -> Dict[str, Dict[str, str]]:

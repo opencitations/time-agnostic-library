@@ -18,6 +18,7 @@ import unittest
 from time_agnostic_library.agnostic_query import DeltaQuery
 
 CONFIG_PATH = "tests/config.json"
+CONFIG_BLAZEGRAPH = "tests/config_blazegraph.json"
 
 
 class Test_DeltaQuery(unittest.TestCase):
@@ -144,7 +145,7 @@ class Test_DeltaQuery(unittest.TestCase):
                 ?ra a foaf:Agent. 
             }
         """
-        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        delta_query = DeltaQuery(query=query, config_path=CONFIG_BLAZEGRAPH)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ra/15519': {
