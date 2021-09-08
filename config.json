@@ -8,5 +8,5 @@
         "file_paths": []
     },
     "blazegraph_full_text_search": "yes",
-    "cache_triplestore_url": "http://localhost:19999/blazegraph/sparql"
+    "cache_triplestore_url": ""
 }
