@@ -64,14 +64,14 @@ class AgnosticEntity:
                 {
                     RES_URI: {
                         SNAPSHOT_URI_AT_TIME_1': {
-                            'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-                            'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-                            'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                            'generatedAtTime': GENERATION_TIME, 
+                            'wasAttributedTo': ATTRIBUTION, 
+                            'hadPrimarySource': PRIMARY_SOURCE
                         }, 
                         SNAPSHOT_URI_AT_TIME_2: {
-                            'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-                            'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-                            'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                            'generatedAtTime': GENERATION_TIME, 
+                            'wasAttributedTo': ATTRIBUTION, 
+                            'hadPrimarySource': PRIMARY_SOURCE
                     }
                 } 
             )
@@ -110,26 +110,26 @@ class AgnosticEntity:
                 },
                 {
                     SNAPSHOT_URI_AT_TIME_1: {
-                        'http://www.w3.org/ns/prov#generatedAtTime': TIME_1, 
-                        'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-                        'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                        'generatedAtTime': TIME_1, 
+                        'wasAttributedTo': ATTRIBUTION, 
+                        'hadPrimarySource': PRIMARY_SOURCE
                     },
                     SNAPSHOT_URI_AT_TIME_2: {
-                        'http://www.w3.org/ns/prov#generatedAtTime': TIME_2, 
-                        'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-                        'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                        'generatedAtTime': TIME_2, 
+                        'wasAttributedTo': ATTRIBUTION, 
+                        'hadPrimarySource': PRIMARY_SOURCE
                     }
                 }, 
                 {
                     OTHER_SNAPSHOT_URI_1: {
-                        'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-                        'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-                        'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                        'generatedAtTime': GENERATION_TIME, 
+                        'wasAttributedTo': ATTRIBUTION, 
+                        'hadPrimarySource': PRIMARY_SOURCE
                     }, 
                     OTHER_SNAPSHOT_URI_2: {
-                        'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-                        'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-                        'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+                        'generatedAtTime': GENERATION_TIME, 
+                        'wasAttributedTo': ATTRIBUTION, 
+                        'hadPrimarySource': PRIMARY_SOURCE
                     }
                 }
             )
@@ -172,9 +172,9 @@ class AgnosticEntity:
             self._manage_update_queries(entity_cg, sum_update_queries)
             entity_graphs[relevant_result[1]] = entity_cg
             entity_snapshots[relevant_result[0]] = {
-                str(ProvEntity.iri_generated_at_time): relevant_result[1],
-                str(ProvEntity.iri_was_attributed_to): relevant_result[2],
-                str(ProvEntity.iri_had_primary_source): relevant_result[4]
+                "generatedAtTime": relevant_result[1],
+                "wasAttributedTo": relevant_result[2],
+                "hadPrimarySource": relevant_result[4]
             }
             relevant_snapshots.add(relevant_result[0])
         if include_prov_metadata:
@@ -182,9 +182,9 @@ class AgnosticEntity:
             other_snapshots = dict()
             for result_tuple in results:
                 other_snapshots[result_tuple[0]] = {
-                    str(ProvEntity.iri_generated_at_time): result_tuple[1],
-                    str(ProvEntity.iri_was_attributed_to): result_tuple[2],
-                    str(ProvEntity.iri_had_primary_source): result_tuple[4]
+                    "generatedAtTime": result_tuple[1],
+                    "wasAttributedTo": result_tuple[2],
+                    "hadPrimarySource": result_tuple[4]
             }
             return entity_graphs, entity_snapshots, other_snapshots
         return entity_graphs, entity_snapshots, None
@@ -192,29 +192,29 @@ class AgnosticEntity:
     def _include_prov_metadata(self, triples_generated_at_time:list, current_state:ConjunctiveGraph) -> dict:
         if list(current_state.triples((URIRef(self.res), URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), ProvEntity.iri_entity))): 
             return dict()
-        prov_properties = [
-            ProvEntity.iri_was_attributed_to, 
-            ProvEntity.iri_had_primary_source, 
-            ProvEntity.iri_description
-        ] 
+        prov_properties = {
+            ProvEntity.iri_was_attributed_to: "wasAttributedTo", 
+            ProvEntity.iri_had_primary_source: "hadPrimarySource", 
+            ProvEntity.iri_description: "description"
+        }
         prov_metadata = {
             self.res: dict()
         }
         for triple in triples_generated_at_time:
             time = self._convert_to_datetime(triple[2]).strftime("%Y-%m-%dT%H:%M:%S")
             prov_metadata[self.res][str(triple[0])] = {
-                "http://www.w3.org/ns/prov#generatedAtTime": time,
-                "http://www.w3.org/ns/prov#wasAttributedTo": None,
-                "http://www.w3.org/ns/prov#hadPrimarySource": None,
-                "http://purl.org/dc/terms/description": None
+                "generatedAtTime": time,
+                "wasAttributedTo": None,
+                "hadPrimarySource": None,
+                "description": None
             }
         for entity, metadata in dict(prov_metadata).items():
             for se, _ in metadata.items():
-                for prov_property in prov_properties:
+                for prov_property, abbr in prov_properties.items():
                     triples_with_property = current_state.triples(
                     (URIRef(se), prov_property, None))
                     for triple in triples_with_property:
-                        prov_metadata[entity][str(triple[0])][str(triple[1])] = str(triple[2])
+                        prov_metadata[entity][str(triple[0])][abbr] = str(triple[2])
         return prov_metadata
 
     def _get_entity_current_state(self, include_prov_metadata:bool=False) -> list:

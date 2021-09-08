@@ -49,26 +49,26 @@ The output is always a tuple of three elements: the first is a dictionary that a
       },
       {
           SNAPSHOT_URI_AT_TIME_1: {
-              'http://www.w3.org/ns/prov#generatedAtTime': TIME_1, 
-              'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-              'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+              'generatedAtTime': TIME_1, 
+              'wasAttributedTo': ATTRIBUTION, 
+              'hadPrimarySource': PRIMARY_SOURCE
           },
           SNAPSHOT_URI_AT_TIME_2: {
-              'http://www.w3.org/ns/prov#generatedAtTime': TIME_2, 
-              'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-              'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+              'generatedAtTime': TIME_2, 
+              'wasAttributedTo': ATTRIBUTION, 
+              'hadPrimarySource': PRIMARY_SOURCE
           }
       }, 
       {
           OTHER_SNAPSHOT_URI_1: {
-              'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-              'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-              'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+              'generatedAtTime': GENERATION_TIME, 
+              'wasAttributedTo': ATTRIBUTION, 
+              'hadPrimarySource': PRIMARY_SOURCE
           }, 
           OTHER_SNAPSHOT_URI_2: {
-              'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-              'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-              'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+              'generatedAtTime': GENERATION_TIME, 
+              'wasAttributedTo': ATTRIBUTION, 
+              'hadPrimarySource': PRIMARY_SOURCE
           }
       }
   )
@@ -94,14 +94,14 @@ In this case, the output is always a two-element tuple. The first is a dictionar
     {
       RES_URI: {
         SNAPSHOT_URI_AT_TIME_1': {
-            'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-            'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-            'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+            'generatedAtTime': GENERATION_TIME, 
+            'wasAttributedTo': ATTRIBUTION, 
+            'hadPrimarySource': PRIMARY_SOURCE
         }, 
         SNAPSHOT_URI_AT_TIME_2: {
-            'http://www.w3.org/ns/prov#generatedAtTime': GENERATION_TIME, 
-            'http://www.w3.org/ns/prov#wasAttributedTo': ATTRIBUTION, 
-            'http://www.w3.org/ns/prov#hadPrimarySource': PRIMARY_SOURCE
+            'generatedAtTime': GENERATION_TIME, 
+            'wasAttributedTo': ATTRIBUTION, 
+            'hadPrimarySource': PRIMARY_SOURCE
         }
     } 
   )

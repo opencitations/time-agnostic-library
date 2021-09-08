@@ -79,22 +79,22 @@ class Test_AgnosticEntity(unittest.TestCase):
         expected_output_1 = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-06-01T18:46:41', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None 
+                    'generatedAtTime': '2021-06-01T18:46:41', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
+                    'hadPrimarySource': None 
                 }, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-07T09:59:15', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None
+                    'generatedAtTime': '2021-05-07T09:59:15', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.",
+                    'hadPrimarySource': None
                 }, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-31T18:19:47', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None
+                    'generatedAtTime': '2021-05-31T18:19:47', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
+                    'hadPrimarySource': None
                 }
             }
         }
@@ -172,30 +172,30 @@ class Test_AgnosticEntity(unittest.TestCase):
         expected_output_1 = {
             'https://github.com/arcangelo7/time_agnostic/id/14': {
                 'https://github.com/arcangelo7/time_agnostic/id/14/prov/se/2': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-06-01T18:46:41', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been merged with 'https://github.com/arcangelo7/time_agnostic/id/85509'.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None
+                    'generatedAtTime': '2021-06-01T18:46:41', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been merged with 'https://github.com/arcangelo7/time_agnostic/id/85509'.",
+                    'hadPrimarySource': None
                 }, 
                 'https://github.com/arcangelo7/time_agnostic/id/14/prov/se/1': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-07T09:59:15', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been created.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None
+                    'generatedAtTime': '2021-05-07T09:59:15', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been created.",
+                    'hadPrimarySource': None
                 }
             }, 
             'https://github.com/arcangelo7/time_agnostic/ra/4': {
                 'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-07T09:59:15', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been created.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None
+                    'generatedAtTime': '2021-05-07T09:59:15', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been created.",
+                    'hadPrimarySource': None
                 }, 
                 'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/2': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-06-01T18:46:41', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been merged with 'https://github.com/arcangelo7/time_agnostic/ra/15519'.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None
+                    'generatedAtTime': '2021-06-01T18:46:41', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been merged with 'https://github.com/arcangelo7/time_agnostic/ra/15519'.",
+                    'hadPrimarySource': None
                 }
             }
         }
@@ -220,9 +220,9 @@ class Test_AgnosticEntity(unittest.TestCase):
             }, 
             {
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-31T18:19:47.000Z', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None
+                    'generatedAtTime': '2021-05-31T18:19:47.000Z', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'hadPrimarySource': None
                 }
             },
             None
@@ -262,26 +262,27 @@ class Test_AgnosticEntity(unittest.TestCase):
             },
             {
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-07T09:59:15.000Z',
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None,
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
+                    'generatedAtTime': '2021-05-07T09:59:15.000Z',
+                    'hadPrimarySource': None,
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
                 },
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-31T18:19:47.000Z',
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None,
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
+                    'generatedAtTime': '2021-05-31T18:19:47.000Z',
+                    'hadPrimarySource': None,
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
                 },
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-06-01T18:46:41.000Z',
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None,
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
+                    'generatedAtTime': '2021-06-01T18:46:41.000Z',
+                    'hadPrimarySource': None,
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
                 }
             },
             None
         )
         self.assertEqual(output, expected_output)
-
+    
     def test_get_state_before_time_with_hooks(self):
+        self.maxDiff = None
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         input_2 = (None, "2021-05-31T19:19:47+00:00")
         output = AgnosticEntity(input_1).get_state_at_time(input_2, include_prov_metadata=True)
@@ -305,21 +306,21 @@ class Test_AgnosticEntity(unittest.TestCase):
             }, 
             {
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-07T09:59:15.000Z',
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None,
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
+                    'generatedAtTime': '2021-05-07T09:59:15.000Z',
+                    'hadPrimarySource': None,
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696'
                 },
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-31T18:19:47.000Z', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None
+                    'generatedAtTime': '2021-05-31T18:19:47.000Z', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'hadPrimarySource': None
                 }
             }, 
             {
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-06-01T18:46:41.000Z', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None
+                    'generatedAtTime': '2021-06-01T18:46:41.000Z', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'hadPrimarySource': None
                 }
             }
         )
@@ -402,22 +403,22 @@ class Test_AgnosticEntity(unittest.TestCase):
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-06-01T18:46:41', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': None 
+                    'generatedAtTime': '2021-06-01T18:46:41', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
+                    'hadPrimarySource': None 
                 }, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-07T09:59:15', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': "http://api.crossref.org/journals/0138-9130"
+                    'generatedAtTime': '2021-05-07T09:59:15', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.",
+                    'hadPrimarySource': "http://api.crossref.org/journals/0138-9130"
                 }, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                    'http://www.w3.org/ns/prov#generatedAtTime': '2021-05-31T18:19:47', 
-                    'http://www.w3.org/ns/prov#wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'http://purl.org/dc/terms/description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
-                    'http://www.w3.org/ns/prov#hadPrimarySource': "http://api.crossref.org/journals/0138-9130"
+                    'generatedAtTime': '2021-05-31T18:19:47', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
+                    'hadPrimarySource': "http://api.crossref.org/journals/0138-9130"
                 }
             }
         }
