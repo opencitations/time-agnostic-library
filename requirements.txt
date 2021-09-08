@@ -2,7 +2,6 @@ chardet
 oc_ocdm
 python-dateutil
 rdflib
-rdflib-jsonld
 SPARQLWrapper
 sphinx_autodoc_defaultargs
 sphinx-material
