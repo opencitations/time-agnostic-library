@@ -12,6 +12,7 @@ Documentation can be found here: [https://time-agnostic-library.readthedocs.io](
   * [Cross-version structured query](#cross-version-structured-query)
   * [Single-delta structured query](#single-delta-structured-query)
   * [Cross-delta structured query](#cross-delta-structured-query)
+  * [Configuration file](#configuration-file)
 - [Developer's guide](#developers-guide)
   * [How to run the tests](#how-to-run-the-tests)
   * [How to build the documentation](#how-to-build-the-documentation)
