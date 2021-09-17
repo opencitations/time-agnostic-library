@@ -85,6 +85,28 @@ class AgnosticQuery(object):
                 if found is not None:  
                     values.extend(found)
 
+    def _rebuild_relevant_graphs(self) -> None:
+        # First, the graphs of the hooks are reconstructed
+        triples_checked = set()
+        for triple in self.triples:
+            if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
+                query_to_identify = self._get_query_to_identify(triple)
+                present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
+                pbar = tqdm(total=len(present_results))
+                for result in present_results:
+                    self._rebuild_relevant_entity(result[0])
+                    self._rebuild_relevant_entity(result[2])
+                    pbar.update(1)
+                pbar.close()
+                self._find_entities_in_update_queries(triple)
+            else:
+                self._rebuild_relevant_entity(triple[0])
+                self._rebuild_relevant_entity(triple[2])
+            triples_checked.add(triple)
+        self._align_snapshots()
+        # Then, the graphs of the entities obtained from the hooks are reconstructed
+        self._solve_variables()
+
     def _is_isolated(self, triple:tuple) -> bool:
         if isinstance(triple[0], URIRef):
             return False
@@ -165,29 +187,7 @@ class AgnosticQuery(object):
             if not new_uris:
                 return False
         return True
-            
-    def _rebuild_relevant_graphs(self) -> None:
-        # First, the graphs of the hooks are reconstructed
-        triples_checked = set()
-        for triple in self.triples:
-            if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
-                query_to_identify = self._get_query_to_identify(triple)
-                present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
-                pbar = tqdm(total=len(present_results))
-                for result in present_results:
-                    self._rebuild_relevant_entity(result[0])
-                    self._rebuild_relevant_entity(result[2])
-                    pbar.update(1)
-                pbar.close()
-                self._find_entities_in_update_queries(triple)
-            else:
-                self._rebuild_relevant_entity(triple[0])
-                self._rebuild_relevant_entity(triple[2])
-            triples_checked.add(triple)
-        self._align_snapshots()
-        # Then, the graphs of the entities obtained from the hooks are reconstructed
-        self._solve_variables()
-               
+                           
     def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = f"""
@@ -236,12 +236,15 @@ class AgnosticQuery(object):
             pbar.close()
 
     def _solve_variables(self) -> None:
+        self.vars_to_explicit_by_time = dict()
         self._get_vars_to_explicit_by_time()
         while self._there_are_variables():
             solved_variables = self._explicit_solvable_variables()
+            self._align_snapshots()
             if not solved_variables:
                 return 
             self._update_vars_to_explicit(solved_variables)
+            self._get_vars_to_explicit_by_time()
 
     def _there_are_variables(self) -> bool:
         for _, triples in self.vars_to_explicit_by_time.items():
@@ -280,7 +283,6 @@ class AgnosticQuery(object):
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(result)
                             self._rebuild_relevant_entity(result[variable_index])
-                self._align_snapshots()
         return explicit_triples
 
     def _align_snapshots(self) -> None:
@@ -367,10 +369,11 @@ class AgnosticQuery(object):
     
     def _get_vars_to_explicit_by_time(self) -> None:
         for se, _ in self.relevant_graphs.items():
-            self.vars_to_explicit_by_time[se] = set()
-            for triple in self.triples:
-                if any(el for el in triple if isinstance(el, Variable)) and not self._is_isolated(triple):
-                    self.vars_to_explicit_by_time[se].add(triple)
+            if se not in self.vars_to_explicit_by_time:
+                self.vars_to_explicit_by_time[se] = set()
+                for triple in self.triples:
+                    if any(el for el in triple if isinstance(el, Variable)) and not self._is_isolated(triple):
+                        self.vars_to_explicit_by_time[se].add(triple)
 
     def _cache_entity_graph(self, entity:str, reconstructed_graph:ConjunctiveGraph, timestamp:str, prov_metadata:dict) -> None:
         graph_iri = f"https://github.com/opencitations/time-agnostic-library/{timestamp}"
@@ -417,7 +420,7 @@ class AgnosticQuery(object):
             for timestamp in provenance:
                 relevant_timestamps.add(timestamp[1])
         return relevant_timestamps
-    
+
     def _store_relevant_timestamps(self, entity:URIRef, relevant_timestamps:list):
         for timestamp in relevant_timestamps:
             timestamp = AgnosticEntity._convert_to_datetime(timestamp, stringify=True)
@@ -657,13 +660,3 @@ class DeltaQuery(AgnosticQuery):
             return agnostic_result_on_time
         else:
             return agnostic_result
-
-    
-
-
-
-
-
-    
-
-
