@@ -1507,7 +1507,7 @@ class Test_VersionQuery(unittest.TestCase):
         }
         self.assertEqual(output, expected_output)
 
-    def test_run_agnostic_query_only_present_data(self):
+    def test_run_agnostic_query_updating_relevant_times(self):
         query = """
             PREFIX literal: <http://www.essepuntato.it/2010/06/literalreification/>
             PREFIX cito: <http://purl.org/spar/cito/>
