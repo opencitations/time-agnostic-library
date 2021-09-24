@@ -15,6 +15,7 @@
 # SOFTWARE.
 
 import unittest
+from pprint import pprint
 from time_agnostic_library.agnostic_query import DeltaQuery
 
 CONFIG_PATH = "tests/config.json"
@@ -164,7 +165,6 @@ class Test_DeltaQuery(unittest.TestCase):
             }      
         }
         self.assertEqual(agnostic_results, expected_output)
-
 
 if __name__ == '__main__':
     unittest.main()

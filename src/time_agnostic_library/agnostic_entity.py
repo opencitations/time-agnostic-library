@@ -86,7 +86,7 @@ class AgnosticEntity:
             for entity in related_entities:
                 if ProvEntity.PROV not in entity[1]:
                     entities_to_query.add(str(entity[0]))
-            return _get_entities_histories(entities_to_query, include_prov_metadata)
+            return _get_entities_histories(entities_to_query, include_prov_metadata, self.config_path)
         entity_history = self._get_entity_current_state(include_prov_metadata)
         entity_history = self._get_old_graphs(entity_history)
         return tuple(entity_history)
@@ -162,13 +162,14 @@ class AgnosticEntity:
         entity_snapshots = dict()
         entity_graphs = dict()
         relevant_snapshots = set()
+        entity_cg = self._query_dataset()
         for relevant_result in relevant_results:
             sum_update_queries = ""
             for result in results:
                 if result[3]:
                     if self._convert_to_datetime(result[1]) > self._convert_to_datetime(relevant_result[1]):
                         sum_update_queries += (result[3]) +  ";"   
-            entity_cg = self._query_dataset()
+            entity_present_graph = copy.deepcopy(entity_cg)
             self._manage_update_queries(entity_cg, sum_update_queries)
             entity_graphs[relevant_result[1]] = entity_cg
             entity_snapshots[relevant_result[0]] = {
@@ -394,10 +395,10 @@ class AgnosticEntity:
                 time = time.strftime("%Y-%m-%dT%H:%M:%S")
             return time
 
-def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
+def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False, config_path:str=".config.json") -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
     entities_histories = [dict(), dict()]
     for res in res_set:
-        agnosticEntity = AgnosticEntity(res, related_entities_history=False)
+        agnosticEntity = AgnosticEntity(res, related_entities_history=False, config_path=config_path)
         history_and_metadata = agnosticEntity.get_history(include_prov_metadata=include_prov_metadata)
         if history_and_metadata:
             history = history_and_metadata[0]

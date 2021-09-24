@@ -253,7 +253,7 @@ class AgnosticQuery(object):
                 if vars:
                     return True
         return False
-                    
+
     def _explicit_solvable_variables(self) -> Dict[str, Dict[str, str]]:
         explicit_triples:Dict[str, Dict[str, set]] = dict()
         for se, triples in self.vars_to_explicit_by_time.items():
@@ -521,6 +521,7 @@ class DeltaQuery(AgnosticQuery):
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
+            print(f"[VersionQuery:INFO] Searching for relevant entities in relevant update queries.")
             for result in results:
                 update = parseUpdate(result[0])
                 for request in update["request"]:
