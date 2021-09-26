@@ -409,18 +409,21 @@ def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False,
     return tuple(entities_histories)
 
 def _filter_timestamps_by_interval(interval:Tuple[str, str], iterator:list, time_index:int=None) -> set:
-    after_time = AgnosticEntity._convert_to_datetime(interval[0])
-    before_time = AgnosticEntity._convert_to_datetime(interval[1])
-    relevant_timestamps = set()
-    for timestamp in iterator:
-        time = AgnosticEntity._convert_to_datetime(timestamp[time_index]) if time_index else AgnosticEntity._convert_to_datetime(timestamp)
-        if after_time and before_time:
-            if time >= after_time and time <= before_time:
-                relevant_timestamps.add(timestamp)
-        if after_time and not before_time:
-            if time >= after_time:
-                relevant_timestamps.add(timestamp)
-        if before_time and not after_time:
-            if time <= before_time:
-                relevant_timestamps.add(timestamp)
+    if interval:
+        after_time = AgnosticEntity._convert_to_datetime(interval[0])
+        before_time = AgnosticEntity._convert_to_datetime(interval[1])
+        relevant_timestamps = set()
+        for timestamp in iterator:
+            time = AgnosticEntity._convert_to_datetime(timestamp[time_index]) if time_index is not None else AgnosticEntity._convert_to_datetime(timestamp)
+            if after_time and before_time:
+                if time >= after_time and time <= before_time:
+                    relevant_timestamps.add(timestamp)
+            if after_time and not before_time:
+                if time >= after_time:
+                    relevant_timestamps.add(timestamp)
+            if before_time and not after_time:
+                if time <= before_time:
+                    relevant_timestamps.add(timestamp)
+    else:
+        relevant_timestamps = set(timestamp for timestamp in iterator)
     return relevant_timestamps
