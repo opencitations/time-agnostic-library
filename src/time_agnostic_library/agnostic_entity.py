@@ -170,8 +170,8 @@ class AgnosticEntity:
                     if self._convert_to_datetime(result[1]) > self._convert_to_datetime(relevant_result[1]):
                         sum_update_queries += (result[3]) +  ";"   
             entity_present_graph = copy.deepcopy(entity_cg)
-            self._manage_update_queries(entity_cg, sum_update_queries)
-            entity_graphs[relevant_result[1]] = entity_cg
+            self._manage_update_queries(entity_present_graph, sum_update_queries)
+            entity_graphs[relevant_result[1]] = entity_present_graph
             entity_snapshots[relevant_result[0]] = {
                 "generatedAtTime": relevant_result[1],
                 "wasAttributedTo": relevant_result[2],

@@ -140,7 +140,6 @@ class Test_AgnosticEntity(unittest.TestCase):
         output = AgnosticEntity(input, related_entities_history=True, config_path="tests/config.json").get_history(include_prov_metadata=True)
         output_0 = _to_dict_of_nt_sorted_lists(output[0])
         output_1 = output[1]
-        pprint(output_1)
         expected_output_0 = {
             'https://github.com/arcangelo7/time_agnostic/ra/4': {
                 '2021-06-01T18:46:41': [
@@ -238,7 +237,6 @@ class Test_AgnosticEntity(unittest.TestCase):
         for timestamp, cg in output[0].items():
             output_0[timestamp] = _to_nt_sorted_list(cg)
         output = (output_0, output[1], output[2])
-        pprint(output)
         expected_output = (
             {
                 '2021-05-07T09:59:15+00:00': 
@@ -331,7 +329,6 @@ class Test_AgnosticEntity(unittest.TestCase):
     def test__get_entity_current_state(self):
         input = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         output = _to_dict_of_nt_sorted_lists(AgnosticEntity(input, config_path="tests/config.json")._get_entity_current_state()[0])
-        pprint(output)
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 rdflib.term.Literal('2021-06-01T18:46:41+00:00'): [
@@ -821,7 +818,6 @@ class Test_AgnosticEntity(unittest.TestCase):
     def test__query_provenance(self):
         input = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ra/15519", config_path="tests/config.json")
         output = _to_nt_sorted_list(input._query_provenance())
-        pprint(output)
         expected_output = [
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"', 
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-06-01T18:46:41+00:00"', 

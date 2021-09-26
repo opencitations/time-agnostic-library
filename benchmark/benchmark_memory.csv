@@ -1,0 +1,12 @@
+test_name,memory
+materialization_all_versions,52.3671875MB
+materialization_single_version,51.6328125MB
+cross_version_structured_query,55.1796875MB
+single_version_structured_query,52.86328125MB
+cross_version_structured_query_multi_cont_values,76.36328125MB
+cross_version_structured_query_p_o,837.76953125MB
+single_version_structured_query_p_o,76.18359375MB
+cross_delta_structured_query,54.859375MB
+single_delta_structured_query,52.5546875MB
+single_delta_structured_query_p_o,64.75390625MB
+cross_delta_structured_query_p_o,69.42578125MB

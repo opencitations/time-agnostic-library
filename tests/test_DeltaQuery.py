@@ -23,31 +23,6 @@ CONFIG_BLAZEGRAPH = "tests/config_blazegraph.json"
 
 
 class Test_DeltaQuery(unittest.TestCase):
-    def test__identify_changed_entities(self):
-        query = """
-            prefix pro: <http://purl.org/spar/pro/>
-            SELECT DISTINCT ?ar
-            WHERE {
-                ?ar a pro:RoleInTime. 
-            }
-        """
-        changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
-        delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_path=CONFIG_PATH)
-        delta_query.reconstructed_entities = {
-            'https://github.com/arcangelo7/time_agnostic/ar/15519' 
-        }   
-        output = delta_query._identify_changed_entities()
-        expected_output = {
-            'https://github.com/arcangelo7/time_agnostic/ar/15519': {
-                "created": "2021-05-07T09:59:15",
-                "modified": {
-                    '2021-06-01T18:46:41': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'
-                },
-                "deleted": None
-            }
-        }
-        self.assertEqual(output, expected_output)
-
     def test_run_agnostic_query_cross_delta(self):
         query = """
             prefix pro: <http://purl.org/spar/pro/>
