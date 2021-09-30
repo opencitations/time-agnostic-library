@@ -22,7 +22,7 @@ copyright = '2021, Arcangelo Massari (https://orcid.org/0000-0002-8420-0696)'
 author = 'Arcangelo Massari (https://orcid.org/0000-0002-8420-0696)'
 
 # The full version, including alpha/beta/rc tags
-release = '3.0.0-beta'
+release = '2.2.1-beta'
 
 
 # -- General configuration ---------------------------------------------------

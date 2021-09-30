@@ -1,6 +1,7 @@
 setup = """
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery
+from time_agnostic_library.support import empty_the_cache
 import os, signal, psutil, time
 from subprocess import Popen, CREATE_NEW_CONSOLE
 
@@ -35,7 +36,9 @@ def launch_blazegraph(ts_dir:str, port:int):
 close_program_by_name("java")
 launch_blazegraph("C:/Users/arcan/OneDrive - Alma Mater Studiorum Università di Bologna/Desktop/time_agnostic/db/final2/old", 9999)
 launch_blazegraph("C:/Users/arcan/OneDrive - Alma Mater Studiorum Università di Bologna/Desktop/time_agnostic/db/final2_prov/old", 19999)
+launch_blazegraph("C:/Users/arcan/OneDrive - Alma Mater Studiorum Università di Bologna/Desktop/time-agnostic-library/benchmark", 29999)
 time.sleep(10)
+# empty_the_cache("./config.json")
 """
 
 materialization_single_version = """
@@ -74,21 +77,6 @@ WHERE {
 }   
 '''
 agnostic_query = VersionQuery(query, ("2021-09-13", None), config_path="./config.json")
-agnostic_query.run_agnostic_query()
-"""
-cross_version_structured_query_multi_cont_values = """
-query = '''
-PREFIX literal: <http://www.essepuntato.it/2010/06/literalreification/>
-PREFIX cito: <http://purl.org/spar/cito/>
-PREFIX datacite: <http://purl.org/spar/datacite/>
-SELECT DISTINCT ?br ?id ?value
-WHERE {
-    <https://github.com/arcangelo7/time_agnostic/br/2> cito:cites ?br.
-    ?br datacite:hasIdentifier ?id.
-    ?id literal:hasLiteralValue ?value.
-}   
-'''
-agnostic_query = VersionQuery(query, config_path="./config.json")
 agnostic_query.run_agnostic_query()
 """
 cross_version_structured_query_p_o = """
@@ -181,15 +169,14 @@ agnostic_entity.run_agnostic_query()
 """
 
 tests = {
-    "materialization_all_versions": materialization_all_versions,
-    "materialization_single_version": materialization_single_version,
-    "cross_version_structured_query": cross_version_structured_query,
-    "single_version_structured_query": single_version_structured_query,
-    "cross_version_structured_query_multi_cont_values": cross_version_structured_query_multi_cont_values,
+    # "materialization_all_versions": materialization_all_versions,
+    # "materialization_single_version": materialization_single_version,
+    # "cross_version_structured_query": cross_version_structured_query,
+    # "single_version_structured_query": single_version_structured_query,
     "cross_version_structured_query_p_o": cross_version_structured_query_p_o,
-    "single_version_structured_query_p_o": single_version_structured_query_p_o,
-    "cross_delta_structured_query": cross_delta_structured_query,
-    "single_delta_structured_query": single_delta_structured_query,
-    "single_delta_structured_query_p_o": single_delta_structured_query_p_o,
-    "cross_delta_structured_query_p_o": cross_delta_structured_query_p_o
+    # "single_version_structured_query_p_o": single_version_structured_query_p_o,
+    # "cross_delta_structured_query": cross_delta_structured_query,
+    # "single_delta_structured_query": single_delta_structured_query,
+    # "cross_delta_structured_query_p_o": cross_delta_structured_query_p_o,
+    # "single_delta_structured_query_p_o": single_delta_structured_query_p_o
 }

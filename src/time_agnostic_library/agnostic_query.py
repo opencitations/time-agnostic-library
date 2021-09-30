@@ -25,6 +25,7 @@ from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib import ConjunctiveGraph, Graph, URIRef, Literal, Variable
 from rdflib.paths import InvPath
 from oc_ocdm.support.query_utils import get_insert_query
+from threading import Thread
 from tqdm import tqdm
 
 from time_agnostic_library.sparql import Sparql
@@ -50,6 +51,7 @@ class AgnosticQuery(object):
             raise ValueError("Enter a valid value for 'blazegraph_full_text_search' in the configuration file, for example 'yes' or 'no'.")
         if self.cache_triplestore_url:
             self.sparql = SPARQLWrapper(self.cache_triplestore_url)
+            self.to_be_aligned = False
         if on_time:
             after_time = AgnosticEntity._convert_to_datetime(on_time[0], stringify=True)
             before_time = AgnosticEntity._convert_to_datetime(on_time[1], stringify=True)
@@ -60,6 +62,7 @@ class AgnosticQuery(object):
         self.vars_to_explicit_by_time:Dict[str, Set[Tuple]] = dict()
         self.relevant_entities_graphs:Dict[URIRef, Dict[str, ConjunctiveGraph]] = dict()
         self.relevant_graphs:Dict[str, Union[ConjunctiveGraph, Set]] = dict()
+        self.threads:Set[Thread] = set()
         self.triples = self._process_query()
         self._rebuild_relevant_graphs()
 
@@ -88,24 +91,27 @@ class AgnosticQuery(object):
     def _rebuild_relevant_graphs(self) -> None:
         # First, the graphs of the hooks are reconstructed
         triples_checked = set()
+        all_isolated = True
         for triple in self.triples:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 query_to_identify = self._get_query_to_identify(triple)
                 present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
                 pbar = tqdm(total=len(present_results))
                 for result in present_results:
-                    self._rebuild_relevant_entity(result[0])
-                    self._rebuild_relevant_entity(result[2])
+                    self._rebuild_relevant_entity(result[0], isolated=True)
+                    self._rebuild_relevant_entity(result[2], isolated=True)
                     pbar.update(1)
                 pbar.close()
                 self._find_entities_in_update_queries(triple)
             else:
-                self._rebuild_relevant_entity(triple[0])
-                self._rebuild_relevant_entity(triple[2])
+                all_isolated = False
+                self._rebuild_relevant_entity(triple[0], isolated=False)
+                self._rebuild_relevant_entity(triple[2], isolated=False)
             triples_checked.add(triple)
         self._align_snapshots()
         # Then, the graphs of the entities obtained from the hooks are reconstructed
-        self._solve_variables()
+        if not all_isolated:
+            self._solve_variables()
 
     def _is_isolated(self, triple:tuple) -> bool:
         if isinstance(triple[0], URIRef):
@@ -130,14 +136,18 @@ class AgnosticQuery(object):
                     there_is_transitive_closure = self._there_is_transitive_closure(triple[0], other_triples)
         return there_is_transitive_closure
 
-    def _rebuild_relevant_entity(self, entity:Union[URIRef, Literal]) -> None:
+    def _rebuild_relevant_entity(self, entity:Union[URIRef, Literal], isolated:bool=False) -> None:
         if isinstance(entity, URIRef) and entity not in self.reconstructed_entities:
             self.reconstructed_entities.add(entity)
             if self.cache_triplestore_url:
+                if not isolated:
+                    self.to_be_aligned = True
                 relevant_timestamps_in_cache = self._get_relevant_timestamps_from_cache(entity)
                 if relevant_timestamps_in_cache:
                     self._store_relevant_timestamps(entity, relevant_timestamps_in_cache)
                     return
+                else:
+                    self.to_be_aligned = True
             agnostic_entity = AgnosticEntity(entity, related_entities_history=False, config_path=self.config_path)
             if self.on_time:
                 entity_at_time = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=True)
@@ -145,7 +155,9 @@ class AgnosticQuery(object):
                     for relevant_timestamp, cg in entity_at_time[0].items():
                         if self.cache_triplestore_url:
                             # cache
-                            self._cache_entity_graph(entity, cg, relevant_timestamp, entity_at_time[1])
+                            th = Thread(target=self._cache_entity_graph, args=(entity, cg, relevant_timestamp, entity_at_time[1]))
+                            th.start()
+                            self.threads.add(th)
                             self.relevant_graphs.setdefault(relevant_timestamp, set()).add(entity)
                         else:
                             # store in RAM
@@ -157,7 +169,9 @@ class AgnosticQuery(object):
                         # cache
                         for entity, reconstructed_graphs in entity_history[0].items():
                             for timestamp, reconstructed_graph in reconstructed_graphs.items(): 
-                                self._cache_entity_graph(entity, reconstructed_graph, timestamp, entity_history[1])
+                                th = Thread(target=self._cache_entity_graph, args=(entity, reconstructed_graph, timestamp, entity_history[1]))
+                                th.start()
+                                self.threads.add(th)
                                 self.relevant_graphs.setdefault(timestamp, set()).add(entity)
                     else:
                         # store in RAM
@@ -186,8 +200,8 @@ class AgnosticQuery(object):
             new_uris = uris_in_triple.difference(uris_in_triple_checked)
             if not new_uris:
                 return False
-        return True
-                           
+        return True   
+
     def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = f"""
@@ -204,17 +218,16 @@ class AgnosticQuery(object):
             query_to_identify += filter_search
         for uri in uris_in_triple:
             if triple.index(uri) == 0 or triple.index(uri) == 2:
-                self._rebuild_relevant_entity(uri)
+                self._rebuild_relevant_entity(uri, isolated=True)
         return query_to_identify
 
     def _find_entities_in_update_queries(self, triple:tuple):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = set()
         query_to_identify = self._get_query_to_update_queries(triple)
+        print(f"[VersionQuery:INFO] Searching for relevant entities in relevant update queries.")
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
-            pbar = tqdm(total=len(results))
-            print(f"[VersionQuery:INFO] Searching for relevant entities in relevant update queries.")
             for result in results:
                 update = parseUpdate(result[0])
                 for request in update["request"]:
@@ -224,17 +237,15 @@ class AgnosticQuery(object):
                             relevant_entities = set(triple).difference(uris_in_triple) if len(uris_in_triple.intersection(triple)) == len(uris_in_triple) else None
                             if relevant_entities is not None:
                                 relevant_entities_found.update(relevant_entities)
-                pbar.update(1)
-            pbar.close()
         new_entities_found = relevant_entities_found.difference(self.reconstructed_entities)
         if new_entities_found:
             print(f"[VersionQuery:INFO] Rebuilding relevant entities' history.")
             pbar = tqdm(total=len(new_entities_found))
             for new_entity_found in new_entities_found:
-                self._rebuild_relevant_entity(new_entity_found)
+                self._rebuild_relevant_entity(new_entity_found, isolated=True)
                 pbar.update(1)
             pbar.close()
-
+    
     def _solve_variables(self) -> None:
         self.vars_to_explicit_by_time = dict()
         self._get_vars_to_explicit_by_time()
@@ -282,12 +293,19 @@ class AgnosticQuery(object):
                             explicit_triples.setdefault(se, dict())
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(result)
-                            self._rebuild_relevant_entity(result[variable_index])
+                            self._rebuild_relevant_entity(result[variable_index], isolated=False)
         return explicit_triples
-
+    
     def _align_snapshots(self) -> None:
         if self.cache_triplestore_url:
+            if not self.to_be_aligned:
+                return
+        if self.cache_triplestore_url:
+            self.to_be_aligned = False
             ordered_data = self._sort_relevant_graphs()
+            for thread in self.threads:
+                thread.join()
+            self.threads = set()
             # If an entity hasn't changed, copy it
             for index, se_entities in enumerate(ordered_data):
                 se = se_entities[0]
@@ -333,15 +351,15 @@ class AgnosticQuery(object):
                                 if se not in self.relevant_entities_graphs[subject]:
                                     for quad in self.relevant_graphs[previous_se].quads((subject, None, None, None)):
                                         self.relevant_graphs[se].add(quad)
-
+        
     def _sort_relevant_graphs(self):
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
             self.relevant_graphs.items(),
             key=lambda x: AgnosticEntity._convert_to_datetime(x[0]),
             reverse=False # That is, from past to present, assuming that the past influences the present and not the opposite like in Dark
         )
-        return ordered_data
-        
+        return ordered_data   
+
     def _update_vars_to_explicit(self, solved_variables:Dict[str, Dict[Variable, Set[Tuple]]]):
         vars_to_explicit_by_time:Dict[str, Dict[Variable, set]] = dict()
         for se, triples in self.vars_to_explicit_by_time.items():
@@ -366,7 +384,7 @@ class AgnosticQuery(object):
                             new_triples.add(triple)
             vars_to_explicit_by_time[se] = new_triples 
         self.vars_to_explicit_by_time = vars_to_explicit_by_time
-    
+
     def _get_vars_to_explicit_by_time(self) -> None:
         for se, _ in self.relevant_graphs.items():
             if se not in self.vars_to_explicit_by_time:
@@ -377,48 +395,39 @@ class AgnosticQuery(object):
 
     def _cache_entity_graph(self, entity:str, reconstructed_graph:ConjunctiveGraph, timestamp:str, prov_metadata:dict) -> None:
         graph_iri = f"https://github.com/opencitations/time-agnostic-library/{timestamp}"
+        graph_iri_relevant = f"https://github.com/opencitations/time-agnostic-library/relevant/{timestamp}"
+        if not self.on_time:
+            reconstructed_graph.add((URIRef(f"{entity}/cache"), URIRef("https://github.com/opencitations/time-agnostic-library/isComplete"), Literal("true")))
         insert_query = get_insert_query(graph_iri=graph_iri, data=reconstructed_graph)[0]
+        prov = Graph()
+        for en, metadata in prov_metadata.items(): 
+            if str(ProvEntity.iri_generated_at_time) in metadata:
+                prov.add((URIRef(en), ProvEntity.iri_specialization_of, URIRef(entity)))
+            else:
+                for se, _ in metadata.items():
+                    prov.add((URIRef(se), ProvEntity.iri_specialization_of, URIRef(en)))
+        insert_query = insert_query + ";" + get_insert_query(graph_iri=graph_iri_relevant, data=prov)[0]
         if insert_query:
             self.sparql.setQuery(insert_query)
             self.sparql.setMethod(POST)
             self.sparql.query()
-        prov_graph = Graph()
-        for en, metadata in prov_metadata.items(): 
-            if str(ProvEntity.iri_generated_at_time) in metadata:
-                self._cache_provenance(prov_graph, en, entity)
-            else:
-                for se, _ in metadata.items():
-                    self._cache_provenance(prov_graph, se, en)
-    
-    def _cache_provenance(self, prov_graph:Graph, se_uri:str, entity:str) -> None:
-        prov_graph.add((URIRef(se_uri), ProvEntity.iri_specialization_of, URIRef(entity)))
-        insert_query = get_insert_query(graph_iri="", data=prov_graph)[0]
-        self.sparql.setQuery(insert_query)
-        self.sparql.setMethod(POST)
-        self.sparql.query()
 
     def _get_relevant_timestamps_from_cache(self, entity:URIRef) -> set:
         relevant_timestamps = set()
         query_timestamps = f"""
-            SELECT DISTINCT ?se
+            SELECT DISTINCT ?graph ?complete
             WHERE {{
-                ?se <{ProvEntity.iri_specialization_of}> <{entity}>.
-            }}
-        """
-        query_provenance = f"""
-            SELECT DISTINCT ?se ?timestamp
-            WHERE {{
-                ?se <{ProvEntity.iri_specialization_of}> <{entity}>;
-                    <{ProvEntity.iri_generated_at_time}> ?timestamp.
+                GRAPH ?graph {{?se <{ProvEntity.iri_specialization_of}> <{entity}>.}}.
+                <{entity}/cache> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.
             }}
         """
         self.sparql.setQuery(query_timestamps)
         self.sparql.setReturnFormat(JSON)
         results = self.sparql.queryAndConvert()
-        provenance = Sparql(query = query_provenance, config_path=self.config_path).run_select_query()
-        if len(results["results"]["bindings"]) == len(provenance) and len(provenance) > 0:
-            for timestamp in provenance:
-                relevant_timestamps.add(timestamp[1])
+        for result in results["results"]["bindings"]:
+            if result["complete"]["value"] == "true":
+                relevant_timestamp = result["graph"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
+                relevant_timestamps.add(relevant_timestamp)
         return relevant_timestamps
 
     def _store_relevant_timestamps(self, entity:URIRef, relevant_timestamps:list):
@@ -440,7 +449,22 @@ class VersionQuery(AgnosticQuery):
     """
     def __init__(self, query:str, on_time:Tuple[Union[str, None]]="", config_path:str=CONFIG_PATH):
         super(VersionQuery, self).__init__(query, on_time, config_path)    
-                
+
+    def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph, agnostic_result:dict):
+        output = set()
+        if self.cache_triplestore_url:
+            split_by_where = re.split(pattern="where", string=self.query, maxsplit=1, flags=re.IGNORECASE)
+            query_named_graph = split_by_where[0] + f"FROM <https://github.com/opencitations/time-agnostic-library/{timestamp}> WHERE" + split_by_where[1]
+            self.sparql.setQuery(query_named_graph)
+            self.sparql.setReturnFormat(JSON)
+            results = self.sparql.queryAndConvert()["results"]["bindings"]
+        else:
+            results = graph.query(self.query)._get_bindings()
+        for result in results:
+            Sparql._get_tuples_set(self.query, result, output)
+        normalized_timestamp = AgnosticEntity._convert_to_datetime(timestamp, stringify=True)
+        agnostic_result[normalized_timestamp] = output
+        
     def run_agnostic_query(self) -> Dict[str, Set[Tuple]]:
         """
         Run the query provided as a time-travel query. 
@@ -448,23 +472,16 @@ class VersionQuery(AgnosticQuery):
         
         :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
         """
+        print("[VersionQuery: INFO] Running agnostic query.")
         agnostic_result:dict[str, Set[Tuple]] = dict()
         relevant_timestamps = _filter_timestamps_by_interval(self.on_time, self.relevant_graphs)
         for timestamp, graph in self.relevant_graphs.items():
             if timestamp in relevant_timestamps:
-                output = set()
-                if self.cache_triplestore_url:
-                    split_by_where = re.split(pattern="where", string=self.query, maxsplit=1, flags=re.IGNORECASE)
-                    query_named_graph = split_by_where[0] + f"FROM <https://github.com/opencitations/time-agnostic-library/{timestamp}> WHERE" + split_by_where[1]
-                    self.sparql.setQuery(query_named_graph)
-                    self.sparql.setReturnFormat(JSON)
-                    results = self.sparql.queryAndConvert()["results"]["bindings"]
-                else:
-                    results = graph.query(self.query)._get_bindings()
-                for result in results:
-                    Sparql._get_tuples_set(self.query, result, output)
-                normalized_timestamp = AgnosticEntity._convert_to_datetime(timestamp, stringify=True)
-                agnostic_result[normalized_timestamp] = output
+                th = Thread(target=self._query_reconstructed_graph, args=(timestamp, graph, agnostic_result))
+                self.threads.add(th)
+                th.start()
+        for thread in self.threads:
+            thread.join()
         return agnostic_result
 
 
@@ -502,8 +519,8 @@ class DeltaQuery(AgnosticQuery):
                 pbar.close()
                 self._find_entities_in_update_queries(triple)
             else:
-                self._rebuild_relevant_entity(triple[0])
-                self._rebuild_relevant_entity(triple[2])
+                self._rebuild_relevant_entity(triple[0], isolated=False)
+                self._rebuild_relevant_entity(triple[2], isolated=False)
             triples_checked.add(triple)
         self._align_snapshots()
         # Then, the graphs of the entities obtained from the hooks are reconstructed
@@ -516,7 +533,6 @@ class DeltaQuery(AgnosticQuery):
         print(f"[DeltaQuery:INFO] Searching for relevant entities in relevant update queries.")
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
-            pbar = tqdm(total=len(results))
             for result in results:
                 update = parseUpdate(result[0])
                 for request in update["request"]:
@@ -526,8 +542,6 @@ class DeltaQuery(AgnosticQuery):
                             relevant_entities = set(triple).difference(uris_in_triple) if len(uris_in_triple.intersection(triple)) == len(uris_in_triple) else None
                             if relevant_entities is not None:
                                 relevant_entities_found.update(relevant_entities)
-                pbar.update(1)
-            pbar.close()
         for relevant_entity_found in relevant_entities_found:
             if isinstance(relevant_entity_found, URIRef):
                 self.reconstructed_entities.add(relevant_entity_found)

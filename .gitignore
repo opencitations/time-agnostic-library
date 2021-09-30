@@ -6,6 +6,7 @@
 /tests/info_dir/
 /tests/blazegraph.jar
 /tests/cache/blazegraph.jnl
+/benchmark/blazegraph.*
 setup.py
 execution_example.py
 

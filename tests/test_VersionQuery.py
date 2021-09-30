@@ -1143,7 +1143,7 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         if agnostic_query.cache_triplestore_url:
             output = agnostic_query._get_relevant_timestamps_from_cache("https://github.com/arcangelo7/time_agnostic/ar/15519")
-            self.assertEqual(output, {'2021-05-07T09:59:15+00:00', '2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00'})
+            self.assertEqual(output, {'2021-05-07T09:59:15', '2021-06-01T18:46:41', '2021-05-31T18:19:47'})
 
     def test__store_relevant_timestamps(self):
         query = """
