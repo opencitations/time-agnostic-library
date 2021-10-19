@@ -257,23 +257,17 @@ class AgnosticEntity:
         for index, date_graph in enumerate(ordered_data):
             if index > 0:
                 next_snapshot = ordered_data[index-1][0]
-                previous_graph: ConjunctiveGraph = copy.deepcopy(
-                    entity_current_state[0][self.res][next_snapshot])
-                snapshot_uri = list(
-                    previous_graph.subjects(object=next_snapshot))[0]
+                previous_graph: ConjunctiveGraph = copy.deepcopy(entity_current_state[0][self.res][next_snapshot])
+                snapshot_uri = list(previous_graph.subjects(object=next_snapshot))[0]
                 snapshot_update_query: str = previous_graph.value(
                     subject=snapshot_uri,
                     predicate=ProvEntity.iri_has_update_query,
                     object=None)
-                # TODO: To be improved
                 if snapshot_update_query is None:
-                    entity_current_state[0][self.res][date_graph[0]
-                                                   ] = previous_graph
+                    entity_current_state[0][self.res][date_graph[0]] = previous_graph
                 else:
-                    self._manage_update_queries(
-                        previous_graph, snapshot_update_query)
-                    entity_current_state[0][self.res][date_graph[0]
-                                                   ] = previous_graph
+                    self._manage_update_queries(previous_graph, snapshot_update_query)
+                    entity_current_state[0][self.res][date_graph[0]] = previous_graph
         for time in list(entity_current_state[0][self.res]):
             cg_no_pro = entity_current_state[0][self.res].pop(time)
             for prov_property in ProvEntity.get_prov_properties():

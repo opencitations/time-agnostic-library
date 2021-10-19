@@ -1,3 +1,38 @@
+import json, os
+
+output_path = "statistics.json"
+
+def create_statistics_file():
+    if not os.path.isfile(output_path):
+        with open(output_path, 'w') as f:
+            json.dump({
+                "time": {
+                    "w_out_cache_w_out_index": dict(),
+                    "w_out_cache_w_index": dict(),
+                    "w_cache_w_out_index": dict(),
+                    "w_cache_w_index": dict()
+                },
+                "RAM": {
+                    "w_cache_w_out_index": dict(), 
+                    "w_out_cache_w_out_index": dict()
+                }}, f, indent=4)
+
+def save(data:list, parameter:str, benchmark:str): 
+    with open(output_path, 'r', encoding="utf-8") as reader:
+        prev_data = json.load(reader)
+    with open(output_path, 'w', encoding="utf-8") as writer:
+        prev_data[benchmark][parameter].update(data)
+        json.dump(prev_data, writer, indent=4)
+
+def already_done(parameter:str, test_name:str, benchmark:str) -> bool:
+    already_done = False
+    with open(output_path, 'r', encoding="utf-8") as reader:
+        prev_data = json.load(reader)
+        if test_name in prev_data[benchmark][parameter]:
+            already_done = True
+            print(f"Benchmark on {benchmark} completed: {test_name} - {parameter}")
+    return already_done
+
 setup = """
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery
@@ -34,20 +69,17 @@ def launch_blazegraph(ts_dir:str, port:int):
     )
 
 close_program_by_name("java")
-launch_blazegraph("C:/Users/arcan/OneDrive - Alma Mater Studiorum Università di Bologna/Desktop/time_agnostic/db/final2/old", 9999)
-launch_blazegraph("C:/Users/arcan/OneDrive - Alma Mater Studiorum Università di Bologna/Desktop/time_agnostic/db/final2_prov/old", 19999)
-launch_blazegraph("C:/Users/arcan/OneDrive - Alma Mater Studiorum Università di Bologna/Desktop/time-agnostic-library/benchmark", 29999)
-time.sleep(10)
-# empty_the_cache("./config.json")
+launch_blazegraph("./db", 9999)
+launch_blazegraph("./db/prov", 19999)
 """
 
-materialization_single_version = """
-agnostic_entity = AgnosticEntity(res="https://github.com/arcangelo7/time_agnostic/br/69211", config_path="./config.json")
-agnostic_entity.get_state_at_time(time=("2021-09-13", None), include_prov_metadata=True)
-"""
 materialization_all_versions = """
-agnostic_entity = AgnosticEntity(res="https://github.com/arcangelo7/time_agnostic/br/69211", config_path="./config.json")
+agnostic_entity = AgnosticEntity(res="https://github.com/opencitations/time-agnostic-library/br/86766", config_path=CONFIG)
 agnostic_entity.get_history(include_prov_metadata=True)
+"""
+materialization_single_version = """
+agnostic_entity = AgnosticEntity(res="https://github.com/opencitations/time-agnostic-library/br/86766", config_path=CONFIG)
+agnostic_entity.get_state_at_time(time=("2021-10-13", None), include_prov_metadata=True)
 """
 cross_version_structured_query = """
 query = '''
@@ -56,12 +88,12 @@ PREFIX cito: <http://purl.org/spar/cito/>
 PREFIX datacite: <http://purl.org/spar/datacite/> 
 SELECT DISTINCT ?br ?id ?value
 WHERE {
-    <https://github.com/arcangelo7/time_agnostic/br/69211> cito:cites ?br.
+    <https://github.com/opencitations/time-agnostic-library/br/86766> cito:cites ?br.
     ?br datacite:hasIdentifier ?id.
     OPTIONAL {?id literal:hasLiteralValue ?value.}
 }   
 '''
-agnostic_query = VersionQuery(query, config_path="./config.json")
+agnostic_query = VersionQuery(query, config_path=CONFIG)
 agnostic_query.run_agnostic_query()
 """
 single_version_structured_query = """
@@ -71,12 +103,12 @@ PREFIX cito: <http://purl.org/spar/cito/>
 PREFIX datacite: <http://purl.org/spar/datacite/> 
 SELECT DISTINCT ?br ?id ?value
 WHERE {
-    <https://github.com/arcangelo7/time_agnostic/br/69211> cito:cites ?br.
+    <https://github.com/opencitations/time-agnostic-library/br/86766> cito:cites ?br.
     ?br datacite:hasIdentifier ?id.
     OPTIONAL {?id literal:hasLiteralValue ?value.}
 }   
 '''
-agnostic_query = VersionQuery(query, ("2021-09-13", None), config_path="./config.json")
+agnostic_query = VersionQuery(query, ("2021-10-13", None), config_path=CONFIG)
 agnostic_query.run_agnostic_query()
 """
 cross_version_structured_query_p_o = """
@@ -87,7 +119,7 @@ WHERE {
     ?s datacite:usesIdentifierScheme datacite:orcid.
 }
 '''
-agnostic_query = VersionQuery(query, config_path="./config.json")
+agnostic_query = VersionQuery(query, config_path=CONFIG)
 agnostic_query.run_agnostic_query()
 """
 single_version_structured_query_p_o = """
@@ -98,7 +130,7 @@ WHERE {
     ?s datacite:usesIdentifierScheme datacite:orcid.
 }
 '''
-agnostic_query = VersionQuery(query, ("2021-09-13", None), config_path="./config.json")
+agnostic_query = VersionQuery(query, ("2021-10-13", None), config_path=CONFIG)
 agnostic_query.run_agnostic_query()
 """
 cross_delta_structured_query = """
@@ -108,14 +140,14 @@ PREFIX cito: <http://purl.org/spar/cito/>
 PREFIX datacite: <http://purl.org/spar/datacite/> 
 SELECT DISTINCT ?br ?id ?value
 WHERE {
-    <https://github.com/arcangelo7/time_agnostic/br/69211> cito:cites ?br.
+    <https://github.com/opencitations/time-agnostic-library/br/86766> cito:cites ?br.
     ?br datacite:hasIdentifier ?id.
     OPTIONAL {?id literal:hasLiteralValue ?value.}
 }
 '''
 agnostic_entity = DeltaQuery(
     query=query, 
-    config_path="./config.json"
+    config_path=CONFIG
 )
 agnostic_entity.run_agnostic_query()
 """
@@ -126,15 +158,15 @@ PREFIX cito: <http://purl.org/spar/cito/>
 PREFIX datacite: <http://purl.org/spar/datacite/> 
 SELECT DISTINCT ?br ?id ?value
 WHERE {
-    <https://github.com/arcangelo7/time_agnostic/br/69211> cito:cites ?br.
+    <https://github.com/opencitations/time-agnostic-library/br/86766> cito:cites ?br.
     ?br datacite:hasIdentifier ?id.
     OPTIONAL {?id literal:hasLiteralValue ?value.}
 }
 '''
 agnostic_entity = DeltaQuery(
     query=query, 
-    on_time=("2021-09-13", None),
-    config_path="./config.json"
+    on_time=("2021-10-13", None),
+    config_path=CONFIG
 )
 agnostic_entity.run_agnostic_query()
 """
@@ -148,8 +180,8 @@ WHERE {
 '''
 agnostic_entity = DeltaQuery(
     query=query,
-    on_time=("2021-09-13", None),
-    config_path="./config.json"
+    on_time=("2021-10-13", None),
+    config_path=CONFIG
 )
 agnostic_entity.run_agnostic_query()
 """
@@ -163,20 +195,61 @@ WHERE {
 '''
 agnostic_entity = DeltaQuery(
     query=query,
-    config_path="./config.json"
+    config_path=CONFIG
 )
 agnostic_entity.run_agnostic_query()
 """
 
-tests = {
-    # "materialization_all_versions": materialization_all_versions,
-    # "materialization_single_version": materialization_single_version,
-    # "cross_version_structured_query": cross_version_structured_query,
-    # "single_version_structured_query": single_version_structured_query,
+tests_time_w_out_cache_w_out_index = {
+    "materialization_all_versions": materialization_all_versions,
+    "materialization_single_version": materialization_single_version,
+    "cross_version_structured_query": cross_version_structured_query,
+    "single_version_structured_query": single_version_structured_query,
     "cross_version_structured_query_p_o": cross_version_structured_query_p_o,
-    # "single_version_structured_query_p_o": single_version_structured_query_p_o,
-    # "cross_delta_structured_query": cross_delta_structured_query,
-    # "single_delta_structured_query": single_delta_structured_query,
-    # "cross_delta_structured_query_p_o": cross_delta_structured_query_p_o,
-    # "single_delta_structured_query_p_o": single_delta_structured_query_p_o
+    "single_version_structured_query_p_o": single_version_structured_query_p_o,
+    "cross_delta_structured_query": cross_delta_structured_query,
+    "single_delta_structured_query": single_delta_structured_query,
+    "cross_delta_structured_query_p_o": cross_delta_structured_query_p_o,
+    "single_delta_structured_query_p_o": single_delta_structured_query_p_o
 }
+
+tests_time_w_out_cache_w_index = {
+    "cross_version_structured_query_p_o": cross_version_structured_query_p_o,
+    "single_version_structured_query_p_o": single_version_structured_query_p_o,
+    "cross_delta_structured_query_p_o": cross_delta_structured_query_p_o,
+    "single_delta_structured_query_p_o": single_delta_structured_query_p_o
+}
+
+tests_time_w_cache_w_out_index = {
+    "cross_version_structured_query": cross_version_structured_query,
+    "single_version_structured_query": single_version_structured_query,
+    "cross_version_structured_query_p_o": cross_version_structured_query_p_o,
+    "single_version_structured_query_p_o": single_version_structured_query_p_o
+}
+
+tests_time_w_cache_w_index = {
+    "cross_version_structured_query_p_o": cross_version_structured_query_p_o,
+    "single_version_structured_query_p_o": single_version_structured_query_p_o
+}
+
+tests_memory_w_out_cache_w_out_index = {
+    "materialization_all_versions": materialization_all_versions,
+    "materialization_single_version": materialization_single_version,
+    "cross_version_structured_query": cross_version_structured_query,
+    "single_version_structured_query": single_version_structured_query,
+    "cross_version_structured_query_p_o": cross_version_structured_query_p_o,
+    "single_version_structured_query_p_o": single_version_structured_query_p_o,
+    "cross_delta_structured_query": cross_delta_structured_query,
+    "single_delta_structured_query": single_delta_structured_query,
+    "cross_delta_structured_query_p_o": cross_delta_structured_query_p_o,
+    "single_delta_structured_query_p_o": single_delta_structured_query_p_o
+}
+
+tests_memory_w_cache_w_out_index = {
+    "cross_version_structured_query": cross_version_structured_query,
+    "single_version_structured_query": single_version_structured_query,
+    "cross_version_structured_query_p_o": cross_version_structured_query_p_o,
+    "single_version_structured_query_p_o": single_version_structured_query_p_o
+}
+
+

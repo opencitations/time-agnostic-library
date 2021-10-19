@@ -1,12 +1,9 @@
 # Custom
 /.vscode
-/tests/blazegraph.jnl
-/tests/blazegraph_copia.jnl
+*.jnl
+*.jar
 /tests/rules.log
 /tests/info_dir/
-/tests/blazegraph.jar
-/tests/cache/blazegraph.jnl
-/benchmark/blazegraph.*
 setup.py
 execution_example.py
 

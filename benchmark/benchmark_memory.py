@@ -1,39 +1,60 @@
-import os, csv
-from setup_and_tests import tests, setup
+import os
+from setup_and_tests import save, already_done, setup, tests_memory_w_cache_w_out_index, tests_memory_w_out_cache_w_out_index, create_statistics_file
 from subprocess import Popen, CREATE_NEW_CONSOLE, PIPE
+from statistics import median
 
-output_path = "benchmark_memory_cache_on.csv"
+parameters = {
+    "w_out_cache_w_out_index": tests_memory_w_out_cache_w_out_index,
+    "w_cache_w_out_index": tests_memory_w_cache_w_out_index,
+}
 
-def save(path:str, data:list):
-    with open(path, "a+", newline="", encoding="utf8") as f:
-        writer = csv.writer(f)
-        writer.writerow(data)
-
-if not os.path.isfile(output_path):
-    save(output_path, ["test_name", "memory"])
-
-repetitions = 10
-imports = """
+def benchmark_memory(parameter:str, tests:dict, setup:str):
+    repetitions = 10
+    config_file_name = f"{parameter}.json"
+    imports = f"""
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery
 import psutil, os
-"""
-memory = """
+CONFIG = "{config_file_name}"
+    """
+    memory = """
 print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
-"""
-for test_name, test in tests.items():
-    file_name = f"{test_name}.py"
-    with open(file_name, "w+") as f:
-        f.write(imports + test + memory)
-    memory_usage = list()
-    for repetition in range(repetitions):
-        exec(setup)
-        process = Popen(
-            ["python", file_name],
-            creationflags=CREATE_NEW_CONSOLE,
-            stdout=PIPE
-        )
-        out, err = process.communicate()
-        memory_usage.append(out.decode("utf-8").splitlines()[-1])
-    save(output_path, [test_name, "/".join(memory_usage)])
-    os.remove(file_name)
+    """
+    for test_name, test in tests.items():
+        if already_done(parameter, test_name, "RAM"):
+            continue
+        file_name = f"{test_name}.py"
+        with open(file_name, "w+") as f:
+            f.write(imports + test + memory)
+        memory_usage = list()
+        for i in range(repetitions):
+            conditional_setup = setup
+            if "w_cache" in parameter:
+                if i == 0:
+                    conditional_setup = setup + f"launch_blazegraph('./db/cache/empty', 29999)\nempty_the_cache('{config_file_name}')"
+                elif i > 0:
+                    conditional_setup = setup + "launch_blazegraph('./db/cache/full', 29999)"
+            conditional_setup += "\ntime.sleep(10)"     
+            exec(conditional_setup, globals())
+            process = Popen(
+                ["python", file_name],
+                creationflags=CREATE_NEW_CONSOLE,
+                stdout=PIPE
+            )
+            out, _ = process.communicate()
+            memory_usage.append(float(out.decode("utf-8").splitlines()[-1]))
+        output = {
+            test_name: {
+                "min": min(memory_usage),
+                "median": median(memory_usage),
+                "max": max(memory_usage)
+            }
+        }
+        save(output, parameter, "RAM")
+        os.remove(file_name)
+
+create_statistics_file()
+
+for parameter, tests in parameters.items():
+    benchmark_memory(parameter, tests, setup)
+

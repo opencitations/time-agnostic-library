@@ -1,0 +1,188 @@
+{
+    "time": {
+        "w_out_cache_w_out_index": {
+            "materialization_all_versions": {
+                "min": 0.5669275000000198,
+                "median": 0.5827810999999201,
+                "max": 0.6600111000007018
+            },
+            "materialization_single_version": {
+                "min": 0.540950000000521,
+                "median": 0.5755958499994449,
+                "max": 0.5765045000007376
+            },
+            "cross_version_structured_query": {
+                "min": 0.5825141999999985,
+                "median": 0.6035594500000023,
+                "max": 1.4129457000000087
+            },
+            "single_version_structured_query": {
+                "min": 0.5731466000000063,
+                "median": 0.5873205500000012,
+                "max": 1.3200702
+            },
+            "cross_version_structured_query_p_o": {
+                "min": 573.4110364999997,
+                "median": 581.1458386000004,
+                "max": 597.4003178999992
+            },
+            "single_version_structured_query_p_o": {
+                "min": 551.6425637,
+                "median": 579.5143310500002,
+                "max": 586.9060894999993
+            },
+            "cross_delta_structured_query": {
+                "min": 0.659361699999863,
+                "median": 0.6679175999997824,
+                "max": 0.8157420999996248
+            },
+            "single_delta_structured_query": {
+                "min": 0.6292079000013473,
+                "median": 0.6520341999994343,
+                "max": 0.6600223000004917
+            },
+            "cross_delta_structured_query_p_o": {
+                "min": 485.79555210000035,
+                "median": 489.4475287999994,
+                "max": 503.7339935
+            },
+            "single_delta_structured_query_p_o": {
+                "min": 488.2760659000014,
+                "median": 489.74174825000046,
+                "max": 492.4215172000004
+            }
+        },
+        "w_out_cache_w_index": {
+            "cross_version_structured_query_p_o": {
+                "min": 566.8852066,
+                "median": 587.4528446500008,
+                "max": 600.5177017000024
+            },
+            "single_version_structured_query_p_o": {
+                "min": 580.607446500002,
+                "median": 588.42242205,
+                "max": 600.7581633000009
+            },
+            "cross_delta_structured_query_p_o": {
+                "min": 470.5561497000017,
+                "median": 473.5536143499994,
+                "max": 475.07410209999944
+            },
+            "single_delta_structured_query_p_o": {
+                "min": 472.0214538,
+                "median": 475.14410290000524,
+                "max": 477.39942250000604
+            }
+        },
+        "w_cache_w_out_index": {
+            "cross_version_structured_query": {
+                "min": 0.3191169000000116,
+                "median": 0.3362128999999996,
+                "max": 1.5600769999999997
+            },
+            "single_version_structured_query": {
+                "min": 0.3167186999999956,
+                "median": 0.33493224999999427,
+                "max": 0.7097507999999948
+            },
+            "cross_version_structured_query_p_o": {
+                "min": 201.13002640000013,
+                "median": 202.32753230000026,
+                "max": 1244.7976326000007
+            },
+            "single_version_structured_query_p_o": {
+                "min": 175.8929733,
+                "median": 178.0492389000001,
+                "max": 923.1364037000003
+            }
+        },
+        "w_cache_w_index": {
+            "cross_version_structured_query_p_o": {
+                "min": 170.14389399999982,
+                "median": 174.77300165000042,
+                "max": 1219.7644472000002
+            },
+            "single_version_structured_query_p_o": {
+                "min": 168.69158460000017,
+                "median": 169.91447504999996,
+                "max": 887.7260506
+            }
+        }
+    },
+    "RAM": {
+        "w_cache_w_out_index": {
+            "cross_version_structured_query": {
+                "min": 50.83203125,
+                "median": 51.0390625,
+                "max": 52.0703125
+            },
+            "single_version_structured_query": {
+                "min": 50.765625,
+                "median": 51.021484375,
+                "max": 51.41796875
+            },
+            "cross_version_structured_query_p_o": {
+                "min": 74.25390625,
+                "median": 74.498046875,
+                "max": 95.28515625
+            },
+            "single_version_structured_query_p_o": {
+                "min": 72.015625,
+                "median": 72.615234375,
+                "max": 85.20703125
+            }
+        },
+        "w_out_cache_w_out_index": {
+            "materialization_all_versions": {
+                "min": 51.234375,
+                "median": 51.525390625,
+                "max": 51.69921875
+            },
+            "materialization_single_version": {
+                "min": 50.94921875,
+                "median": 51.291015625,
+                "max": 51.52734375
+            },
+            "cross_version_structured_query": {
+                "min": 51.35546875,
+                "median": 51.69140625,
+                "max": 51.89453125
+            },
+            "single_version_structured_query": {
+                "min": 50.9921875,
+                "median": 51.251953125,
+                "max": 51.40625
+            },
+            "cross_version_structured_query_p_o": {
+                "min": 514.3828125,
+                "median": 519.26171875,
+                "max": 548.0703125
+            },
+            "single_version_structured_query_p_o": {
+                "min": 199.57421875,
+                "median": 200.939453125,
+                "max": 202.140625
+            },
+            "cross_delta_structured_query": {
+                "min": 52.0859375,
+                "median": 52.23046875,
+                "max": 52.39453125
+            },
+            "single_delta_structured_query": {
+                "min": 51.44140625,
+                "median": 51.587890625,
+                "max": 51.9375
+            },
+            "cross_delta_structured_query_p_o": {
+                "min": 66.0078125,
+                "median": 66.5234375,
+                "max": 66.859375
+            },
+            "single_delta_structured_query_p_o": {
+                "min": 65.2109375,
+                "median": 65.623046875,
+                "max": 66.03125
+            }
+        }
+    }
+}

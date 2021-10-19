@@ -18,7 +18,7 @@ from typing import Set, Tuple, Dict, List, Union
 
 import re, json
 from copy import deepcopy
-from SPARQLWrapper.Wrapper import SPARQLWrapper, POST, JSON, RDFXML
+from SPARQLWrapper.Wrapper import SPARQLWrapper, POST, GET, JSON, RDFXML
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
@@ -50,7 +50,10 @@ class AgnosticQuery(object):
         else:
             raise ValueError("Enter a valid value for 'blazegraph_full_text_search' in the configuration file, for example 'yes' or 'no'.")
         if self.cache_triplestore_url:
-            self.sparql = SPARQLWrapper(self.cache_triplestore_url)
+            self.sparql_select = SPARQLWrapper(self.cache_triplestore_url)
+            self.sparql_select.setMethod(GET)
+            self.sparql_update = SPARQLWrapper(self.cache_triplestore_url)
+            self.sparql_update.setMethod(POST)
             self.to_be_aligned = False
         if on_time:
             after_time = AgnosticEntity._convert_to_datetime(on_time[0], stringify=True)
@@ -141,17 +144,18 @@ class AgnosticQuery(object):
             self.reconstructed_entities.add(entity)
             if self.cache_triplestore_url:
                 if not isolated:
-                    self.to_be_aligned = True
+                    to_be_aligned = True
                 relevant_timestamps_in_cache = self._get_relevant_timestamps_from_cache(entity)
                 if relevant_timestamps_in_cache:
                     self._store_relevant_timestamps(entity, relevant_timestamps_in_cache)
                     return
                 else:
-                    self.to_be_aligned = True
+                    to_be_aligned = True
             agnostic_entity = AgnosticEntity(entity, related_entities_history=False, config_path=self.config_path)
             if self.on_time:
                 entity_at_time = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=True)
                 if entity_at_time[0]:
+                    to_be_aligned = True
                     for relevant_timestamp, cg in entity_at_time[0].items():
                         if self.cache_triplestore_url:
                             # cache
@@ -162,9 +166,12 @@ class AgnosticQuery(object):
                         else:
                             # store in RAM
                             self.relevant_entities_graphs.setdefault(entity, dict())[relevant_timestamp] = cg
+                else:
+                    to_be_aligned = False
             else:
                 entity_history = agnostic_entity.get_history(include_prov_metadata=True)
                 if entity_history[0][entity]:
+                    to_be_aligned = True
                     if self.cache_triplestore_url:
                         # cache
                         for entity, reconstructed_graphs in entity_history[0].items():
@@ -176,6 +183,9 @@ class AgnosticQuery(object):
                     else:
                         # store in RAM
                         self.relevant_entities_graphs.update(entity_history[0]) 
+                else:
+                    to_be_aligned = False
+            self.to_be_aligned = to_be_aligned
 
     def _get_query_to_identify(self, triple:list) -> str:
         solvable_triple = [el.n3() for el in triple]
@@ -280,9 +290,9 @@ class AgnosticQuery(object):
                                 CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
                                 WHERE {{GRAPH <https://github.com/opencitations/time-agnostic-library/{se}> {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}.}}}}
                             """
-                            self.sparql.setQuery(query_to_identify)
-                            self.sparql.setReturnFormat(RDFXML)
-                            results = self.sparql.queryAndConvert()
+                            self.sparql_select.setQuery(query_to_identify)
+                            self.sparql_select.setReturnFormat(RDFXML)
+                            results = self.sparql_select.queryAndConvert()
                         else:
                             query_to_identify = f"""
                                 CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
@@ -297,10 +307,10 @@ class AgnosticQuery(object):
         return explicit_triples
     
     def _align_snapshots(self) -> None:
+        print("[VersionQuery: INFO] Aligning snapshots")
         if self.cache_triplestore_url:
             if not self.to_be_aligned:
                 return
-        if self.cache_triplestore_url:
             self.to_be_aligned = False
             ordered_data = self._sort_relevant_graphs()
             for thread in self.threads:
@@ -324,9 +334,9 @@ class AgnosticQuery(object):
                                     GRAPH <https://github.com/opencitations/time-agnostic-library/{previous_se}> {{<{subject}> ?p ?o}}
                                 }}
                             """
-                            self.sparql.setQuery(query_subj_graph)
-                            self.sparql.setReturnFormat(RDFXML)
-                            subj_graph = self.sparql.queryAndConvert()
+                            self.sparql_select.setQuery(query_subj_graph)
+                            self.sparql_select.setReturnFormat(RDFXML)
+                            subj_graph = self.sparql_select.queryAndConvert()
                             self.relevant_graphs[se].add(subject)
                             self._cache_entity_graph(subject, subj_graph, se, dict())
         else:
@@ -406,11 +416,11 @@ class AgnosticQuery(object):
             else:
                 for se, _ in metadata.items():
                     prov.add((URIRef(se), ProvEntity.iri_specialization_of, URIRef(en)))
-        insert_query = insert_query + ";" + get_insert_query(graph_iri=graph_iri_relevant, data=prov)[0]
         if insert_query:
-            self.sparql.setQuery(insert_query)
-            self.sparql.setMethod(POST)
-            self.sparql.query()
+            insert_query = insert_query + ";" + get_insert_query(graph_iri=graph_iri_relevant, data=prov)[0]
+            self.sparql_update.setQuery(insert_query)
+            self.sparql_update.setMethod(POST)
+            self.sparql_update.query()
 
     def _get_relevant_timestamps_from_cache(self, entity:URIRef) -> set:
         relevant_timestamps = set()
@@ -421,9 +431,9 @@ class AgnosticQuery(object):
                 <{entity}/cache> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.
             }}
         """
-        self.sparql.setQuery(query_timestamps)
-        self.sparql.setReturnFormat(JSON)
-        results = self.sparql.queryAndConvert()
+        self.sparql_select.setQuery(query_timestamps)
+        self.sparql_select.setReturnFormat(JSON)
+        results = self.sparql_select.queryAndConvert()
         for result in results["results"]["bindings"]:
             if result["complete"]["value"] == "true":
                 relevant_timestamp = result["graph"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
@@ -455,9 +465,9 @@ class VersionQuery(AgnosticQuery):
         if self.cache_triplestore_url:
             split_by_where = re.split(pattern="where", string=self.query, maxsplit=1, flags=re.IGNORECASE)
             query_named_graph = split_by_where[0] + f"FROM <https://github.com/opencitations/time-agnostic-library/{timestamp}> WHERE" + split_by_where[1]
-            self.sparql.setQuery(query_named_graph)
-            self.sparql.setReturnFormat(JSON)
-            results = self.sparql.queryAndConvert()["results"]["bindings"]
+            self.sparql_select.setQuery(query_named_graph)
+            self.sparql_select.setReturnFormat(JSON)
+            results = self.sparql_select.queryAndConvert()["results"]["bindings"]
         else:
             results = graph.query(self.query)._get_bindings()
         for result in results:
