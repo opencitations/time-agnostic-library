@@ -360,13 +360,16 @@ Storage: 1 TB SSD Nvme PCIe 3.0.
 The results obtained strictly depend on the hardware employed and are reproducible uniquely under the same conditions. They are available at [10.5281/zenodo.5579701](https://doi.org/10.5281/zenodo.5579701), as well as the code to reproduce them. 
 
 In order to reproduce the benchmark results, do the following steps:
-1. Download the dataset from [10.5281/zenodo.5579701] (https://doi.org/10.5281/zenodo.5579701). 
+1. Download the dataset from [10.5281/zenodo.5579701](https://doi.org/10.5281/zenodo.5579701). 
 2. Extract reproduce_results.zip. 
     + _on Windows_
+      
       Execute run_banchmarks.bat
     + _on Linux and MacOs_
+      
       Execute run_banchmarks.sh
 3. As the results become available, they are readable in the `statistics.json` file within the folder where you run the bash script.
+
 In the event that the execution should stop due to unforeseen causes, it will resume from where it was interrupted.
 
 
