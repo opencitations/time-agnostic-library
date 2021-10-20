@@ -373,10 +373,10 @@ In order to reproduce the benchmark results, do the following steps:
 2. Extract `reproduce_results.zip`. 
     + _on Windows_
       
-      Execute run_banchmarks.bat
+      Execute `run_banchmarks.bat`
     + _on Linux and MacOs_
       
-      Execute run_banchmarks.sh
+      Execute `run_banchmarks.sh`
 3. As the results become available, they are readable in the `statistics.json` file within the folder where you run the bash script.
 
 In the event that the execution should stop due to unforeseen causes, it will resume from where it was interrupted.
