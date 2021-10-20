@@ -370,7 +370,7 @@ The results obtained strictly depend on the hardware employed and are reproducib
 
 In order to reproduce the benchmark results, do the following steps:
 1. Download the dataset from [10.5281/zenodo.5579701](https://doi.org/10.5281/zenodo.5579701). 
-2. Extract reproduce_results.zip. 
+2. Extract `reproduce_results.zip`. 
     + _on Windows_
       
       Execute run_banchmarks.bat
