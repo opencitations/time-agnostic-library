@@ -349,7 +349,7 @@ The configuration file is mainly used to indicate to the library where to search
 
 ### How to benchmark
 
-Two benchmarks were performed, one on the **execution times** and the other on the **RAM**. The experiments were conducted on the dataset described in [10.5281/zenodo.5549624](https://doi.org/10.5281/zenodo.5549624), using a computer with the following hardware specifications. Only the components relevant to the results' reproduction are reported:
+Two benchmarks were performed, one on the **execution times** and the other on the **RAM**. The experiments were conducted on the dataset described in [10.5281/zenodo.5579743](https://doi.org/10.5281/zenodo.5579743), using a computer with the following hardware specifications. Only the components relevant to the results' reproduction are reported:
 
 <table>
   <tr>
