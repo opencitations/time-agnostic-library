@@ -16,6 +16,7 @@ Documentation can be found here: [https://time-agnostic-library.readthedocs.io](
 - [Developer's guide](#developers-guide)
   * [How to run the tests](#how-to-run-the-tests)
   * [How to build the documentation](#how-to-build-the-documentation)
+  * [How to benchmark](#how-to-benchmark)
 
 ## User's guide
 
@@ -345,3 +346,27 @@ The configuration file is mainly used to indicate to the library where to search
           make html
         ```
   3. Open the `_build/html/index.html` file with a web browser of your choice!
+
+### How to benchmark
+
+Two benchmarks were performed, one on the **execution times** and the other on the **RAM**. The experiments were conducted on the dataset described in [10.5281/zenodo.5549624](https://doi.org/10.5281/zenodo.5549624), using a computer with the following hardware specifications. Only the components relevant to the results' reproduction are reported:
+
+CPU: Intel Core i5 8500 @ 3.00 GHz, 6 core, 6 logic processors.
+
+RAM: 32 GB DDR4 3000 MHz CL15.
+
+Storage: 1 TB SSD Nvme PCIe 3.0.
+
+The results obtained strictly depend on the hardware employed and are reproducible uniquely under the same conditions. They are available at [10.5281/zenodo.5579701](https://doi.org/10.5281/zenodo.5579701), as well as the code to reproduce them. 
+
+In order to reproduce the benchmark results, do the following steps:
+1. Download the dataset from [10.5281/zenodo.5579701] (https://doi.org/10.5281/zenodo.5579701). 
+2. Extract reproduce_results.zip. 
+    + _on Windows_
+      Execute run_banchmarks.bat
+    + _on Linux and MacOs_
+      Execute run_banchmarks.sh
+3. As the results become available, they are readable in the `statistics.json` file within the folder where you run the bash script.
+In the event that the execution should stop due to unforeseen causes, it will resume from where it was interrupted.
+
+
