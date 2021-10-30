@@ -1,5 +1,4 @@
 chardet
-oc_ocdm
 python-dateutil
 rdflib
 SPARQLWrapper

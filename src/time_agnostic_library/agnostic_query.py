@@ -24,7 +24,6 @@ from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib import ConjunctiveGraph, Graph, URIRef, Literal, Variable
 from rdflib.paths import InvPath
-from oc_ocdm.support.query_utils import get_insert_query
 from threading import Thread
 from tqdm import tqdm
 
@@ -307,7 +306,7 @@ class AgnosticQuery(object):
         return explicit_triples
     
     def _align_snapshots(self) -> None:
-        print("[VersionQuery: INFO] Aligning snapshots")
+        print("[INFO: VersionQuery] Aligning snapshots")
         if self.cache_triplestore_url:
             if not self.to_be_aligned:
                 return
@@ -683,3 +682,14 @@ class DeltaQuery(AgnosticQuery):
             pbar.update(1)
         pbar.close()        
         return output
+
+def get_insert_query(graph_iri: URIRef, data: Graph) -> Tuple[str, int]:
+    num_of_statements: int = len(data)
+    if num_of_statements <= 0:
+        return "", 0
+    else:
+        statements: str = data.serialize(format="nt11", encoding="utf-8") \
+            .decode("utf-8") \
+            .replace('\n\n', '')
+        insert_string: str = f"INSERT DATA {{ GRAPH <{graph_iri}> {{ {statements} }} }}"
+        return insert_string, num_of_statements
