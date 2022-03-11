@@ -48,6 +48,39 @@ def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
             sparql.setQuery(clear)
             sparql.setMethod(POST)
             sparql.query()
+
+def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), provenance_urls:list=list(), provenance_dirs:list=list(), blazegraph_full_text_search:bool=False, cache_triplestore_url:str='') -> None:
+    '''
+    Given the configuration parameters, a file compliant with the syntax of the time-agnostic-library configuration files is generated.
+    :param config_path: The output configuration file path
+    :type config_path: str
+    :param dataset_urls: A list of triplestore URLs containing data
+    :type dataset_urls: list
+    :param dataset_dirs: A list of directories containing data
+    :type dataset_dirs: list
+    :param provenance_urls: A list of triplestore URLs containing provenance metadata
+    :type provenance_urls: list
+    :param provenance_dirs: A list of directories containing provenance metadata
+    :type provenance_dirs: list
+    :param blazegraph_full_text_search: True if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure
+    :type blazegraph_full_text_search: bool
+    :param cache_triplestore_url: A triplestore URL to use as a cache to make queries on provenance faster
+    :type cache_triplestore_url: str
+    '''
+    config = {
+        'dataset': {
+            'triplestore_urls': dataset_urls,
+            'file_paths': dataset_dirs
+        },
+        'provenance': {
+            'triplestore_urls': provenance_urls,
+            'file_paths': provenance_dirs
+        },
+        'blazegraph_full_text_search': blazegraph_full_text_search,
+        'cache_triplestore_url': cache_triplestore_url
+    }
+    with open(config_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f)
     
 def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     if cg is None:
