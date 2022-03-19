@@ -1,7 +1,0 @@
-chardet
-python-dateutil
-rdflib
-SPARQLWrapper
-sphinx_autodoc_defaultargs
-sphinx-material
-tqdm

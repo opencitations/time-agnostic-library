@@ -14,6 +14,7 @@ Documentation can be found here: [https://time-agnostic-library.readthedocs.io](
   * [Cross-delta structured query](#cross-delta-structured-query)
   * [Configuration file](#configuration-file)
 - [Developer's guide](#developers-guide)
+  * [First steps](#first-steps)
   * [How to run the tests](#how-to-run-the-tests)
   * [How to build the documentation](#how-to-build-the-documentation)
   * [How to benchmark](#how-to-benchmark)
@@ -320,6 +321,36 @@ The configuration file is mainly used to indicate to the library where to search
 
 ## Developer's guide
 
+### First steps
+  1. Install Poetry:
+``` bash
+    pip install poetry
+```
+  2. Clone this repository:
+``` bash
+    git clone https://github.com/opencitations/time-agnostic-library
+    cd ./time-agnostic-library
+```
+  3. Install all the dependencies:
+``` bash
+    poetry install
+```
+  4. Build the package (_output dir:_ `dist`):
+``` bash
+    poetry build
+```
+  5. Globally install the package (_alternatively, you can also install it inside a virtual-env,
+  by providing the full path to the .tar.gz archive_):
+``` bash
+    pip install ./dist/time-agnostic-library-<VERSION>.tar.gz
+```
+  6. If everything went the right way, than you should be able to use `time_agnostic_library` in your Python modules as follows:
+``` python
+    from time_agnostic_library.agnostic_entity import AgnosticEntity
+    from time_agnostic_library.agnostic_query import AgnosticQuery
+    # ...
+```
+
 ### How to run the tests
 
  1. Make sure that Java is installed on your computer.
@@ -328,7 +359,6 @@ The configuration file is mainly used to indicate to the library where to search
 ``` bash
   python tests/run_all_tests.py
 ```
-
 
 ### How to build the documentation
 

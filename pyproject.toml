@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "time-agnostic-library"
+version = "2.2.3"
+description = "time-agnostic-library is a Python ≥3.7 library that allows performing time-travel queries on RDF datasets compliant with the OCDM v2.0.1 provenance specification."
+authors = ["Arcangelo Massari <arcangelo.massari@unibo.it>"]
+readme = "README.md"
+license = "ISC"
+homepage = "https://github.com/opencitations/time-agnostic-library"
+repository = "https://github.com/opencitations/time-agnostic-library"
+documentation = "https://time-agnostic-library.readthedocs.io"
+keywords = ["rdf", "provenance", "opencitations", "change-tracking", "time-traversal query"]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+	"Intended Audience :: Science/Research",
+	"License :: OSI Approved :: ISC License (ISCL)",
+	"Natural Language :: English",
+	"Operating System :: OS Independent",
+	"Programming Language :: Python :: 3",
+	"Topic :: Software Development :: Libraries :: Python Modules"
+]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+python_dateutil = "^2.8.2"
+rdflib = "^5.0.0"
+SPARQLWrapper = "^1.8.5"
+tqdm = "^4.62.3"
+
+[tool.poetry.dev-dependencies]
+chardet = "^4.0.0"
+sphinx-autodoc-defaultargs = "^0.1.2"
+sphinx-material = "^0.0.35"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+test = 'scripts:test'
