@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# Copyright (c) 2021, Arcangelo Massari <arcangelomas@gmail.com>
+# Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
 # with or without fee is hereby granted, provided that the above copyright notice
@@ -14,11 +14,13 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-from typing import Dict, List
 
-import json
 from rdflib.graph import ConjunctiveGraph
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
+from typing import Dict, List
+import json
+import re
+
 
 CONFIG_PATH = "./config.json"
 
@@ -85,8 +87,9 @@ def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), 
 def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     if cg is None:
         return None
-    nt_list = str(cg.serialize(format="nt")).split(r".\n")
-    sorted_nt_list = sorted([triple.replace("b\'", "").strip() for triple in nt_list if triple != r"b'\n'" and triple != r"\n'"])
+    nt_list = re.split('\s?\.\n+', cg.serialize(format="nt"))
+    nt_list = filter(None, nt_list)
+    sorted_nt_list = sorted(nt_list)
     return sorted_nt_list
 
 def _to_dict_of_nt_sorted_lists(dictionary:Dict[str, Dict[str, ConjunctiveGraph]]) -> Dict[str, Dict[str, List[str]]]:

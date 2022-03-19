@@ -339,8 +339,7 @@ The configuration file is mainly used to indicate to the library where to search
 ``` bash
     poetry build
 ```
-  5. Globally install the package (_alternatively, you can also install it inside a virtual-env,
-  by providing the full path to the .tar.gz archive_):
+  5. Globally install the package:
 ``` bash
     pip install ./dist/time-agnostic-library-<VERSION>.tar.gz
 ```
@@ -357,7 +356,7 @@ The configuration file is mainly used to indicate to the library where to search
  2. Simply launch the following command from the root folder:
 
 ``` bash
-  python tests/run_all_tests.py
+  poetry run test
 ```
 
 ### How to build the documentation

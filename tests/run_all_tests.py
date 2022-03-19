@@ -1,5 +1,5 @@
 import zipfile, os.path, time
-from subprocess import run, CREATE_NEW_CONSOLE, Popen
+from subprocess import CREATE_NEW_CONSOLE, Popen
 
 
 def unzip(file:str, destination:str):
@@ -18,13 +18,14 @@ def launch_blazegraph(ts_dir:str, port:int):
         creationflags=CREATE_NEW_CONSOLE
     )
 
-if not os.path.isfile("tests/blazegraph.jnl"):
-    unzip("tests/triplestore.zip", "tests/")
-if not os.path.isfile("tests/cache/blazegraph.jnl"):
-    unzip("tests/cache/cache.zip", "tests/cache/")
-launch_blazegraph("tests", 9999)
-launch_blazegraph("tests/cache", 19999)
-time.sleep(10)
-Popen(
-    ["python", "-m", "unittest", "discover", "-s", "tests", "-p", "test*.py", "-b"]
-)
+def main():
+    if not os.path.isfile("tests/blazegraph.jnl"):
+        unzip("tests/triplestore.zip", "tests/")
+    if not os.path.isfile("tests/cache/blazegraph.jnl"):
+        unzip("tests/cache/cache.zip", "tests/cache/")
+    launch_blazegraph("tests", 9999)
+    launch_blazegraph("tests/cache", 19999)
+    time.sleep(10)
+    Popen(
+        ["python", "-m", "unittest", "discover", "-s", "tests", "-p", "test*.py", "-b"]
+    )

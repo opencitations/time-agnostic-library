@@ -23,7 +23,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.7"
 python_dateutil = "^2.8.2"
-rdflib = "^5.0.0"
+rdflib = "^6.1.1"
 SPARQLWrapper = "^1.8.5"
 tqdm = "^4.62.3"
 
@@ -37,4 +37,4 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-test = 'scripts:test'
+test = 'tests.run_all_tests:main'
