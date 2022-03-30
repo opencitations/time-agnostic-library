@@ -8,5 +8,6 @@
         "file_paths": ["tests/prov.json"]
     },
     "blazegraph_full_text_search": "no",
-    "cache_triplestore_url": "http://localhost:19999/blazegraph/sparql"
+    "graphdb_connector_name": "",
+    "cache_triplestore_url": "http://localhost:29999/blazegraph/sparql"
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# Copyright (c) 2021, Arcangelo Massari <arcangelomas@gmail.com>
+# Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
 # with or without fee is hereby granted, provided that the above copyright notice
@@ -14,11 +14,14 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest, rdflib, json
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
+
 from pprint import pprint
+from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from time_agnostic_library.agnostic_query import VersionQuery
 from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph
+import json
+import rdflib
+import unittest
 
 CONFIG_PATH = "tests/config.json"
 CONFIG_BLAZEGRAPH = "tests/config_blazegraph.json"
@@ -1003,21 +1006,38 @@ class Test_VersionQuery(unittest.TestCase):
         query_to_identify = VersionQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify = """
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
+            PREFIX con: <http://www.ontotext.com/connectors/lucene#>
+            PREFIX con-inst: <http://www.ontotext.com/connectors/lucene/instance#>
             SELECT DISTINCT ?updateQuery 
             WHERE {
                 ?snapshot <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
                 FILTER CONTAINS (?updateQuery, 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue').
             }
         """.replace(" ", "").replace("\n", "")
+        self.assertEqual(query_to_identify, expected_query_to_identify)
+
+    def test__get_query_to_update_queries_blazegraph(self):
+        query = """
+            prefix literal: <http://www.essepuntato.it/2010/06/literalreification/>
+            SELECT DISTINCT ?o ?id ?value
+            WHERE {
+                ?a literal:hasLiteralValue ?b.
+            }
+        """
+        triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
+        query_to_identify = VersionQuery(query, config_path=CONFIG_BLAZEGRAPH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify_bds = """
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
+            PREFIX con: <http://www.ontotext.com/connectors/lucene#>
+            PREFIX con-inst: <http://www.ontotext.com/connectors/lucene/instance#>
             SELECT DISTINCT ?updateQuery
             WHERE {
-            ?snapshot <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
-            ?updateQuery bds:search 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'.
+                ?snapshot <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
+                ?updateQuery bds:search 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'.
+                ?updateQuery bds:matchAllTerms'true'.
             }
         """.replace(" ", "").replace("\n", "")
-        assert (query_to_identify == expected_query_to_identify) or (query_to_identify == expected_query_to_identify_bds)
+        self.assertEqual(query_to_identify, expected_query_to_identify_bds)
 
     def test__find_entities_in_update_queries(self):
         query = """

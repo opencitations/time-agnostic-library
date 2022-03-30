@@ -160,8 +160,8 @@ class Sparql:
             #
             # SELECT DISTINCT ?s ?p ?o ?c
             # WHERE {
-            #     GRAPH ?c {?s ?p ?o}
             #     BIND (<{self.res}> AS ?s)
+            #     GRAPH ?c {?s ?p ?o}
             # }}
             #
             # Aftwerwards, the rdflib add method can be used to add quads to a Conjunctive Graph, 

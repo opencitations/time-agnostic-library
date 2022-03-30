@@ -4,6 +4,7 @@
 *.jar
 /tests/rules.log
 /tests/info_dir/
+/tests/graphdb/
 setup.py
 execution_example.py
 

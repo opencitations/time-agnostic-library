@@ -316,8 +316,8 @@ class AgnosticEntity:
         #
         # SELECT ?s ?p ?o ?c
         # WHERE {
-        #     GRAPH ?c {?s ?p ?o}
         #     BIND (<{res}> AS ?s)
+        #     GRAPH ?c {?s ?p ?o}
         # }
         #
         # Aftwerwards, the rdflib add method can be used to add quads to a Conjunctive Graph,
@@ -326,18 +326,18 @@ class AgnosticEntity:
             query_dataset = f"""
                 SELECT DISTINCT ?s ?p ?o ?c
                 WHERE {{
-                    GRAPH ?c {{?s ?p ?o}}
                     {{BIND (<{self.res}> AS ?s)}}
                     UNION 
                     {{BIND (<{self.res}> AS ?o)}}
+                    GRAPH ?c {{?s ?p ?o}}
                 }}   
             """
         else:
             query_dataset = f"""
                 SELECT DISTINCT ?s ?p ?o ?c
                 WHERE {{
-                    GRAPH ?c {{?s ?p ?o}}
                     BIND (<{self.res}> AS ?s) 
+                    GRAPH ?c {{?s ?p ?o}}
                 }}   
             """
         return Sparql(query_dataset, config_path=self.config_path).run_construct_query()

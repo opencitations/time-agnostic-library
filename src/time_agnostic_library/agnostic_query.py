@@ -44,10 +44,13 @@ class AgnosticQuery(object):
         self.cache_triplestore_url:str = config["cache_triplestore_url"]
         if blazegraph_full_text_search.lower() in {"true", "1", 1, "t", "y", "yes", "ok"}:
             self.blazegraph_full_text_search = True
-        elif blazegraph_full_text_search.lower() in {"false", "0", 0, "n", "f", "no"}:
+        elif blazegraph_full_text_search.lower() in {"false", "0", 0, "n", "f", "no"} or not blazegraph_full_text_search:
             self.blazegraph_full_text_search = False
         else:
             raise ValueError("Enter a valid value for 'blazegraph_full_text_search' in the configuration file, for example 'yes' or 'no'.")
+        self.graphdb_connector_name = config["graphdb_connector_name"]
+        if len([index for index in [self.blazegraph_full_text_search, self.graphdb_connector_name] if index]) > 1:
+            raise ValueError("The use of multiple indexing systems simultaneously is currently not supported.")
         if self.cache_triplestore_url:
             self.sparql_select = SPARQLWrapper(self.cache_triplestore_url)
             self.sparql_select.setMethod(GET)
@@ -215,6 +218,8 @@ class AgnosticQuery(object):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = f"""
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
+            PREFIX con: <http://www.ontotext.com/connectors/lucene#>
+            PREFIX con-inst: <http://www.ontotext.com/connectors/lucene/instance#>
             SELECT DISTINCT ?updateQuery 
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
@@ -222,6 +227,11 @@ class AgnosticQuery(object):
         if self.blazegraph_full_text_search:
             bds_search = "?updateQuery bds:search '" + ' '.join(uris_in_triple) +  "'.?updateQuery bds:matchAllTerms 'true'.}"
             query_to_identify += bds_search
+        elif self.graphdb_connector_name:
+            all = '\"'
+            con_queries = f"con:query '{all}" + f"{all}'; con:query '{all}".join(uris_in_triple) + f"{all}'"
+            con_search = f"[] a con-inst:{self.graphdb_connector_name}; {con_queries}; con:entities ?snapshot .}}"
+            query_to_identify += con_search
         else:
             filter_search = ").".join([f"FILTER CONTAINS (?updateQuery, '{uri}'" for uri in uris_in_triple]) + ").}"
             query_to_identify += filter_search

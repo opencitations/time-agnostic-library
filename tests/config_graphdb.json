@@ -1,0 +1,13 @@
+{
+    "dataset": {
+        "triplestore_urls": ["http://localhost:7200/repositories/all"],
+        "file_paths": []
+    },
+    "provenance": {
+        "triplestore_urls": ["http://localhost:7200/repositories/all"],
+        "file_paths": []
+    },
+    "blazegraph_full_text_search": "",
+    "graphdb_connector_name": "fts",
+    "cache_triplestore_url": ""
+}

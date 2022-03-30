@@ -80,8 +80,8 @@ class Test_Sparql(unittest.TestCase):
         input = """
             SELECT ?s ?p ?o ?c
             WHERE {
-                GRAPH ?c {?s ?p ?o}
                 BIND (<https://github.com/arcangelo7/time_agnostic/id/14> as ?s)
+                GRAPH ?c {?s ?p ?o}
             }           
         """
         output = _to_nt_sorted_list(Sparql(input, CONFIG_PATH).run_construct_query())

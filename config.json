@@ -8,5 +8,6 @@
         "file_paths": []
     },
     "blazegraph_full_text_search": "no",
+    "graphdb_connector_name": "",
     "cache_triplestore_url": ""
 }
