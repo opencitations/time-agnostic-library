@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# Copyright (c) 2021, Arcangelo Massari <arcangelomas@gmail.com>
+# Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
 # with or without fee is hereby granted, provided that the above copyright notice

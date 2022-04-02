@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath('../src/'))
 # -- Project information -----------------------------------------------------
 
 project = 'Time Agnostic Library'
-copyright = '2021, Arcangelo Massari (https://orcid.org/0000-0002-8420-0696)'
+copyright = '2022, Arcangelo Massari (https://orcid.org/0000-0002-8420-0696)'
 author = 'Arcangelo Massari (https://orcid.org/0000-0002-8420-0696)'
 
 # The full version, including alpha/beta/rc tags
