@@ -10,7 +10,7 @@ BASE_DIR = os.path.abspath('tests')
 
 
 def download_tests_datasets_from_zenodo():
-    url = 'https://zenodo.org/api/records/6399070#.YkSLzyhBxaY'
+    url = 'https://zenodo.org/api/records/6408368#.YkhYoChBxaZ'
     r = requests.get(url)
     if r.ok:
         js = json.loads(r.text)

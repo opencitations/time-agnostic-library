@@ -14,22 +14,24 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-from typing import Set, Tuple, Dict, List, Union
 
-import re, json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from SPARQLWrapper.Wrapper import SPARQLWrapper, POST, GET, JSON, RDFXML
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib import ConjunctiveGraph, Graph, URIRef, Literal, Variable
 from rdflib.paths import InvPath
+from SPARQLWrapper.Wrapper import SPARQLWrapper, POST, GET, JSON, RDFXML
 from threading import Thread
-from tqdm import tqdm
-
-from time_agnostic_library.sparql import Sparql
-from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.agnostic_entity import AgnosticEntity, _filter_timestamps_by_interval
+from time_agnostic_library.prov_entity import ProvEntity
+from time_agnostic_library.sparql import Sparql
+from tqdm import tqdm
+from typing import Set, Tuple, Dict, List, Union
+import json
+import re
+
 
 CONFIG_PATH = "./config.json"
 
@@ -105,7 +107,7 @@ class AgnosticQuery(object):
                 for result in present_results:
                     self._rebuild_relevant_entity(result[0], isolated=True)
                     self._rebuild_relevant_entity(result[2], isolated=True)
-                    pbar.update(1)
+                    pbar.update()
                 pbar.close()
                 self._find_entities_in_update_queries(triple)
             else:
@@ -260,9 +262,10 @@ class AgnosticQuery(object):
         if new_entities_found:
             print(f"[VersionQuery:INFO] Rebuilding relevant entities' history.")
             pbar = tqdm(total=len(new_entities_found))
-            for new_entity_found in new_entities_found:
-                self._rebuild_relevant_entity(new_entity_found, isolated=True)
-                pbar.update(1)
+            with ThreadPoolExecutor() as executor:
+                results = [executor.submit(self._rebuild_relevant_entity, new_entity_found, True) for new_entity_found in new_entities_found]
+                for _ in as_completed(results):
+                    pbar.update()
             pbar.close()
     
     def _solve_variables(self) -> None:
@@ -494,13 +497,8 @@ class VersionQuery(AgnosticQuery):
         print("[VersionQuery: INFO] Running agnostic query.")
         agnostic_result:dict[str, Set[Tuple]] = dict()
         relevant_timestamps = _filter_timestamps_by_interval(self.on_time, self.relevant_graphs)
-        for timestamp, graph in self.relevant_graphs.items():
-            if timestamp in relevant_timestamps:
-                th = Thread(target=self._query_reconstructed_graph, args=(timestamp, graph, agnostic_result))
-                self.threads.add(th)
-                th.start()
-        for thread in self.threads:
-            thread.join()
+        with ThreadPoolExecutor() as executor:
+            [executor.submit(self._query_reconstructed_graph, timestamp, graph, agnostic_result) for timestamp, graph in self.relevant_graphs.items() if timestamp in relevant_timestamps]
         return agnostic_result
 
 
@@ -534,7 +532,7 @@ class DeltaQuery(AgnosticQuery):
                         self.reconstructed_entities.add(result[0])
                     if isinstance(result[2], URIRef):
                         self.reconstructed_entities.add(result[2])
-                    pbar.update(1)
+                    pbar.update()
                 pbar.close()
                 self._find_entities_in_update_queries(triple)
             else:
@@ -585,6 +583,8 @@ class DeltaQuery(AgnosticQuery):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = f"""
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
+            PREFIX con: <http://www.ontotext.com/connectors/lucene#>
+            PREFIX con-inst: <http://www.ontotext.com/connectors/lucene/instance#>
             SELECT DISTINCT ?updateQuery 
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
@@ -592,6 +592,11 @@ class DeltaQuery(AgnosticQuery):
         if self.blazegraph_full_text_search:
             bds_search = "?updateQuery bds:search '" + ' '.join(uris_in_triple) +  "'.?updateQuery bds:matchAllTerms 'true'.}"
             query_to_identify += bds_search
+        elif self.graphdb_connector_name:
+            all = '\"'
+            con_queries = f"con:query '{all}" + f"{all}'; con:query '{all}".join(uris_in_triple) + f"{all}'"
+            con_search = f"[] a con-inst:{self.graphdb_connector_name}; {con_queries}; con:entities ?snapshot .}}"
+            query_to_identify += con_search
         else:
             filter_search = ").".join([f"FILTER CONTAINS (?updateQuery, '{uri}'" for uri in uris_in_triple]) + ").}"
             query_to_identify += filter_search
@@ -689,7 +694,7 @@ class DeltaQuery(AgnosticQuery):
                                 output[identified_entity]["modified"][time] = result_tuple[2]
                         else:
                             output[identified_entity]["created"] = creation_date
-            pbar.update(1)
+            pbar.update()
         pbar.close()        
         return output
 
