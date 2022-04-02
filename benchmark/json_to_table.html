@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <link rel= 'stylesheet' href= 'css/pixel.css'>
+    <title>Json to Table</title>
+    <style>
+        table,
+        table tr,
+        table tr td,
+        table tr th {
+            border: 1px solid lightgrey;
+        }
+        td, th {
+            padding: 0.2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class='container'></div>
+    <script src='https://code.jquery.com/jquery-3.6.0.min.js' integrity='sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=' crossorigin='anonymous'></script>
+    <script>
+        json_files = ['./Blazegraph.json']
+        relevantStatistics = ['mean', 'stdev']
+        function titleCase(str) {
+            str = str.charAt(0).toUpperCase() + str.slice(1); 
+            return str;
+        }
+        function make_human_readable(str) {
+            var result = str.replaceAll('w_out', '<br/>w/out').replaceAll('w_', '<br/>w/ ');
+            result = result.replace('p_o', '<br/>where only the predicate and object are known');
+            result = result.replace('materialization_all', 'materialization of all').replace('materialization_single', 'materialization of a single');
+            result = result.replace('cross_', 'cross-').replace('single_', 'single-');
+            result = result.replaceAll('_', ' ');
+            return result
+        }
+        function precise(x, significantFigures) {
+            return x.toPrecision(significantFigures);
+        }
+        function jsonToTable(tableData, fileName) {
+            var fieldName = fileName.replace('./', '').replace('.json', '')
+            $.each(tableData, function (benchmark, queries) {
+                if ($(`.container table.${benchmark}`).length === 0) {
+                    var table = $(`<table class='table ${benchmark} m-5'></table>`)
+                    var header = $(`<tr class='${benchmark}_header'></tr>`)
+                    table.append(header)
+                    header.append($('<th rowspan=2>Retrieval functionality</th><th rowspan=2>Triplestore</th>'))
+                    var statistics_header = $(`<tr class='${benchmark}_statistics_header'></tr>`)
+                    table.append(statistics_header)
+                    $('.container').append(table)
+                } else {
+                    var table = $(`.${benchmark}`)
+                    var header = $(`.${benchmark}_header`)
+                    var statistics_header = $(`.${benchmark}_statistics_header`)
+                }
+                $.each(queries, function (query, parameters){
+                    var benchmark_query = `${benchmark}_${query}`
+                    var benchmark_query_fieldName = `${benchmark_query}_${fieldName}`
+                    if ($(`.${benchmark_query}`).length === 0) {
+                        table.append($(`<tr class='${benchmark_query_fieldName}'></tr>`))
+                        $(`.${benchmark_query_fieldName}`).append($(`<td rowspan=${json_files.length} class='${benchmark_query}'>${titleCase(make_human_readable(query))}</td><th>${fieldName}</th>`))
+                        $.each(json_files, function(_, fileName){
+                            var otherFieldName = fileName.replace('./', '').replace('.json', '')
+                            if (otherFieldName != fieldName) {
+                                table.append($(`<tr class='${benchmark_query}_${otherFieldName}'><th>${otherFieldName}</th></tr>`))
+                            }
+                        });
+                    }
+                    $.each(parameters, function(parameter, statistics){
+                        var benchmark_parameter = `${benchmark}_${parameter}`
+                        if ($(`.${benchmark_parameter}`).length === 0) {
+                            header.append(`<th class='${benchmark_parameter}' colspan='${relevantStatistics.length}'>${titleCase(benchmark)}${make_human_readable(parameter)}</th>`)
+                            $.each(relevantStatistics, function(_, statistics) {statistics_header.append($(`<th>${statistics}</th>`))})
+                        }
+                        $.each(statistics, function(stat, result){
+                            if (relevantStatistics.includes(stat)) {
+                                if (result != 0.0) {
+                                    var td = $(`<td>${precise(result, 3)}</td>`);
+                                } else {
+                                    var td = $(`<td></td>`);
+                                }
+                                $(`.${benchmark_query_fieldName}`).append(td)
+                            }
+                        });
+                    });
+                });
+            });
+        };
+        $.each(json_files, function(index, fileName){
+            $.ajax({
+                type: 'GET',
+                url: fileName,
+                dataType: 'json',
+                success: function (data) {
+                    jsonToTable(data, fileName);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

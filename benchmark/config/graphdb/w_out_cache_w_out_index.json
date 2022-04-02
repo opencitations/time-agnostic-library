@@ -1,0 +1,16 @@
+{
+    "dataset": {
+        "triplestore_urls": ["http://127.0.0.1:7200/repositories/data_prov"],
+        "file_paths": []
+    },
+    "provenance": {
+        "triplestore_urls": ["http://127.0.0.1:7200/repositories/data_prov"],
+        "file_paths": []
+    },
+    "blazegraph_full_text_search": "no",
+    "graphdb_connector_name": "",
+    "cache_triplestore_url": {
+        "endpoint": "",
+        "update_endpoint": ""
+    }
+}

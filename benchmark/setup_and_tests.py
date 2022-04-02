@@ -1,77 +1,71 @@
-import json, os
+from typing import Tuple
+import json
+import os
 
-output_path = "statistics.json"
+OUTPUT_PATH = 'statistics.json'
+TRIPLESTORES = ['blazegraph', 'graphdb']
 
-def create_statistics_file():
+def create_statistics_file(output_path:str=OUTPUT_PATH):
     if not os.path.isfile(output_path):
         with open(output_path, 'w') as f:
-            json.dump({
-                "time": {
-                    "w_out_cache_w_out_index": dict(),
-                    "w_out_cache_w_index": dict(),
-                    "w_cache_w_out_index": dict(),
-                    "w_cache_w_index": dict()
-                },
-                "RAM": {
-                    "w_cache_w_out_index": dict(), 
-                    "w_out_cache_w_out_index": dict()
-                }}, f, indent=4)
+            statistics_data = {'time': dict(), 'memory': dict()}
+            queries = ['materialization_all_versions', 'materialization_single_version', 'cross_version_structured_query', 'single_version_structured_query', 
+            'cross_version_structured_query_p_o', 'single_version_structured_query_p_o', 'cross_delta_structured_query', 'single_delta_structured_query', 
+            'cross_delta_structured_query_p_o', 'single_delta_structured_query_p_o']
+            time_parameters = ['w_out_cache_w_out_index', 'w_out_cache_w_index', 'w_cache_w_out_index', 'w_cache_w_index']
+            memory_parameters = ['w_cache_w_out_index', 'w_out_cache_w_out_index']
+            statistics = {'min': 0.0,'median': 0.0,'mean': 0.0,'stdev': 0.0,'max': 0.0}
+            for benchmark in dict(statistics_data):
+                parameters = time_parameters if benchmark == 'time' else memory_parameters
+                for query in queries:
+                    statistics_data[benchmark].setdefault(query, dict())
+                    for parameter in parameters:
+                        statistics_data[benchmark][query][parameter] = statistics
+            json.dump(statistics_data, f, indent=4)
 
-def save(data:list, parameter:str, benchmark:str): 
-    with open(output_path, 'r', encoding="utf-8") as reader:
+def save(data:dict, test_name:str, parameter:str, benchmark:str, output_path:str=OUTPUT_PATH): 
+    with open(output_path, 'r', encoding='utf-8') as reader:
         prev_data = json.load(reader)
-    with open(output_path, 'w', encoding="utf-8") as writer:
-        prev_data[benchmark][parameter].update(data)
+    with open(output_path, 'w', encoding='utf-8') as writer:
+        prev_data[benchmark][test_name][parameter] = data
         json.dump(prev_data, writer, indent=4)
 
-def already_done(parameter:str, test_name:str, benchmark:str) -> bool:
+def already_done(parameter:str, test_name:str, benchmark:str, output_path:str=OUTPUT_PATH) -> bool:
     already_done = False
-    with open(output_path, 'r', encoding="utf-8") as reader:
+    with open(output_path, 'r', encoding='utf-8') as reader:
         prev_data = json.load(reader)
-        if test_name in prev_data[benchmark][parameter]:
+        if prev_data[benchmark][test_name][parameter] != {'min': 0.0,'median': 0.0,'mean': 0.0,'stdev': 0.0,'max': 0.0}:
             already_done = True
-            print(f"Benchmark on {benchmark} completed: {test_name} - {parameter}")
+            print(f'Benchmark on {benchmark} completed: {test_name} - {parameter}')
     return already_done
 
-setup = """
+def get_setup(triplestore:str, config_filepath:str) -> Tuple[str, str, str]:
+    setup = '''
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery
 from time_agnostic_library.support import empty_the_cache
-import os, signal, psutil, time
-from subprocess import Popen, CREATE_NEW_CONSOLE
+from triplestore_manager import TriplestoreManager
+import time
 
-def find_pid_by_name(processName):
-    listOfProcessObjects = []
-    for proc in psutil.process_iter():
-       try:
-           pinfo = proc.as_dict(attrs=["pid", "name"])
-           # Check if process name contains the given name string.
-           if processName.lower() in pinfo["name"].lower() :
-               listOfProcessObjects.append(pinfo["pid"])
-       except (psutil.NoSuchProcess, psutil.AccessDenied , psutil.ZombieProcess):
-           pass
-    return listOfProcessObjects
-
-def close_program_by_name(name):
-    pids = find_pid_by_name(name)
-    for pid in pids:
-        try:
-            # Linux
-            os.kill(pid, signal.SIGSTOP)
-        except AttributeError:
-            # Windows
-            os.kill(pid, signal.SIGTERM)
-
-def launch_blazegraph(ts_dir:str, port:int):
-    Popen(
-        ["java", "-server", "-Xmx4g", F"-Dcom.bigdata.journal.AbstractJournal.file={ts_dir}/blazegraph.jnl",f"-Djetty.port={port}", "-jar", f"{ts_dir}/blazegraph.jar"],
-        creationflags=CREATE_NEW_CONSOLE
-    )
-
-close_program_by_name("java")
-launch_blazegraph("./db", 9999)
-launch_blazegraph("./db/prov", 19999)
-"""
+triplestore_manager = TriplestoreManager()
+    '''
+    if triplestore.lower() == 'blazegraph':
+        setup += '''
+triplestore_manager.close_program_by_name('java')
+triplestore_manager.launch_blazegraph('./db', 9999)
+triplestore_manager.launch_blazegraph('./db/prov', 19999)\n'''
+        setup_no_cache = setup + 'time.sleep(10)'
+        setup_empty_cache = setup + f"triplestore_manager.launch_blazegraph('./db/cache/empty', 29999)\ntime.sleep(10)\nempty_the_cache('{config_filepath}')"
+        setup_full_cache = setup + "triplestore_manager.launch_blazegraph('./db/cache/full', 29999)\ntime.sleep(10)"
+    elif triplestore.lower() == 'graphdb':
+        setup += '''
+triplestore_manager.close_program_by_name('java')
+triplestore_manager.launch_graphdb('./db/graphdb', 7200)
+\n'''
+        setup_no_cache = setup + 'time.sleep(10)'
+        setup_empty_cache = setup + f"triplestore_manager.launch_graphdb('./db/cache/graphdb', 7300)\ntime.sleep(10)\nempty_the_cache('{config_filepath.replace('.json', '_empty.json')}')"
+        setup_full_cache = setup + "triplestore_manager.launch_graphdb('./db/cache/graphdb', 7300)\ntime.sleep(10)"
+    return setup_no_cache, setup_empty_cache, setup_full_cache
 
 def generate_tests_for_entities(test:str, entities:list) -> list:
     tests_for_entities = list()
@@ -79,14 +73,14 @@ def generate_tests_for_entities(test:str, entities:list) -> list:
         tests_for_entities.append(test.replace('{entity}', str(entity)))
     return tests_for_entities
 
-materialization_all_versions = """
-agnostic_entity = AgnosticEntity(res="https://github.com/opencitations/time-agnostic-library/br/{entity}", config_path=CONFIG)
+materialization_all_versions = '''
+agnostic_entity = AgnosticEntity(res='https://github.com/opencitations/time-agnostic-library/br/{entity}', config_path=CONFIG)
 agnostic_entity.get_history(include_prov_metadata=True)
-"""
-materialization_single_version = """
-agnostic_entity = AgnosticEntity(res="https://github.com/opencitations/time-agnostic-library/br/{entity}", config_path=CONFIG)
-agnostic_entity.get_state_at_time(time=("2021-10-13", None), include_prov_metadata=True)
-"""
+'''
+materialization_single_version = '''
+agnostic_entity = AgnosticEntity(res='https://github.com/opencitations/time-agnostic-library/br/{entity}', config_path=CONFIG)
+agnostic_entity.get_state_at_time(time=('2021-10-13', None), include_prov_metadata=True)
+'''
 cross_version_structured_query = """
 query = '''
 PREFIX literal: <http://www.essepuntato.it/2010/06/literalreification/>
@@ -114,7 +108,7 @@ WHERE {
     OPTIONAL {?id literal:hasLiteralValue ?value.}
 }   
 '''
-agnostic_query = VersionQuery(query, ("2021-10-13", None), config_path=CONFIG)
+agnostic_query = VersionQuery(query, ('2021-10-13', None), config_path=CONFIG)
 agnostic_query.run_agnostic_query()
 """
 cross_delta_structured_query = """
@@ -149,7 +143,7 @@ WHERE {
 '''
 agnostic_entity = DeltaQuery(
     query=query, 
-    on_time=("2021-10-13", None),
+    on_time=('2021-10-13', None),
     config_path=CONFIG
 )
 agnostic_entity.run_agnostic_query()
@@ -175,7 +169,7 @@ WHERE {
     ?s datacite:usesIdentifierScheme datacite:orcid.
 }
 '''
-agnostic_query = VersionQuery(query, ("2021-10-13", None), config_path=CONFIG)
+agnostic_query = VersionQuery(query, ('2021-10-13', None), config_path=CONFIG)
 agnostic_query.run_agnostic_query()
 """
 
@@ -189,7 +183,7 @@ WHERE {
 '''
 agnostic_entity = DeltaQuery(
     query=query,
-    on_time=("2021-10-13", None),
+    on_time=('2021-10-13', None),
     config_path=CONFIG
 )
 agnostic_entity.run_agnostic_query()
@@ -213,54 +207,54 @@ agnostic_entity.run_agnostic_query()
 entities = [2, 12935, 90837, 96505, 140957, 21821, 16973, 30948, 32497, 32544, 33243, 99238, 26565, 62320, 18046, 49, 141031, 69559, 32787, 86766]
 
 tests_time_w_out_cache_w_out_index = {
-    "materialization_all_versions": generate_tests_for_entities(test=materialization_all_versions, entities=entities),
-    "materialization_single_version": generate_tests_for_entities(test=materialization_single_version, entities=entities),
-    "cross_version_structured_query": generate_tests_for_entities(test=cross_version_structured_query, entities=entities),
-    "single_version_structured_query": generate_tests_for_entities(test=single_version_structured_query, entities=entities),
-    "cross_version_structured_query_p_o": [cross_version_structured_query_p_o],
-    "single_version_structured_query_p_o": [single_version_structured_query_p_o],
-    "cross_delta_structured_query": generate_tests_for_entities(test=cross_delta_structured_query, entities=entities),
-    "single_delta_structured_query": generate_tests_for_entities(test=single_delta_structured_query, entities=entities),
-    "cross_delta_structured_query_p_o": [cross_delta_structured_query_p_o],
-    "single_delta_structured_query_p_o": [single_delta_structured_query_p_o]
+    'materialization_all_versions': generate_tests_for_entities(test=materialization_all_versions, entities=entities),
+    'materialization_single_version': generate_tests_for_entities(test=materialization_single_version, entities=entities),
+    'cross_version_structured_query': generate_tests_for_entities(test=cross_version_structured_query, entities=entities),
+    'single_version_structured_query': generate_tests_for_entities(test=single_version_structured_query, entities=entities),
+    'cross_version_structured_query_p_o': [cross_version_structured_query_p_o],
+    'single_version_structured_query_p_o': [single_version_structured_query_p_o],
+    'cross_delta_structured_query': generate_tests_for_entities(test=cross_delta_structured_query, entities=entities),
+    'single_delta_structured_query': generate_tests_for_entities(test=single_delta_structured_query, entities=entities),
+    'cross_delta_structured_query_p_o': [cross_delta_structured_query_p_o],
+    'single_delta_structured_query_p_o': [single_delta_structured_query_p_o]
 }
 
 tests_time_w_out_cache_w_index = {
-    "cross_version_structured_query_p_o": [cross_version_structured_query_p_o],
-    "single_version_structured_query_p_o": [single_version_structured_query_p_o],
-    "cross_delta_structured_query_p_o": [cross_delta_structured_query_p_o],
-    "single_delta_structured_query_p_o": [single_delta_structured_query_p_o]
+    'cross_version_structured_query_p_o': [cross_version_structured_query_p_o],
+    'single_version_structured_query_p_o': [single_version_structured_query_p_o],
+    'cross_delta_structured_query_p_o': [cross_delta_structured_query_p_o],
+    'single_delta_structured_query_p_o': [single_delta_structured_query_p_o]
 }
 
 tests_time_w_cache_w_out_index = {
-    "cross_version_structured_query": generate_tests_for_entities(test=cross_version_structured_query, entities=entities),
-    "single_version_structured_query": generate_tests_for_entities(test=single_version_structured_query, entities=entities),
-    "cross_version_structured_query_p_o": [cross_version_structured_query_p_o],
-    "single_version_structured_query_p_o": [single_version_structured_query_p_o]
+    'cross_version_structured_query': generate_tests_for_entities(test=cross_version_structured_query, entities=entities),
+    'single_version_structured_query': generate_tests_for_entities(test=single_version_structured_query, entities=entities),
+    'cross_version_structured_query_p_o': [cross_version_structured_query_p_o],
+    'single_version_structured_query_p_o': [single_version_structured_query_p_o]
 }
 
 tests_time_w_cache_w_index = {
-    "cross_version_structured_query_p_o": [cross_version_structured_query_p_o],
-    "single_version_structured_query_p_o": [single_version_structured_query_p_o]
+    'cross_version_structured_query_p_o': [cross_version_structured_query_p_o],
+    'single_version_structured_query_p_o': [single_version_structured_query_p_o]
 }
 
 tests_memory_w_out_cache_w_out_index = {
-    "materialization_all_versions": generate_tests_for_entities(test=materialization_all_versions, entities=entities),
-    "materialization_single_version": generate_tests_for_entities(test=materialization_single_version, entities=entities),
-    "cross_version_structured_query": generate_tests_for_entities(test=cross_version_structured_query, entities=entities),
-    "single_version_structured_query": generate_tests_for_entities(test=single_version_structured_query, entities=entities),
-    "cross_version_structured_query_p_o": [cross_version_structured_query_p_o],
-    "single_version_structured_query_p_o": [single_version_structured_query_p_o],
-    "cross_delta_structured_query": generate_tests_for_entities(test=cross_delta_structured_query, entities=entities),
-    "single_delta_structured_query": generate_tests_for_entities(test=single_delta_structured_query, entities=entities),
-    "cross_delta_structured_query_p_o": [cross_delta_structured_query_p_o],
-    "single_delta_structured_query_p_o": [single_delta_structured_query_p_o]
+    'materialization_all_versions': generate_tests_for_entities(test=materialization_all_versions, entities=entities),
+    'materialization_single_version': generate_tests_for_entities(test=materialization_single_version, entities=entities),
+    'cross_version_structured_query': generate_tests_for_entities(test=cross_version_structured_query, entities=entities),
+    'single_version_structured_query': generate_tests_for_entities(test=single_version_structured_query, entities=entities),
+    'cross_version_structured_query_p_o': [cross_version_structured_query_p_o],
+    'single_version_structured_query_p_o': [single_version_structured_query_p_o],
+    'cross_delta_structured_query': generate_tests_for_entities(test=cross_delta_structured_query, entities=entities),
+    'single_delta_structured_query': generate_tests_for_entities(test=single_delta_structured_query, entities=entities),
+    'cross_delta_structured_query_p_o': [cross_delta_structured_query_p_o],
+    'single_delta_structured_query_p_o': [single_delta_structured_query_p_o]
 }
 
 tests_memory_w_cache_w_out_index = {
-    "cross_version_structured_query": generate_tests_for_entities(test=cross_version_structured_query, entities=entities),
-    "single_version_structured_query": generate_tests_for_entities(test=single_version_structured_query, entities=entities),
-    "cross_version_structured_query_p_o": [cross_version_structured_query_p_o],
-    "single_version_structured_query_p_o": [single_version_structured_query_p_o]
+    'cross_version_structured_query': generate_tests_for_entities(test=cross_version_structured_query, entities=entities),
+    'single_version_structured_query': generate_tests_for_entities(test=single_version_structured_query, entities=entities),
+    'cross_version_structured_query_p_o': [cross_version_structured_query_p_o],
+    'single_version_structured_query_p_o': [single_version_structured_query_p_o]
 }
 
