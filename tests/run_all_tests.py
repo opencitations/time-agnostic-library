@@ -41,7 +41,7 @@ def launch_graphdb(port:int=7200):
     '''
     abs_path_to_graphdb = os.path.abspath(f'{BASE_DIR}/graphdb/bin/graphdb.cmd')
     Popen(
-        [abs_path_to_graphdb, '-s', f'-Dgraphdb.connector.port={port}'],
+        [abs_path_to_graphdb, f'-Dgraphdb.connector.port={port}'],
         creationflags=CREATE_NEW_CONSOLE
     )
 

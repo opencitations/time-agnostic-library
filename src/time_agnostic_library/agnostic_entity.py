@@ -21,7 +21,6 @@ from rdflib.graph import ConjunctiveGraph, Graph
 from rdflib.term import URIRef
 from rdflib.plugins.sparql.processor import processUpdate
 from dateutil import parser
-
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.prov_entity import ProvEntity
 

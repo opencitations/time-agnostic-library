@@ -15,6 +15,7 @@
 # SOFTWARE.
 
 
+from pprint import pprint
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery
 import rdflib
 import unittest

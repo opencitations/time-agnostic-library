@@ -20,11 +20,13 @@ from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from time_agnostic_library.agnostic_query import VersionQuery
 from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph
 import json
+import os
 import rdflib
 import unittest
 
-CONFIG_PATH = "tests/config.json"
-CONFIG_BLAZEGRAPH = "tests/config_blazegraph.json"
+CONFIG_PATH = os.path.join('tests', 'config.json')
+CONFIG__NO_CACHE = os.path.join('tests', 'config_no_cache.json')
+CONFIG_BLAZEGRAPH = os.path.join('tests', 'config_blazegraph.json')
 
 class Test_VersionQuery(unittest.TestCase):        
     def test__tree_traverse_no_options(self):
@@ -1539,7 +1541,7 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }   
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_path=CONFIG__NO_CACHE)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-09-09T14:34:43': set(), 

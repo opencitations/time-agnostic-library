@@ -46,7 +46,7 @@ class Sparql:
 
         {
             "dataset": {
-                "triplestore_urls": ["http://localhost:9999/blazegraph/sparql"],
+                "triplestore_urls": ["http://127.0.0.1:9999/blazegraph/sparql"],
                 "file_paths": []
             },
             "provenance": {
@@ -54,7 +54,7 @@ class Sparql:
                 "file_paths": ["./prov.json"]
             },
             "blazegraph_full_text_search": "yes",
-            "cache_triplestore_url": "http://localhost:19999/blazegraph/sparql"
+            "cache_triplestore_url": "http://127.0.0.1:19999/blazegraph/sparql"
         }            
 
     :param config_path: The path to the configuration file.
