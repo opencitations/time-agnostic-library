@@ -32,7 +32,7 @@ def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
     :type config_path: str, optional
     """
     with open(config_path, encoding="utf8") as json_file:
-        cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]
+        cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["update_endpoint"]
     if cache_triplestore_url:
         timestamps = []
         query_timestamps = """
@@ -51,7 +51,7 @@ def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
             sparql.setMethod(POST)
             sparql.query()
 
-def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), provenance_urls:list=list(), provenance_dirs:list=list(), blazegraph_full_text_search:bool=False, cache_triplestore_url:str='') -> None:
+def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), provenance_urls:list=list(), provenance_dirs:list=list(), blazegraph_full_text_search:bool=False, graphdb_connector_name:str='', cache_endpoint:str='', cache_update_endpoint:str='') -> None:
     '''
     Given the configuration parameters, a file compliant with the syntax of the time-agnostic-library configuration files is generated.
     :param config_path: The output configuration file path
@@ -66,8 +66,12 @@ def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), 
     :type provenance_dirs: list
     :param blazegraph_full_text_search: True if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure
     :type blazegraph_full_text_search: bool
-    :param cache_triplestore_url: A triplestore URL to use as a cache to make queries on provenance faster
-    :type cache_triplestore_url: str
+    :param graphdb_connector_name: The name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see [https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html](https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html)
+    :type graphdb_connector_name: str
+    :param cache_endpoint: A triplestore URL to use as a cache to make queries on provenance faster
+    :type cache_endpoint: str
+    :param cache_update_endpoint: If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for writing in this parameter
+    :type cache_update_endpoint: str
     '''
     config = {
         'dataset': {
@@ -79,7 +83,11 @@ def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), 
             'file_paths': provenance_dirs
         },
         'blazegraph_full_text_search': blazegraph_full_text_search,
-        'cache_triplestore_url': cache_triplestore_url
+        "graphdb_connector_name": graphdb_connector_name,
+        "cache_triplestore_url": {
+            "endpoint": cache_endpoint,
+            "update_endpoint": cache_update_endpoint
+        }    
     }
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(config, f)

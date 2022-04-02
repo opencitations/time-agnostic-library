@@ -209,7 +209,7 @@ class Test_VersionQuery(unittest.TestCase):
         })
         agnostic_query.relevant_graphs = dict()
         agnostic_query._align_snapshots()
-        if agnostic_query.cache_triplestore_url:
+        if agnostic_query.cache_endpoint:
             expected_output = {}       
         else:
             expected_output = {
@@ -322,7 +322,7 @@ class Test_VersionQuery(unittest.TestCase):
         })
         agnostic_query.relevant_graphs = dict()
         agnostic_query._align_snapshots()
-        if agnostic_query.cache_triplestore_url:
+        if agnostic_query.cache_endpoint:
             expected_output = {}
         else:
             expected_output = {
@@ -429,7 +429,7 @@ class Test_VersionQuery(unittest.TestCase):
         entity = rdflib.URIRef("https://github.com/arcangelo7/time_agnostic/ra/15519")
         agnostic_query.reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
         agnostic_query._rebuild_relevant_entity(entity)
-        if agnostic_query.cache_triplestore_url:
+        if agnostic_query.cache_endpoint:
             expected_relevant_entities_graphs = {
                 rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                     '2021-05-31T18:19:47': [
@@ -521,7 +521,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ]
             }
         })
-        if agnostic_query.cache_triplestore_url:
+        if agnostic_query.cache_endpoint:
             expected_relevant_entities_graphs = {
                 rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                     '2021-06-01T18:46:41': [
@@ -1059,7 +1059,7 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query.relevant_entities_graphs = dict()
         agnostic_query.reconstructed_entities = set()
         triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
-        if agnostic_query.cache_triplestore_url:
+        if agnostic_query.cache_endpoint:
             expected_relevant_entities_graphs = dict()
         else:
             expected_relevant_entities_graphs = {
@@ -1108,14 +1108,14 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        if agnostic_query.cache_triplestore_url:
+        if agnostic_query.cache_endpoint:
             recostructed_grah = _to_conjunctive_graph([
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
             ])
             with open(CONFIG_PATH, encoding="utf8") as json_file:
-                cache_url = json.load(json_file)["cache_triplestore_url"]
+                cache_url = json.load(json_file)["cache_triplestore_url"]["update_endpoint"]
             sparql = SPARQLWrapper(cache_url)
             delete_query = """
                 DELETE DATA { GRAPH <https://github.com/opencitations/time-agnostic-library/2021-05-07T09:59:15> {
@@ -1163,7 +1163,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        if agnostic_query.cache_triplestore_url:
+        if agnostic_query.cache_endpoint:
             output = agnostic_query._get_relevant_timestamps_from_cache("https://github.com/arcangelo7/time_agnostic/ar/15519")
             self.assertEqual(output, {'2021-05-07T09:59:15', '2021-06-01T18:46:41', '2021-05-31T18:19:47'})
 

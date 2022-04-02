@@ -40,21 +40,26 @@ class Sparql:
     In addition, some optional values can be set to make executions faster and more efficient.
 
     - **blazegraph_full_text_search**: Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure. The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
-    - **cache_triplestore_url**: Specifies the triplestore URL to use as a cache to make queries faster.
+    - **graphdb_connector_name**: Specify the name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see [https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html](https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html).
+    - **cache_triplestore_url**: Specifies the triplestore URL to use as a cache to make queries faster. If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for reading in the "endpoint" field and the endpoint for writing in the "update_endpoint" field. If there is only one endpoint (e.g. Blazegraph), specify it in both fields.
     
     Here is an example of the configuration file content: ::
 
         {
             "dataset": {
-                "triplestore_urls": ["http://127.0.0.1:9999/blazegraph/sparql"],
+                "triplestore_urls": ["http://127.0.0.1:7200/repositories/data"],
                 "file_paths": []
             },
             "provenance": {
                 "triplestore_urls": [],
                 "file_paths": ["./prov.json"]
             },
-            "blazegraph_full_text_search": "yes",
-            "cache_triplestore_url": "http://127.0.0.1:19999/blazegraph/sparql"
+            "blazegraph_full_text_search": "no",
+            "graphdb_connector_name": "fts",
+            "cache_triplestore_url": {
+                "endpoint": "http://127.0.0.1:7200/repositories/cache",
+                "update_endpoint": "http://127.0.0.1:7200/repositories/cache/statements"
+            }
         }            
 
     :param config_path: The path to the configuration file.

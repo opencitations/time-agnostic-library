@@ -43,7 +43,8 @@ class AgnosticQuery(object):
         with open(config_path, encoding="utf8") as json_file:
             config = json.load(json_file)
         blazegraph_full_text_search:str = config["blazegraph_full_text_search"]
-        self.cache_triplestore_url:str = config["cache_triplestore_url"]
+        cache_triplestore_url = config["cache_triplestore_url"]
+        self.cache_endpoint = cache_triplestore_url["endpoint"]
         if blazegraph_full_text_search.lower() in {"true", "1", 1, "t", "y", "yes", "ok"}:
             self.blazegraph_full_text_search = True
         elif blazegraph_full_text_search.lower() in {"false", "0", 0, "n", "f", "no"} or not blazegraph_full_text_search:
@@ -53,10 +54,10 @@ class AgnosticQuery(object):
         self.graphdb_connector_name = config["graphdb_connector_name"]
         if len([index for index in [self.blazegraph_full_text_search, self.graphdb_connector_name] if index]) > 1:
             raise ValueError("The use of multiple indexing systems simultaneously is currently not supported.")
-        if self.cache_triplestore_url:
-            self.sparql_select = SPARQLWrapper(self.cache_triplestore_url)
+        if self.cache_endpoint:
+            self.sparql_select = SPARQLWrapper(self.cache_endpoint)
             self.sparql_select.setMethod(GET)
-            self.sparql_update = SPARQLWrapper(self.cache_triplestore_url)
+            self.sparql_update = SPARQLWrapper(cache_triplestore_url['update_endpoint'])
             self.sparql_update.setMethod(POST)
             self.to_be_aligned = False
         if on_time:
@@ -146,7 +147,7 @@ class AgnosticQuery(object):
     def _rebuild_relevant_entity(self, entity:Union[URIRef, Literal], isolated:bool=False) -> None:
         if isinstance(entity, URIRef) and entity not in self.reconstructed_entities:
             self.reconstructed_entities.add(entity)
-            if self.cache_triplestore_url:
+            if self.cache_endpoint:
                 if not isolated:
                     to_be_aligned = True
                 relevant_timestamps_in_cache = self._get_relevant_timestamps_from_cache(entity)
@@ -161,7 +162,7 @@ class AgnosticQuery(object):
                 if entity_at_time[0]:
                     to_be_aligned = True
                     for relevant_timestamp, cg in entity_at_time[0].items():
-                        if self.cache_triplestore_url:
+                        if self.cache_endpoint:
                             # cache
                             th = Thread(target=self._cache_entity_graph, args=(entity, cg, relevant_timestamp, entity_at_time[1]))
                             th.start()
@@ -176,7 +177,7 @@ class AgnosticQuery(object):
                 entity_history = agnostic_entity.get_history(include_prov_metadata=True)
                 if entity_history[0][entity]:
                     to_be_aligned = True
-                    if self.cache_triplestore_url:
+                    if self.cache_endpoint:
                         # cache
                         for entity, reconstructed_graphs in entity_history[0].items():
                             for timestamp, reconstructed_graph in reconstructed_graphs.items(): 
@@ -297,7 +298,7 @@ class AgnosticQuery(object):
                     variable = variables[0]
                     variable_index = triple.index(variable)
                     if variable_index == 2:
-                        if self.cache_triplestore_url:
+                        if self.cache_endpoint:
                             query_to_identify = f"""
                                 CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
                                 WHERE {{GRAPH <https://github.com/opencitations/time-agnostic-library/{se}> {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}.}}}}
@@ -320,7 +321,7 @@ class AgnosticQuery(object):
     
     def _align_snapshots(self) -> None:
         print("[INFO: VersionQuery] Aligning snapshots")
-        if self.cache_triplestore_url:
+        if self.cache_endpoint:
             if not self.to_be_aligned:
                 return
             self.to_be_aligned = False
@@ -474,7 +475,7 @@ class VersionQuery(AgnosticQuery):
 
     def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph, agnostic_result:dict):
         output = set()
-        if self.cache_triplestore_url:
+        if self.cache_endpoint:
             split_by_where = re.split(pattern="where", string=self.query, maxsplit=1, flags=re.IGNORECASE)
             query_named_graph = split_by_where[0] + f"FROM <https://github.com/opencitations/time-agnostic-library/{timestamp}> WHERE" + split_by_where[1]
             self.sparql_select.setQuery(query_named_graph)

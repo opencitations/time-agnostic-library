@@ -24,7 +24,7 @@ class Test_Support(unittest.TestCase):
     def test_empty_the_cache(self):
         empty_the_cache(CONFIG_PATH)
         with open(CONFIG_PATH, encoding="utf8") as json_file:
-            cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]
+            cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["update_endpoint"]
         if cache_triplestore_url:
             sparql = SPARQLWrapper(cache_triplestore_url)
             query = "select ?g where {GRAPH ?g {?s ?p ?o}}"

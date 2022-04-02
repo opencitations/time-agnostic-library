@@ -9,5 +9,8 @@
     },
     "blazegraph_full_text_search": "no",
     "graphdb_connector_name": "",
-    "cache_triplestore_url": ""
+    "cache_triplestore_url": {
+        "endpoint": "",
+        "update_endpoint": ""
+    }
 }
