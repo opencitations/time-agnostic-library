@@ -605,6 +605,53 @@ class DeltaQuery(AgnosticQuery):
             if triple.index(uri) == 0 or triple.index(uri) == 2:
                 self.reconstructed_entities.add(uri)
         return query_to_identify
+    
+    def __identify_changed_entities(self, identified_entity:URIRef, output:dict):
+        query = f"""
+            SELECT DISTINCT ?time ?updateQuery ?description
+            WHERE {{
+                ?se <{ProvEntity.iri_specialization_of}> <{identified_entity}>;
+                    <{ProvEntity.iri_generated_at_time}> ?time;
+                    <{ProvEntity.iri_description}> ?description.
+                OPTIONAL {{
+                    ?se <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                }}
+            }}
+        """
+        query_existence = f"""
+            SELECT *
+            WHERE {{
+                <{identified_entity}> ?p ?o.
+            }}
+        """
+        results = Sparql(query, self.config_path).run_select_query()
+        if results:
+            identified_entity = str(identified_entity)
+            output[identified_entity] = {
+                "created": None,
+                "modified": dict(), 
+                "deleted": None
+            }
+            results = sorted(list(results), key=lambda x:AgnosticEntity._convert_to_datetime(x[0]))
+            creation_date = AgnosticEntity._convert_to_datetime(results[0][0], stringify=True)
+            exists = Sparql(query_existence, self.config_path).run_select_query()
+            if not exists:
+                output[identified_entity]["deleted"] = AgnosticEntity._convert_to_datetime(results[-1][0], stringify=True)
+            relevant_results = list(_filter_timestamps_by_interval(self.on_time, results, 0))
+            if relevant_results:
+                for result_tuple in relevant_results:
+                    time = AgnosticEntity._convert_to_datetime(result_tuple[0], stringify=True)
+                    if time != creation_date:
+                        if result_tuple[1] and self.changed_properties:
+                            for changed_property in self.changed_properties:
+                                if changed_property in result_tuple[1]:
+                                    output[identified_entity]["modified"][time] = result_tuple[1]
+                        elif result_tuple[1] and not self.changed_properties:
+                            output[identified_entity]["modified"][time] = result_tuple[1]
+                        elif not result_tuple[1] and not self.changed_properties:
+                            output[identified_entity]["modified"][time] = result_tuple[2]
+                    else:
+                        output[identified_entity]["created"] = creation_date
         
     def run_agnostic_query(self) -> Dict[str, Dict[str, str]]:
         """
@@ -649,53 +696,10 @@ class DeltaQuery(AgnosticQuery):
         output = dict()
         print(f"[DeltaQuery:INFO] Identifying changed entities.")
         pbar = tqdm(total=len(self.reconstructed_entities))
-        for identified_entity in self.reconstructed_entities:
-            query = f"""
-                SELECT DISTINCT ?time ?updateQuery ?description
-                WHERE {{
-                    ?se <{ProvEntity.iri_specialization_of}> <{identified_entity}>;
-                        <{ProvEntity.iri_generated_at_time}> ?time;
-                        <{ProvEntity.iri_description}> ?description.
-                    OPTIONAL {{
-                        ?se <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                    }}
-                }}
-            """
-            query_existence = f"""
-                SELECT *
-                WHERE {{
-                    <{identified_entity}> ?p ?o.
-                }}
-            """
-            results = Sparql(query, self.config_path).run_select_query()
-            if results:
-                identified_entity = str(identified_entity)
-                output[identified_entity] = {
-                    "created": None,
-                    "modified": dict(), 
-                    "deleted": None
-                }
-                results = sorted(list(results), key=lambda x:AgnosticEntity._convert_to_datetime(x[0]))
-                creation_date = AgnosticEntity._convert_to_datetime(results[0][0], stringify=True)
-                exists = Sparql(query_existence, self.config_path).run_select_query()
-                if not exists:
-                    output[identified_entity]["deleted"] = AgnosticEntity._convert_to_datetime(results[-1][0], stringify=True)
-                relevant_results = list(_filter_timestamps_by_interval(self.on_time, results, 0))
-                if relevant_results:
-                    for result_tuple in relevant_results:
-                        time = AgnosticEntity._convert_to_datetime(result_tuple[0], stringify=True)
-                        if time != creation_date:
-                            if result_tuple[1] and self.changed_properties:
-                                for changed_property in self.changed_properties:
-                                    if changed_property in result_tuple[1]:
-                                        output[identified_entity]["modified"][time] = result_tuple[1]
-                            elif result_tuple[1] and not self.changed_properties:
-                                output[identified_entity]["modified"][time] = result_tuple[1]
-                            elif not result_tuple[1] and not self.changed_properties:
-                                output[identified_entity]["modified"][time] = result_tuple[2]
-                        else:
-                            output[identified_entity]["created"] = creation_date
-            pbar.update()
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self.__identify_changed_entities, identified_entity, output) for identified_entity in self.reconstructed_entities]
+            for _ in as_completed(futures):
+                pbar.update()
         pbar.close()        
         return output
 

@@ -14,18 +14,18 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-from typing import Set, Tuple
 
-import json
-from SPARQLWrapper import SPARQLWrapper, POST, RDFXML, JSON
 from rdflib import ConjunctiveGraph, XSD
-from rdflib.term import _toPythonMapping
-from rdflib.term import URIRef, Literal
+from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.sparql import Query
-from rdflib.plugins.sparql.parserutils import CompValue
-
+from rdflib.term import _toPythonMapping
+from rdflib.term import URIRef, Literal
+from SPARQLWrapper import SPARQLWrapper, POST, RDFXML, JSON
 from time_agnostic_library.prov_entity import ProvEntity
+from typing import Set, Tuple
+import json
+
 
 CONFIG_PATH = "./config.json"
 
@@ -40,7 +40,7 @@ class Sparql:
     In addition, some optional values can be set to make executions faster and more efficient.
 
     - **blazegraph_full_text_search**: Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure. The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
-    - **graphdb_connector_name**: Specify the name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see [https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html](https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html).
+    - **graphdb_connector_name**: Specify the name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html.
     - **cache_triplestore_url**: Specifies the triplestore URL to use as a cache to make queries faster. If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for reading in the "endpoint" field and the endpoint for writing in the "update_endpoint" field. If there is only one endpoint (e.g. Blazegraph), specify it in both fields.
     
     Here is an example of the configuration file content: ::
