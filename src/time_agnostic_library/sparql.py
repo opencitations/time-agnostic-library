@@ -24,10 +24,12 @@ from rdflib.term import URIRef, Literal
 from SPARQLWrapper import SPARQLWrapper, POST, RDFXML, JSON
 from time_agnostic_library.prov_entity import ProvEntity
 from typing import Set, Tuple
+import multiprocessing
 import json
 
 
 CONFIG_PATH = "./config.json"
+lock = multiprocessing.Lock()
 
 class Sparql:
     """
@@ -103,7 +105,9 @@ class Sparql:
         for file_path in storer:
             file_cg = ConjunctiveGraph()
             file_cg.parse(location=file_path, format="json-ld")
+            lock.acquire()
             results = file_cg.query(self.query)._get_bindings()
+            lock.release()
             for result in results:
                 self._get_tuples_set(self.query, result, output)
         return output
@@ -189,7 +193,9 @@ class Sparql:
     
     @classmethod
     def _get_tuples_set(cls, query:str, result_dict:dict, output:set):
+        lock.acquire()
         vars_list = prepareQuery(query).algebra["PV"]
+        lock.release()
         results_list = list()
         for var in vars_list:
             if str(var) in result_dict:
@@ -199,7 +205,9 @@ class Sparql:
         output.add(tuple(results_list))
     
     def _cut_by_limit(self, input):
+        lock.acquire()
         algebra:CompValue = prepareQuery(self.query).algebra
+        lock.release()
         if "length" in algebra["p"]:
             limit = int(algebra["p"]["length"])
             input = input[:limit]

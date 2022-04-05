@@ -30,6 +30,7 @@ from time_agnostic_library.sparql import Sparql
 from tqdm import tqdm
 from typing import Set, Tuple, Dict, List, Union
 import json
+import multiprocessing
 import re
 
 
@@ -606,7 +607,8 @@ class DeltaQuery(AgnosticQuery):
                 self.reconstructed_entities.add(uri)
         return query_to_identify
     
-    def __identify_changed_entities(self, identified_entity:URIRef, output:dict):
+    def __identify_changed_entities(self, identified_entity:URIRef):
+        output = dict()
         query = f"""
             SELECT DISTINCT ?time ?updateQuery ?description
             WHERE {{
@@ -652,6 +654,7 @@ class DeltaQuery(AgnosticQuery):
                             output[identified_entity]["modified"][time] = result_tuple[2]
                     else:
                         output[identified_entity]["created"] = creation_date
+        return output
         
     def run_agnostic_query(self) -> Dict[str, Dict[str, str]]:
         """
@@ -696,12 +699,18 @@ class DeltaQuery(AgnosticQuery):
         output = dict()
         print(f"[DeltaQuery:INFO] Identifying changed entities.")
         pbar = tqdm(total=len(self.reconstructed_entities))
-        with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(self.__identify_changed_entities, identified_entity, output) for identified_entity in self.reconstructed_entities]
-            for _ in as_completed(futures):
+        l = multiprocessing.Lock()
+        with ThreadPoolExecutor(initializer=init_lock, initargs=(l,)) as executor:
+            futures = executor.map(self.__identify_changed_entities, self.reconstructed_entities)
+            for future in futures:
+                output.update(future)
                 pbar.update()
         pbar.close()        
         return output
+
+def init_lock(l):
+    global lock
+    lock = l
 
 def get_insert_query(graph_iri: URIRef, data: Graph) -> Tuple[str, int]:
     num_of_statements: int = len(data)
