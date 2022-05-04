@@ -1,31 +1,35 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-# Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
-#
-# Permission to use, copy, modify, and/or distribute this software for any purpose
-# with or without fee is hereby granted, provided that the above copyright notice
-# and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
-# FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT,
-# OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
-# DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
-# ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
-# SOFTWARE.
-
-
-from pprint import pprint
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery
 from time_agnostic_library.support import empty_the_cache
 import rdflib
 import unittest
 
 
-CONFIG_GRAPHDB = "tests/config_graphdb.json"
+CONFIG_FUSEKI = "tests/config_fuseki.json"
 
 
-class Test_GraphDB(unittest.TestCase):
+class Test_Fuseki(unittest.TestCase):
+    def setUp(self):
+        empty_the_cache(CONFIG_FUSEKI)
+        
+    def test__get_query_to_update_queries_fuseki(self):
+        query = """
+            prefix literal: <http://www.essepuntato.it/2010/06/literalreification/>
+            SELECT DISTINCT ?a ?b
+            WHERE {
+                ?a literal:hasLiteralValue ?b.
+            }
+        """
+        triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
+        query_to_identify = VersionQuery(query, config_path=CONFIG_FUSEKI)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
+        expected_query_to_identify = """
+            PREFIX text: <http://jena.apache.org/text#>
+            SELECT DISTINCT ?updateQuery WHERE {
+                ?se text:query "\\"http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue\\"";
+                    <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
+            }
+        """.replace(" ", "").replace("\n", "")
+        self.assertEqual(query_to_identify, expected_query_to_identify)
+
     def test_run_agnostic_query_easy(self):
         query = """
             PREFIX pro: <http://purl.org/spar/pro/>
@@ -36,7 +40,7 @@ class Test_GraphDB(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-05-07T09:59:15': set(), '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}}
         self.assertEqual(output, expected_output)
@@ -51,7 +55,7 @@ class Test_GraphDB(unittest.TestCase):
                 OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}, '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-05-07T09:59:15': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}}
         self.assertEqual(output, expected_output)
@@ -70,7 +74,7 @@ class Test_GraphDB(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-31T18:19:47': {
@@ -105,7 +109,7 @@ class Test_GraphDB(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -134,7 +138,7 @@ class Test_GraphDB(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -155,7 +159,7 @@ class Test_GraphDB(unittest.TestCase):
                 ?s pro:isHeldBy ?o.
             }        
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -182,7 +186,7 @@ class Test_GraphDB(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }   
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': set(),
@@ -225,7 +229,7 @@ class Test_GraphDB(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}}
         self.assertEqual(output, expected_output)
@@ -240,7 +244,7 @@ class Test_GraphDB(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-06", "2021-05-06"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-06", "2021-05-06"), config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = dict()
         self.assertEqual(output, expected_output)
@@ -256,7 +260,7 @@ class Test_GraphDB(unittest.TestCase):
                 OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-06-01T18:46:41", "2021-06-01T18:46:41"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-06-01T18:46:41", "2021-06-01T18:46:41"), config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}}
         self.assertEqual(output, expected_output)
@@ -275,7 +279,7 @@ class Test_GraphDB(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -300,7 +304,7 @@ class Test_GraphDB(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -323,7 +327,7 @@ class Test_GraphDB(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-07T09:59:15': {
@@ -340,7 +344,7 @@ class Test_GraphDB(unittest.TestCase):
                 ?s pro:isHeldBy ?o.
             }        
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-31T18:19:47': {
@@ -361,7 +365,7 @@ class Test_GraphDB(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }   
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-30T19:41:57", "2021-05-30T19:41:57"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-30T19:41:57", "2021-05-30T19:41:57"), config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-05-30T19:41:57': {
@@ -382,7 +386,7 @@ class Test_GraphDB(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }   
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, config_path=CONFIG_FUSEKI)
         output = agnostic_query.run_agnostic_query()
         expected_output = {
             '2021-09-09T14:34:43': set(), 
@@ -442,29 +446,6 @@ class Test_GraphDB(unittest.TestCase):
         }
         self.assertEqual(output, expected_output)
 
-    def test__get_query_to_update_queries_graphdb(self):
-        query = """
-            prefix literal: <http://www.essepuntato.it/2010/06/literalreification/>
-            SELECT DISTINCT ?o ?id ?value
-            WHERE {
-                ?a literal:hasLiteralValue ?b.
-            }
-        """
-        triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
-        query_to_identify = VersionQuery(query, config_path=CONFIG_GRAPHDB)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
-        expected_query_to_identify_bds = """
-            PREFIX con: <http://www.ontotext.com/connectors/lucene#>
-            PREFIX con-inst: <http://www.ontotext.com/connectors/lucene/instance#>
-            SELECT DISTINCT ?updateQuery 
-            WHERE {
-                ?snapshot <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
-                [] a con-inst:fts; 
-                    con:query '"http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue"'; 
-                    con:entities ?snapshot .
-            }
-        """.replace(" ", "").replace("\n", "")
-        self.assertEqual(query_to_identify, expected_query_to_identify_bds)
-
     def test_run_agnostic_query_cross_delta(self):
         query = """
             prefix pro: <http://purl.org/spar/pro/>
@@ -474,7 +455,7 @@ class Test_GraphDB(unittest.TestCase):
             }
         """
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
-        delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_path=CONFIG_FUSEKI)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -497,7 +478,7 @@ class Test_GraphDB(unittest.TestCase):
         """
         on_time = (None, "2021-06-02T18:46:41")
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_FUSEKI)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -520,7 +501,7 @@ class Test_GraphDB(unittest.TestCase):
         """
         on_time = ("2021-06-01", "2021-06-02T18:46:41")
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_FUSEKI)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -544,7 +525,7 @@ class Test_GraphDB(unittest.TestCase):
         """
         on_time = ("2021-06-02", None)
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_FUSEKI)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -563,7 +544,7 @@ class Test_GraphDB(unittest.TestCase):
                 ?ra a foaf:Agent. 
             }
         """
-        delta_query = DeltaQuery(query=query, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, config_path=CONFIG_FUSEKI)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ra/15519': {

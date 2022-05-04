@@ -7,10 +7,11 @@
         "triplestore_urls": ["http://127.0.0.1:7200/repositories/all"],
         "file_paths": []
     },
-    "blazegraph_full_text_search": "",
+    "blazegraph_full_text_search": "no",
+    "fuseki_full_text_search": "no",
     "graphdb_connector_name": "fts",
     "cache_triplestore_url": {
-        "endpoint": "",
-        "update_endpoint": ""
+        "endpoint": "http://127.0.0.1:7200/repositories/cache",
+        "update_endpoint": "http://127.0.0.1:7200/repositories/cache/statements"
     }
 }

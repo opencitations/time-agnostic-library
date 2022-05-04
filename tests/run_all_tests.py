@@ -45,6 +45,18 @@ def launch_graphdb(port:int=7200):
         creationflags=CREATE_NEW_CONSOLE
     )
 
+def launch_fuseki(port:int=3030):
+    '''
+    Launch GraphDB triplestore at a given port.
+    '''
+    abs_path_to_graphdb = os.path.abspath(f'{BASE_DIR}/fuseki/fuseki-server.bat')
+    os.environ['FUSEKI_BASE'] = os.path.abspath(f'{BASE_DIR}/fuseki')
+    os.environ['FUSEKI_HOME'] = os.path.abspath(f'{BASE_DIR}/fuseki')
+    Popen(
+        [abs_path_to_graphdb, f'--port={str(port)}'],
+        creationflags=CREATE_NEW_CONSOLE
+    )
+
 def main():
     if not os.path.isfile(f'{BASE_DIR}/blazegraph.jnl'):
         download_tests_datasets_from_zenodo()
@@ -52,6 +64,7 @@ def main():
     launch_blazegraph('tests', 9999)
     launch_blazegraph(f'{BASE_DIR}/cache', 29999)
     launch_graphdb(7200)
+    launch_fuseki(3030)
     time.sleep(10)
     Popen(
         ['python', '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test*.py', '-b']

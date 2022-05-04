@@ -157,26 +157,30 @@ class Sparql:
     def _get_graph_from_triplestores(self) -> ConjunctiveGraph:
         cg = ConjunctiveGraph()
         storer = self.storer["triplestore_urls"]
+        lock.acquire()
         prepare_query:Query = prepareQuery(self.query)
+        lock.release()
         algebra:CompValue = prepare_query.algebra
         for url in storer:
             sparql = SPARQLWrapper(url)
             sparql.setMethod(POST)
             sparql.setQuery(self.query)
+            sparql.setOnlyConneg(True)
             # A SELECT hack can be used to return RDF quads in named graphs, 
             # since the CONSTRUCT allows only to return triples in SPARQL 1.1.
             # Here is an exemple of SELECT hack
             #
             # SELECT DISTINCT ?s ?p ?o ?c
-            # WHERE {
+            # WHERE {{
             #     BIND (<{self.res}> AS ?s)
-            #     GRAPH ?c {?s ?p ?o}
+            #     GRAPH ?c {{?s ?p ?o}}
             # }}
             #
             # Aftwerwards, the rdflib add method can be used to add quads to a Conjunctive Graph, 
             # where the fourth element is the context.    
             if algebra.name == "SelectQuery":
                 sparql.setReturnFormat(JSON)
+                sparql.setOnlyConneg(True)
                 results = sparql.queryAndConvert()
                 for quad in results["results"]["bindings"]:
                     quad_to_add = list()
@@ -188,6 +192,7 @@ class Sparql:
                     cg.add(tuple(quad_to_add))
             elif algebra.name == "ConstructQuery":
                 sparql.setReturnFormat(RDFXML)
+                sparql.setOnlyConneg(True)
                 cg += sparql.queryAndConvert()            
         return cg        
     

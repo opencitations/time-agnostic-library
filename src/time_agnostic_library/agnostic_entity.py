@@ -356,12 +356,8 @@ class AgnosticEntity:
                               <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent;
                               <{ProvEntity.iri_generated_at_time}> ?t;
                               <{ProvEntity.iri_description}> ?description.
-                OPTIONAL {{
-                        ?snapshot <{ProvEntity.iri_had_primary_source}> ?source.
-                    }}   
-                OPTIONAL {{
-                        ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                    }}  
+                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_had_primary_source}> ?source. }}   
+                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}  
                 }}
             """
         else:
@@ -373,9 +369,7 @@ class AgnosticEntity:
                 WHERE {{
                     ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
                               <{ProvEntity.iri_generated_at_time}> ?t.
-                OPTIONAL {{
-                        ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                    }}   
+                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}   
                 }}
             """
         return Sparql(query_provenance, config_path=self.config_path).run_construct_query()

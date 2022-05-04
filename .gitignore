@@ -5,6 +5,8 @@
 /tests/rules.log
 /tests/info_dir/
 /tests/graphdb/
+/tests/fuseki/
+/tests/cache/
 setup.py
 execution_example.py
 

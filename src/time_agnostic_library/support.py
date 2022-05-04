@@ -16,7 +16,8 @@
 
 
 from rdflib.graph import ConjunctiveGraph
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
+from SPARQLWrapper import SPARQLWrapper, POST
+from rdflib import Literal
 from typing import Dict, List
 import json
 import re
@@ -27,32 +28,25 @@ CONFIG_PATH = "./config.json"
 def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
     """
     It empties the entire cache.
-        
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
     with open(config_path, encoding="utf8") as json_file:
-        cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["update_endpoint"]
-    if cache_triplestore_url:
-        timestamps = []
-        query_timestamps = """
-            SELECT DISTINCT ?g 
+        cache_triplestores = json.load(json_file)["cache_triplestore_url"]
+        read_triplestore_url = cache_triplestores["endpoint"]
+        write_triplestore_url = cache_triplestores["update_endpoint"]
+    if write_triplestore_url:
+        delete_everything_query = '''
+            DELETE {GRAPH ?g {?s ?p ?o}}
             WHERE {GRAPH ?g {?s ?p ?o}}
-        """
-        sparql = SPARQLWrapper(cache_triplestore_url)
-        sparql.setQuery(query_timestamps)
-        sparql.setReturnFormat(JSON)
-        results = sparql.queryAndConvert()
-        for result in results["results"]["bindings"]:
-            timestamps.append(result["g"]["value"])
-        for timestamp in timestamps:
-            clear = f"CLEAR GRAPH <{timestamp}>"
-            sparql.setQuery(clear)
-            sparql.setMethod(POST)
-            sparql.query()
+        '''
+        sparql = SPARQLWrapper(read_triplestore_url, updateEndpoint=write_triplestore_url)
+        sparql.setQuery(delete_everything_query)
+        sparql.setMethod(POST)
+        sparql.query()
 
 def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), provenance_urls:list=list(), provenance_dirs:list=list(), blazegraph_full_text_search:bool=False, graphdb_connector_name:str='', cache_endpoint:str='', cache_update_endpoint:str='') -> None:
-    '''
+    """
     Given the configuration parameters, a file compliant with the syntax of the time-agnostic-library configuration files is generated.
     :param config_path: The output configuration file path
     :type config_path: str
@@ -72,7 +66,7 @@ def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), 
     :type cache_endpoint: str
     :param cache_update_endpoint: If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for writing in this parameter
     :type cache_update_endpoint: str
-    '''
+    """
     config = {
         'dataset': {
             'triplestore_urls': dataset_urls,
@@ -95,7 +89,11 @@ def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), 
 def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     if cg is None:
         return None
-    nt_list = re.split('\s?\.\n+', cg.serialize(format="nt"))
+    normalized_cg = ConjunctiveGraph()
+    for quad in cg.quads():
+        normalized_quad = tuple(Literal(str(el), datatype=None) if isinstance(el, Literal) else el for el in quad)
+        normalized_cg.add(normalized_quad)
+    nt_list = re.split('\s?\.?\n+', normalized_cg.serialize(format="nt"))
     nt_list = filter(None, nt_list)
     sorted_nt_list = sorted(nt_list)
     return sorted_nt_list
@@ -130,13 +128,3 @@ def _to_dict_of_conjunctive_graphs(dictionary:Dict[str, Dict[str, List]]) -> Dic
                 dict_of_conjunctive_graphs.setdefault(key, dict())
                 dict_of_conjunctive_graphs[key][snapshot] = cg
     return dict_of_conjunctive_graphs
-
-
-
-
-
-
-
-
-
-

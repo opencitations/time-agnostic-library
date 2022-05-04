@@ -19,12 +19,40 @@ from SPARQLWrapper import SPARQLWrapper, JSON
 from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_nt_sorted_list, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph, empty_the_cache
 
 CONFIG_PATH = "tests/config.json"
+CONFIG_GRAPHDB = "tests/config_graphdb.json"
+CONFIG_FUSEKI= "tests/config_fuseki.json"
 
 class Test_Support(unittest.TestCase):
     def test_empty_the_cache(self):
         empty_the_cache(CONFIG_PATH)
         with open(CONFIG_PATH, encoding="utf8") as json_file:
             cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["update_endpoint"]
+        if cache_triplestore_url:
+            sparql = SPARQLWrapper(cache_triplestore_url)
+            query = "select ?g where {GRAPH ?g {?s ?p ?o}}"
+            sparql.setQuery(query)
+            sparql.setReturnFormat(JSON)
+            results = sparql.queryAndConvert()
+            expected_results = {'head': {'vars': ['g']}, 'results': {'bindings': []}}
+            self.assertEqual(results, expected_results)
+
+    def test_empty_the_cache_graphdb(self):
+        empty_the_cache(CONFIG_GRAPHDB)
+        with open(CONFIG_GRAPHDB, encoding="utf8") as json_file:
+            cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["endpoint"]
+        if cache_triplestore_url:
+            sparql = SPARQLWrapper(cache_triplestore_url)
+            query = "select ?g where {GRAPH ?g {?s ?p ?o}}"
+            sparql.setQuery(query)
+            sparql.setReturnFormat(JSON)
+            results = sparql.queryAndConvert()
+            expected_results = {'head': {'vars': ['g']}, 'results': {'bindings': []}}
+            self.assertEqual(results, expected_results)
+
+    def test_empty_the_cache_fuseki(self):
+        empty_the_cache(CONFIG_FUSEKI)
+        with open(CONFIG_FUSEKI, encoding="utf8") as json_file:
+            cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["endpoint"]
         if cache_triplestore_url:
             sparql = SPARQLWrapper(cache_triplestore_url)
             query = "select ?g where {GRAPH ?g {?s ?p ?o}}"
