@@ -8,9 +8,6 @@ CONFIG_FUSEKI = "tests/config_fuseki.json"
 
 
 class Test_Fuseki(unittest.TestCase):
-    def setUp(self):
-        empty_the_cache(CONFIG_FUSEKI)
-        
     def test__get_query_to_update_queries_fuseki(self):
         query = """
             prefix literal: <http://www.essepuntato.it/2010/06/literalreification/>

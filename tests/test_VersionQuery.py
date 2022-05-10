@@ -28,8 +28,6 @@ CONFIG_PATH = os.path.join('tests', 'config.json')
 CONFIG_BLAZEGRAPH = os.path.join('tests', 'config_blazegraph.json')
 
 class Test_VersionQuery(unittest.TestCase):  
-    def setUp(self):
-        empty_the_cache(CONFIG_PATH)
     def test__tree_traverse_no_options(self):
         query = """
             prefix pro: <http://purl.org/spar/pro/>
@@ -566,7 +564,6 @@ class Test_VersionQuery(unittest.TestCase):
         }
         expected_reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/85509'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/14')}
         agnostic_query._solve_variables()
-        pprint(_to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs))
         self.assertEqual(_to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs), expected_relevant_entities_graphs)
         assert (agnostic_query.reconstructed_entities, _to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs)) == (expected_reconstructed_entities, expected_relevant_entities_graphs)
     

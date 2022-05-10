@@ -411,7 +411,7 @@ class AgnosticQuery(object):
         reconstructed_graph = deepcopy(reconstructed_graph)
         graph_iri = f"https://github.com/opencitations/time-agnostic-library/{timestamp}"
         graph_iri_relevant = f"https://github.com/opencitations/time-agnostic-library/relevant/{timestamp}"
-        if len(reconstructed_graph) and not self.on_time:
+        if not self.on_time:
             reconstructed_graph.add((URIRef(f"{entity}/cache"), URIRef("https://github.com/opencitations/time-agnostic-library/isComplete"), Literal("true")))
         insert_query = get_insert_query(graph_iri=graph_iri, data=reconstructed_graph)[0]
         prov = Graph()
@@ -440,7 +440,6 @@ class AgnosticQuery(object):
         self.sparql_select.setReturnFormat(JSON)
         results = self.sparql_select.queryAndConvert()
         for result in results["results"]["bindings"]:
-            # print(entity, result["p"]["value"], result["o"]["value"], result["c"]["value"], result["complete"]["value"], result["relevant"]["value"])
             if result["complete"]["value"] == "true":
                 relevant_timestamp = result["relevant"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
                 cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
