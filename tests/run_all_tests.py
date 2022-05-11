@@ -18,7 +18,7 @@ else:
 CREATE_NEW_CONSOLE = CREATE_NEW_CONSOLE if not is_unix else 0
 
 def download_tests_datasets_from_zenodo():
-    url = 'https://zenodo.org/api/records/6408368#.YkhYoChBxaZ'
+    url = 'https://zenodo.org/api/records/6539398#.YnvKljlByrk'
     r = requests.get(url)
     if r.ok:
         js = json.loads(r.text)
