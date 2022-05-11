@@ -94,6 +94,7 @@ def main():
                 if (len(data) <= 1):
                     continue
                 os.kill(int(data[1]), SIGKILL)
+        Popen(['chmod', '+x', f'{BASE_DIR}/graphdb/bin/graphdb', f'{BASE_DIR}/fuseki/fuseki-server', f'{BASE_DIR}/virtuoso/linux/bin/virtuoso-t'])
     launch_blazegraph('tests', 9999)
     launch_blazegraph(f'{BASE_DIR}/cache', 29999)
     launch_graphdb(7200)
