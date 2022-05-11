@@ -21,6 +21,7 @@ from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_nt_so
 CONFIG_PATH = "tests/config.json"
 CONFIG_GRAPHDB = "tests/config_graphdb.json"
 CONFIG_FUSEKI= "tests/config_fuseki.json"
+CONFIG_VIRTUOSO= "tests/config_virtuoso.json"
 
 class Test_Support(unittest.TestCase):
     def test_empty_the_cache(self):
@@ -61,6 +62,20 @@ class Test_Support(unittest.TestCase):
             results = sparql.queryAndConvert()
             expected_results = {'head': {'vars': ['g']}, 'results': {'bindings': []}}
             self.assertEqual(results, expected_results)
+
+    def test_empty_the_cache_virtuoso(self):
+        empty_the_cache(CONFIG_VIRTUOSO)
+        with open(CONFIG_VIRTUOSO, encoding="utf8") as json_file:
+            cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["endpoint"]
+        if cache_triplestore_url:
+            sparql = SPARQLWrapper(cache_triplestore_url)
+            query = "select ?g where {GRAPH ?g {?s ?p ?o}}"
+            sparql.setQuery(query)
+            sparql.setReturnFormat(JSON)
+            results = sparql.queryAndConvert()
+            expected_results = {'head': {'link': [], 'vars': ['g']}, 'results': {'distinct': False, 'ordered': True, 'bindings': []}}
+            self.assertEqual(results, expected_results)
+
 
 
 if __name__ == '__main__':

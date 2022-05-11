@@ -1,3 +1,4 @@
+from sys import platform
 from subprocess import CREATE_NEW_CONSOLE, Popen
 import json
 import os
@@ -7,7 +8,8 @@ import wget
 import zipfile
 
 BASE_DIR = os.path.abspath('tests')
-
+is_unix = platform == 'darwin' or platform.startswith('linux')
+CREATE_NEW_CONSOLE = CREATE_NEW_CONSOLE if not is_unix else 0
 
 def download_tests_datasets_from_zenodo():
     url = 'https://zenodo.org/api/records/6408368#.YkhYoChBxaZ'
@@ -47,13 +49,24 @@ def launch_graphdb(port:int=7200):
 
 def launch_fuseki(port:int=3030):
     '''
-    Launch GraphDB triplestore at a given port.
+    Launch Fuseki triplestore at a given port.
     '''
     abs_path_to_graphdb = os.path.abspath(f'{BASE_DIR}/fuseki/fuseki-server.bat')
     os.environ['FUSEKI_BASE'] = os.path.abspath(f'{BASE_DIR}/fuseki')
     os.environ['FUSEKI_HOME'] = os.path.abspath(f'{BASE_DIR}/fuseki')
     Popen(
         [abs_path_to_graphdb, f'--port={str(port)}'],
+        creationflags=CREATE_NEW_CONSOLE
+    )
+
+def launch_virtuoso(ts_dir:str):
+    '''
+    Launch Virtuoso triplestore.
+    '''
+    if os.path.exists(f'{ts_dir}/virtuoso.lck'):
+        os.remove(f'{ts_dir}/virtuoso.lck')
+    Popen(
+        [f'{BASE_DIR}/virtuoso/bin/virtuoso-t.exe', '-f', '-c', f'{ts_dir}/virtuoso.ini'],
         creationflags=CREATE_NEW_CONSOLE
     )
 
@@ -65,6 +78,8 @@ def main():
     launch_blazegraph(f'{BASE_DIR}/cache', 29999)
     launch_graphdb(7200)
     launch_fuseki(3030)
+    launch_virtuoso(f'{BASE_DIR}/virtuoso/database')
+    launch_virtuoso(f'{BASE_DIR}/virtuoso/cache_db')
     time.sleep(10)
     Popen(
         ['python', '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test*.py', '-b']

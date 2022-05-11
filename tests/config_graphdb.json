@@ -9,6 +9,7 @@
     },
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",
+    "virtuoso_full_text_search": "no",
     "graphdb_connector_name": "fts",
     "cache_triplestore_url": {
         "endpoint": "http://127.0.0.1:7200/repositories/cache",

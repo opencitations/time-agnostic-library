@@ -59,16 +59,16 @@ class AgnosticQuery(object):
         self._rebuild_relevant_graphs()
     
     def __init_text_index(self, config:dict):
-        for full_text_search in {"blazegraph_full_text_search", "fuseki_full_text_search"}:
+        for full_text_search in {"blazegraph_full_text_search", "fuseki_full_text_search", "virtuoso_full_text_search"}:
             ts_full_text_search:str = config[full_text_search]
             if ts_full_text_search.lower() in {"true", "1", 1, "t", "y", "yes", "ok"}:
                 setattr(self, full_text_search, True)
             elif ts_full_text_search.lower() in {"false", "0", 0, "n", "f", "no"} or not ts_full_text_search:
                 setattr(self, full_text_search, False)
             else:
-                raise ValueError("Enter a valid value for 'blazegraph_full_text_search' in the configuration file, for example 'yes' or 'no'.")
+                raise ValueError(f"Enter a valid value for '{full_text_search}' in the configuration file, for example 'yes' or 'no'.")
         self.graphdb_connector_name = config["graphdb_connector_name"]
-        if len([index for index in [self.blazegraph_full_text_search, self.fuseki_full_text_search, self.graphdb_connector_name] if index]) > 1:
+        if len([index for index in [self.blazegraph_full_text_search, self.fuseki_full_text_search, self.virtuoso_full_text_search, self.graphdb_connector_name] if index]) > 1:
             raise ValueError("The use of multiple indexing systems simultaneously is currently not supported.")
 
     def __init_cache(self, config:dict):
@@ -235,6 +235,16 @@ class AgnosticQuery(object):
                     ?se text:query "\\"{query_obj}\\"";
                         <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 }}
+            '''
+        elif self.virtuoso_full_text_search:
+            query_obj = "' AND '".join(uris_in_triple)
+            query_to_identify = f'''
+            PREFIX bif: <bif:>
+            SELECT DISTINCT ?updateQuery 
+            WHERE {{
+                ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                ?updateQuery bif:contains "'{query_obj}'".
+            }}
             '''
         elif self.graphdb_connector_name:
             all = '\"'

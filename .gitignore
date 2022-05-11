@@ -6,6 +6,7 @@
 /tests/info_dir/
 /tests/graphdb/
 /tests/fuseki/
+/tests/virtuoso/
 /tests/cache/
 setup.py
 execution_example.py
