@@ -48,9 +48,9 @@ def launch_graphdb(port:int=7200):
     Launch GraphDB triplestore at a given port.
     '''
     graphdb_bin = 'graphdb' if is_unix else 'graphdb.cmd'
-    abs_path_to_graphdb = os.path.abspath(f'{BASE_DIR}/graphdb/bin/{graphdb_bin}')
+    path_to_graphdb = f'{BASE_DIR}/graphdb/bin/{graphdb_bin}'
     Popen(
-        [abs_path_to_graphdb, f'-Dgraphdb.connector.port={port}'],
+        [path_to_graphdb, f'-Dgraphdb.connector.port={port}'],
         creationflags=CREATE_NEW_CONSOLE
     )
 
@@ -59,11 +59,11 @@ def launch_fuseki(port:int=3030):
     Launch Fuseki triplestore at a given port.
     '''
     fuseki_bin = 'fuseki-server' if is_unix else 'fuseki-server.bat'
-    abs_path_to_graphdb = os.path.abspath(f'{BASE_DIR}/fuseki/{fuseki_bin}')
-    os.environ['FUSEKI_BASE'] = os.path.abspath(f'{BASE_DIR}/fuseki')
-    os.environ['FUSEKI_HOME'] = os.path.abspath(f'{BASE_DIR}/fuseki')
+    path_to_fuseki = f'{BASE_DIR}/fuseki/{fuseki_bin}'
+    os.environ['FUSEKI_BASE'] = f'{BASE_DIR}/fuseki'
+    os.environ['FUSEKI_HOME'] = f'{BASE_DIR}/fuseki'
     Popen(
-        [abs_path_to_graphdb, f'--port={str(port)}'],
+        [path_to_fuseki, f'--port={str(port)}'],
         creationflags=CREATE_NEW_CONSOLE
     )
 
