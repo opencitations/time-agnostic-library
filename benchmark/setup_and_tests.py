@@ -3,7 +3,7 @@ import json
 import os
 
 OUTPUT_PATH = 'statistics.json'
-TRIPLESTORES = ['blazegraph', 'graphdb']
+TRIPLESTORES = ['blazegraph', 'graphdb', 'fuseki', 'virtuoso']
 
 def create_statistics_file(output_path:str=OUTPUT_PATH):
     if not os.path.isfile(output_path):
@@ -32,18 +32,18 @@ def save(data:dict, test_name:str, parameter:str, benchmark:str, output_path:str
 
 def already_done(parameter:str, test_name:str, benchmark:str, output_path:str=OUTPUT_PATH) -> bool:
     already_done = False
+    triplestore = output_path.replace('config_', '').replace('.json', '')
     with open(output_path, 'r', encoding='utf-8') as reader:
         prev_data = json.load(reader)
         if prev_data[benchmark][test_name][parameter] != {'min': 0.0,'median': 0.0,'mean': 0.0,'stdev': 0.0,'max': 0.0}:
             already_done = True
-            print(f'Benchmark on {benchmark} completed: {test_name} - {parameter}')
+            print(f'{triplestore}: benchmark on {benchmark} completed: {test_name} - {parameter}')
     return already_done
 
-def get_setup(triplestore:str, config_filepath:str) -> Tuple[str, str, str]:
+def get_setup(triplestore:str) -> Tuple[str, str]:
     setup = '''
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery
-from time_agnostic_library.support import empty_the_cache
 from triplestore_manager import TriplestoreManager
 import time
 
@@ -52,20 +52,31 @@ triplestore_manager = TriplestoreManager()
     if triplestore.lower() == 'blazegraph':
         setup += '''
 triplestore_manager.close_program_by_name('java')
-triplestore_manager.launch_blazegraph('./db', 9999)
-triplestore_manager.launch_blazegraph('./db/prov', 19999)\n'''
+triplestore_manager.launch_blazegraph('./db/blazegraph', 9999)\n'''
         setup_no_cache = setup + 'time.sleep(10)'
-        setup_empty_cache = setup + f"triplestore_manager.launch_blazegraph('./db/cache/empty', 29999)\ntime.sleep(10)\nempty_the_cache('{config_filepath}')"
-        setup_full_cache = setup + "triplestore_manager.launch_blazegraph('./db/cache/full', 29999)\ntime.sleep(10)"
+        setup_cache = setup + f"triplestore_manager.launch_blazegraph('./db/blazegraph/cache', 29999)\ntime.sleep(10)"
     elif triplestore.lower() == 'graphdb':
         setup += '''
 triplestore_manager.close_program_by_name('java')
 triplestore_manager.launch_graphdb('./db/graphdb', 7200)
 \n'''
         setup_no_cache = setup + 'time.sleep(10)'
-        setup_empty_cache = setup + f"triplestore_manager.launch_graphdb('./db/cache/graphdb', 7300)\ntime.sleep(10)\nempty_the_cache('{config_filepath.replace('.json', '_empty.json')}')"
-        setup_full_cache = setup + "triplestore_manager.launch_graphdb('./db/cache/graphdb', 7300)\ntime.sleep(10)"
-    return setup_no_cache, setup_empty_cache, setup_full_cache
+        setup_cache = setup_no_cache
+    elif triplestore.lower() == 'fuseki':
+        setup += '''
+triplestore_manager.close_program_by_name('java')
+triplestore_manager.launch_fuseki(3030)
+\n'''
+        setup_no_cache = setup + 'time.sleep(10)'
+        setup_cache = setup_no_cache
+    elif triplestore.lower() == 'virtuoso':
+        setup += '''
+triplestore_manager.close_program_by_name('virtuoso-t')
+triplestore_manager.launch_virtuoso('database')
+\n'''
+        setup_no_cache = setup + 'time.sleep(10)'
+        setup_cache = setup + f"triplestore_manager.launch_virtuoso('cache_db')\ntime.sleep(10)"
+    return setup_no_cache, setup_cache
 
 def generate_tests_for_entities(test:str, entities:list) -> list:
     tests_for_entities = list()

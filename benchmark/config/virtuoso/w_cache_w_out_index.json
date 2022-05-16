@@ -1,10 +1,10 @@
 {
     "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/blazegraph/sparql"],
+        "triplestore_urls": ["http://127.0.0.1:8890/sparql"],
         "file_paths": []
     },
     "provenance": {
-        "triplestore_urls": ["http://127.0.0.1:9999/blazegraph/sparql"],
+        "triplestore_urls": ["http://127.0.0.1:8890/sparql"],
         "file_paths": []
     },
     "blazegraph_full_text_search": "no",
@@ -12,7 +12,7 @@
     "virtuoso_full_text_search": "no",
     "graphdb_connector_name": "",
     "cache_triplestore_url": {
-        "endpoint": "",
-        "update_endpoint": ""
+        "endpoint": "http://127.0.0.1:8891/sparql/",
+        "update_endpoint": "http://127.0.0.1:8891/sparql/"
     }
 }
