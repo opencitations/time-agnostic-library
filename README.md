@@ -8,6 +8,8 @@
 
 **time-agnostic-library** is a Python &ge;3.7 library that allows performing time-travel queries on RDF datasets compliant with the [OCDM v2.0.1](https://figshare.com/articles/Metadata_for_the_OpenCitations_Corpus/3443876) provenance specification.
 
+The package was tested on **Blazegraph**, **GraphDB**, **Apache Jena Fuseki**, and **OpenLink Virtuoso**, and it is fully compatible with these triplestores. 
+
 Documentation can be found here: [https://time-agnostic-library.readthedocs.io](https://time-agnostic-library.readthedocs.io).
 
 ## Table of Contents
