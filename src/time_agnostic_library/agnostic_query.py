@@ -474,31 +474,33 @@ class AgnosticQuery(object):
         self.sparql_select.setReturnFormat(JSON)
         results = self.sparql_select.queryAndConvert()
         is_within_cached_interval = False
-        for result in results["results"]["bindings"]:
-            if "complete" in result:
-                if result["complete"]["value"] == "true":
+        if results["results"]["bindings"]:
+            completeness_info = results["results"]["bindings"][0]
+            if "complete" in completeness_info:
+                if completeness_info["complete"]["value"] == "true":
                     is_within_cached_interval = True
             if not is_within_cached_interval and self.on_time:
-                if "startingDate" in result:
-                    starting_date = AgnosticEntity._convert_to_datetime(result["startingDate"]["value"], stringify=True)
+                if "startingDate" in completeness_info and self.on_time[0]:
+                    starting_date = AgnosticEntity._convert_to_datetime(completeness_info["startingDate"]["value"], stringify=True)
                     self.starting_cached_date = starting_date
-                    is_within_cached_interval = True if self.on_time[0] >= starting_date else False
-                    if "endingDate" in result:
-                        ending_date = AgnosticEntity._convert_to_datetime(result["endingDate"]["value"], stringify=True)
+                    is_within_cached_interval = True if AgnosticEntity._convert_to_datetime(self.on_time[0]) >= AgnosticEntity._convert_to_datetime(starting_date) else False
+                    if "endingDate" in completeness_info and self.on_time[1]:
+                        ending_date = AgnosticEntity._convert_to_datetime(completeness_info["endingDate"]["value"], stringify=True)
                         self.ending_cached_date = ending_date
-                        is_within_cached_interval = True if self.on_time[1] <= ending_date else False
-                elif "endingDate" in result:
-                    ending_date = AgnosticEntity._convert_to_datetime(result["endingDate"]["value"], stringify=True)
+                        is_within_cached_interval = True if AgnosticEntity._convert_to_datetime(self.on_time[1]) <= AgnosticEntity._convert_to_datetime(ending_date) else False
+                elif "endingDate" in completeness_info and self.on_time[1]:
+                    ending_date = AgnosticEntity._convert_to_datetime(completeness_info["endingDate"]["value"], stringify=True)
                     self.ending_cached_date = ending_date
-                    is_within_cached_interval = True if self.on_time[1] <= ending_date else False
-            if is_within_cached_interval:
-                relevant_timestamp = result["relevant"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
-                cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
-                found_timestamp = result["c"]["value"].split("https://github.com/opencitations/time-agnostic-library/")[-1]
-                if found_timestamp == relevant_timestamp:
-                    obj = result["o"]["value"]
-                    obj = Literal(obj) if 'datatype' in result else URIRef(obj)
-                    cached_graphs[found_timestamp].add((URIRef(entity), URIRef(result["p"]["value"]), obj))
+                    is_within_cached_interval = True if AgnosticEntity._convert_to_datetime(self.on_time[1]) <= AgnosticEntity._convert_to_datetime(ending_date) else False
+            for result in results["results"]["bindings"]:
+                if is_within_cached_interval:
+                    relevant_timestamp = result["relevant"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
+                    cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
+                    found_timestamp = result["c"]["value"].split("https://github.com/opencitations/time-agnostic-library/")[-1]
+                    if found_timestamp == relevant_timestamp:
+                        obj = result["o"]["value"]
+                        obj = Literal(obj) if 'datatype' in result else URIRef(obj)
+                        cached_graphs[found_timestamp].add((URIRef(entity), URIRef(result["p"]["value"]), obj))
         return cached_graphs
 
 class VersionQuery(AgnosticQuery):

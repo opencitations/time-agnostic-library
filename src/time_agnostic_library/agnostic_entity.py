@@ -376,7 +376,7 @@ class AgnosticEntity:
 
     @classmethod
     def _convert_to_datetime(cls, time_string:str, stringify:bool=False) -> datetime:
-        if time_string:
+        if time_string and time_string != "None":
             time = parser.parse(time_string).replace(tzinfo=None)
             if stringify:
                 time = time.strftime("%Y-%m-%dT%H:%M:%S")
