@@ -1047,7 +1047,7 @@ class Test_VersionQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=('2021-05-07T09:59:15', '2021-05-07T09:59:15'), config_path=CONFIG_PATH)
         if agnostic_query.cache_endpoint:
             recostructed_grah = _to_conjunctive_graph([
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 

@@ -80,6 +80,8 @@ class AgnosticQuery(object):
             self.sparql_update = SPARQLWrapper(cache_triplestore_url['update_endpoint'])
             self.sparql_update.setMethod(POST)
             self.already_cached_entities = set()
+            self.starting_cached_date = None
+            self.ending_cached_date = None
 
     def _process_query(self) -> List[Tuple]:
         algebra:CompValue = prepareQuery(self.query).algebra
@@ -340,9 +342,11 @@ class AgnosticQuery(object):
 
     def _upload_data_to_cache(self):
         if self.cache_insert_queries:
-            self.sparql_update.setQuery('; '.join(self.cache_insert_queries))
-            self.sparql_update.query()
-            self.cache_insert_queries = list()
+            chunks = [self.cache_insert_queries[i:i + 10] for i in range(0, len(self.cache_insert_queries), 10)]
+            for chunk in chunks:
+                self.sparql_update.setQuery('; '.join(chunk))
+                self.sparql_update.query()
+                self.cache_insert_queries = list()
     
     def _align_snapshots(self) -> None:
         print("[INFO: VersionQuery] Aligning snapshots")
@@ -419,11 +423,24 @@ class AgnosticQuery(object):
         if entity in self.already_cached_entities:
             return
         reconstructed_graph = deepcopy(reconstructed_graph)
+        timestamp = AgnosticEntity._convert_to_datetime(timestamp, stringify=True)
         graph_iri = f"https://github.com/opencitations/time-agnostic-library/{timestamp}"
+        graph_iri_cache = f"{entity}/cache"
         graph_iri_relevant = f"https://github.com/opencitations/time-agnostic-library/relevant/{timestamp}"
         if not self.on_time:
-            reconstructed_graph.add((URIRef(f"{entity}/cache"), URIRef("https://github.com/opencitations/time-agnostic-library/isComplete"), Literal("true")))
+            self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> 'true'}}}}")
+        elif self.on_time:
+            if self.starting_cached_date:
+                if self.starting_cached_date != self.on_time[0]:
+                    self.cache_insert_queries.append(f"DELETE DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> '{self.starting_cached_date}'}}}}")
+            if self.ending_cached_date:
+                if self.ending_cached_date != self.on_time[1]:
+                    self.cache_insert_queries.append(f"DELETE DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> '{self.ending_cached_date}'}}}}")
+            self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> '{self.on_time[0]}'}}}}")
+            self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> '{self.on_time[1]}'}}}}")
         insert_query = get_insert_query(graph_iri=graph_iri, data=reconstructed_graph)[0]
+        if insert_query:
+            self.cache_insert_queries.append(insert_query)
         prov = Graph()
         for en, metadata in prov_metadata.items(): 
             if 'generatedAtTime' in metadata:
@@ -431,26 +448,50 @@ class AgnosticQuery(object):
             else:
                 for se, _ in metadata.items():
                     prov.add((URIRef(se), ProvEntity.iri_specialization_of, URIRef(en)))
-        if insert_query:
-            prov_insert_query = get_insert_query(graph_iri=graph_iri_relevant, data=prov)[0]
-            insert_query = insert_query + ";" + prov_insert_query if prov_insert_query else insert_query
-            self.cache_insert_queries.append(insert_query)
+        prov_insert_query = get_insert_query(graph_iri=graph_iri_relevant, data=prov)[0]
+        if prov_insert_query:
+            self.cache_insert_queries.append(prov_insert_query)
 
     def _get_relevant_timestamps_from_cache(self, entity:URIRef) -> Dict[str, Graph]:
         cached_graphs = dict()
         query_timestamps = f"""
-        SELECT DISTINCT ?p ?o ?datatype ?c ?complete ?relevant
+        SELECT DISTINCT ?p ?o ?datatype ?c ?complete ?relevant ?startingDate ?endingDate
         WHERE {{
             GRAPH ?relevant {{?se <{ProvEntity.iri_specialization_of}> <{entity}>.}}
             GRAPH ?c {{<{URIRef(entity)}> ?p ?o. BIND (datatype(?o) AS ?datatype)}}
-            <{entity}/cache> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.
+            OPTIONAL {{
+                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.}}
+            }}
+            OPTIONAL {{
+                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> ?startingDate.}}
+            }}
+            OPTIONAL {{
+                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> ?endingDate.}}
+            }}                    
         }}
         """
         self.sparql_select.setQuery(query_timestamps)
         self.sparql_select.setReturnFormat(JSON)
         results = self.sparql_select.queryAndConvert()
+        is_within_cached_interval = False
         for result in results["results"]["bindings"]:
-            if result["complete"]["value"] == "true":
+            if "complete" in result:
+                if result["complete"]["value"] == "true":
+                    is_within_cached_interval = True
+            if not is_within_cached_interval and self.on_time:
+                if "startingDate" in result:
+                    starting_date = AgnosticEntity._convert_to_datetime(result["startingDate"]["value"], stringify=True)
+                    self.starting_cached_date = starting_date
+                    is_within_cached_interval = True if self.on_time[0] >= starting_date else False
+                    if "endingDate" in result:
+                        ending_date = AgnosticEntity._convert_to_datetime(result["endingDate"]["value"], stringify=True)
+                        self.ending_cached_date = ending_date
+                        is_within_cached_interval = True if self.on_time[1] <= ending_date else False
+                elif "endingDate" in result:
+                    ending_date = AgnosticEntity._convert_to_datetime(result["endingDate"]["value"], stringify=True)
+                    self.ending_cached_date = ending_date
+                    is_within_cached_interval = True if self.on_time[1] <= ending_date else False
+            if is_within_cached_interval:
                 relevant_timestamp = result["relevant"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
                 cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
                 found_timestamp = result["c"]["value"].split("https://github.com/opencitations/time-agnostic-library/")[-1]
