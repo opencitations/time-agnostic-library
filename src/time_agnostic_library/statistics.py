@@ -15,9 +15,19 @@
 # SOFTWARE.
 
 
+from typing import Union
+from time_agnostic_library.agnostic_entity import AgnosticEntity
+
+
 class Statistics:
-    def __init__(self, snapshots:dict):
-        self.snapshots = {entity:len(se) for entity,se in snapshots.items()}
+    def __init__(self, snapshots:Union[dict,tuple]):
+        if type(snapshots) is tuple:
+            entity_snapshots, other_snapshots = snapshots
+            entity_snapshots = sorted([AgnosticEntity._convert_to_datetime(data['generatedAtTime']) for _, data in entity_snapshots.items()], reverse=True)
+            other_snapshots = [data['generatedAtTime'] for _, data in other_snapshots.items() if AgnosticEntity._convert_to_datetime(data['generatedAtTime']) >= entity_snapshots[0]]
+            self.snapshots = {'entity': len(entity_snapshots + other_snapshots)}
+        else:
+            self.snapshots = {entity:len(se) for entity,se in snapshots.items()}
         
     def get_number_of_snapshots(self):
         return sum(se for _, se in self.snapshots.items())

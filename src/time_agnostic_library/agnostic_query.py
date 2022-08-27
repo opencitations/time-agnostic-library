@@ -55,7 +55,6 @@ class AgnosticQuery(object):
         self.relevant_entities_graphs:Dict[URIRef, Dict[str, ConjunctiveGraph]] = dict()
         self.relevant_graphs:Dict[str, Union[ConjunctiveGraph, Set]] = dict()
         self.cache_insert_queries = list()
-        self.triples = self._process_query()
         self._rebuild_relevant_graphs()
     
     def __init_text_index(self, config:dict):
@@ -109,6 +108,7 @@ class AgnosticQuery(object):
         # First, the graphs of the hooks are reconstructed
         triples_checked = set()
         all_isolated = True
+        self.triples = self._process_query()
         for triple in self.triples:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 query_to_identify = self._get_query_to_identify(triple)
@@ -186,7 +186,6 @@ class AgnosticQuery(object):
 
     def _get_query_to_identify(self, triple:list) -> str:
         solvable_triple = [el.n3() for el in triple]
-        print(f"[VersionQuery:INFO] Rebuilding current relevant entities for the triple {solvable_triple}.")
         if isinstance(triple[1], InvPath):
             predicate = solvable_triple[1].replace("^", "", 1)
             query_to_identify = f"""
@@ -276,7 +275,6 @@ class AgnosticQuery(object):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = set()
         query_to_identify = self._get_query_to_update_queries(triple)
-        print(f"[VersionQuery:INFO] Searching for relevant entities in relevant update queries.")
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
             for result in results:
@@ -349,7 +347,6 @@ class AgnosticQuery(object):
                 self.cache_insert_queries = list()
     
     def _align_snapshots(self) -> None:
-        print("[INFO: VersionQuery] Aligning snapshots")
         # Merge entities based on snapshots
         for _, snapshots in self.relevant_entities_graphs.items():
             for snapshot, graph in snapshots.items():
@@ -517,7 +514,7 @@ class VersionQuery(AgnosticQuery):
     def __init__(self, query:str, on_time:Tuple[Union[str, None]]="", config_path:str=CONFIG_PATH):
         super(VersionQuery, self).__init__(query, on_time, config_path)    
 
-    def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph, agnostic_result:dict):
+    def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph) -> tuple:
         output = set()
         if self.cache_endpoint:
             split_by_where = re.split(pattern="where", string=self.query, maxsplit=1, flags=re.IGNORECASE)
@@ -530,7 +527,7 @@ class VersionQuery(AgnosticQuery):
         for result in results:
             Sparql._get_tuples_set(self.query, result, output)
         normalized_timestamp = AgnosticEntity._convert_to_datetime(timestamp, stringify=True)
-        agnostic_result[normalized_timestamp] = output
+        return normalized_timestamp, output
         
     def run_agnostic_query(self) -> Dict[str, Set[Tuple]]:
         """
@@ -539,12 +536,13 @@ class VersionQuery(AgnosticQuery):
         
         :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
         """
-        print("[VersionQuery: INFO] Running agnostic query.")
         self._upload_data_to_cache()
         agnostic_result:dict[str, Set[Tuple]] = dict()
         relevant_timestamps = _filter_timestamps_by_interval(self.on_time, self.relevant_graphs)
         with ThreadPoolExecutor() as executor:
-            [executor.submit(self._query_reconstructed_graph, timestamp, graph, agnostic_result) for timestamp, graph in self.relevant_graphs.items() if timestamp in relevant_timestamps]
+            for future in [executor.submit(self._query_reconstructed_graph, timestamp, graph) for timestamp, graph in self.relevant_graphs.items() if timestamp in relevant_timestamps]:
+                normalized_timestamp, output = future.result()
+                agnostic_result[normalized_timestamp] = output
         agnostic_result = {timestamp:{tuple(Literal(el, datatype=None) if isinstance(el, Literal) else el for el in result_tuple) for result_tuple in results} for timestamp, results in agnostic_result.items()}
         return agnostic_result
 
@@ -569,6 +567,7 @@ class DeltaQuery(AgnosticQuery):
     def _rebuild_relevant_graphs(self) -> None:
         # First, the graphs of the hooks are reconstructed
         triples_checked = set()
+        self.triples = self._process_query()
         for triple in self.triples:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 query_to_identify = self._get_query_to_identify(triple)
@@ -594,7 +593,6 @@ class DeltaQuery(AgnosticQuery):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = set()
         query_to_identify = self._get_query_to_update_queries(triple)
-        print(f"[DeltaQuery:INFO] Searching for relevant entities in relevant update queries.")
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
             for result in results:
@@ -613,7 +611,6 @@ class DeltaQuery(AgnosticQuery):
 
     def _get_query_to_identify(self, triple:list) -> str:
         solvable_triple = [el.n3() for el in triple]
-        print(f"[DeltaQuery:INFO] Searching for current relevant entities for the triple {solvable_triple}.")
         if isinstance(triple[1], InvPath):
             predicate = solvable_triple[1].replace("^", "", 1)
             query_to_identify = f"""
