@@ -25,7 +25,7 @@ CONFIG_PATH = os.path.join('tests', 'config.json')
 CONFIG_BLAZEGRAPH = os.path.join('tests', 'config_blazegraph.json')
 
 class Test_Statistics(unittest.TestCase):
-    def test_statistics_query(self):
+    def test_statistics_cv(self):
         query = """
             PREFIX pro: <http://purl.org/spar/pro/>
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -42,6 +42,26 @@ class Test_Statistics(unittest.TestCase):
         number_of_snapshots = statistics.get_number_of_snapshots()
         output = (number_of_entities, number_of_snapshots)
         expected_output = (3,7)
+        self.assertEqual(output, expected_output)
+
+    def test_statistics_sv(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            SELECT DISTINCT ?o
+            WHERE {
+                <https://github.com/arcangelo7/time_agnostic/ar/15519> pro:isHeldBy ?o;
+                    rdf:type pro:RoleInTime.
+            }
+        """
+        agnostic_query = VersionQuery(query, on_time=('2021-05-31T18:19:47', '2021-05-31T18:19:47'), config_path=CONFIG_PATH)
+        agnostic_query.cache_endpoint = False
+        agnostic_query.run_agnostic_query()
+        statistics = Statistics(agnostic_query.relevant_entities_graphs)
+        number_of_entities = statistics.get_number_of_entities()
+        number_of_snapshots = statistics.get_number_of_snapshots()
+        output = (number_of_entities, number_of_snapshots)
+        expected_output = (1,1)
         self.assertEqual(output, expected_output)
 
     def test_statistics_ma_all(self):

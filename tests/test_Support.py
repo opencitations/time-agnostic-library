@@ -14,9 +14,12 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest, json
+
+from datetime import datetime
 from SPARQLWrapper import SPARQLWrapper, JSON
-from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_nt_sorted_list, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph, empty_the_cache
+from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_nt_sorted_list, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph, empty_the_cache, convert_to_datetime
+import unittest, json
+
 
 CONFIG_PATH = "tests/config.json"
 CONFIG_GRAPHDB = "tests/config_graphdb.json"
@@ -75,6 +78,11 @@ class Test_Support(unittest.TestCase):
             results = sparql.queryAndConvert()
             expected_results = {'head': {'link': [], 'vars': ['g']}, 'results': {'distinct': False, 'ordered': True, 'bindings': []}}
             self.assertEqual(results, expected_results)
+
+    def test_convert_to_datetime(self):
+        input = "2021-05-21T19:08:56+00:00"
+        expected_output = datetime(2021, 5, 21, 19, 8, 56)
+        self.assertEqual(convert_to_datetime(input), expected_output)
 
 
 

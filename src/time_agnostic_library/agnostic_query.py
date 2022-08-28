@@ -25,6 +25,7 @@ from rdflib.paths import InvPath
 from SPARQLWrapper.Wrapper import SPARQLWrapper, POST, GET, JSON
 from time_agnostic_library.agnostic_entity import AgnosticEntity, _filter_timestamps_by_interval
 from time_agnostic_library.prov_entity import ProvEntity
+from time_agnostic_library.support import convert_to_datetime
 from time_agnostic_library.sparql import Sparql
 from tqdm import tqdm
 from typing import Set, Tuple, Dict, List, Union
@@ -45,8 +46,8 @@ class AgnosticQuery(object):
         self.__init_cache(config)
         self.__init_text_index(config)
         if on_time:
-            after_time = AgnosticEntity._convert_to_datetime(on_time[0], stringify=True)
-            before_time = AgnosticEntity._convert_to_datetime(on_time[1], stringify=True)
+            after_time = convert_to_datetime(on_time[0], stringify=True)
+            before_time = convert_to_datetime(on_time[1], stringify=True)
             self.on_time = (after_time, before_time)
         else:
             self.on_time = None
@@ -115,15 +116,15 @@ class AgnosticQuery(object):
                 present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
                 pbar = tqdm(total=len(present_results))
                 for result in present_results:
-                    self._rebuild_relevant_entity(result[0], isolated=True)
-                    self._rebuild_relevant_entity(result[2], isolated=True)
+                    self._rebuild_relevant_entity(result[0])
+                    self._rebuild_relevant_entity(result[2])
                     pbar.update()
                 pbar.close()
                 self._find_entities_in_update_queries(triple)
             else:
                 all_isolated = False
-                self._rebuild_relevant_entity(triple[0], isolated=False)
-                self._rebuild_relevant_entity(triple[2], isolated=False)
+                self._rebuild_relevant_entity(triple[0])
+                self._rebuild_relevant_entity(triple[2])
             triples_checked.add(triple)
         self._align_snapshots()
         # Then, the graphs of the entities obtained from the hooks are reconstructed
@@ -153,21 +154,21 @@ class AgnosticQuery(object):
                     there_is_transitive_closure = self._there_is_transitive_closure(triple[0], other_triples)
         return there_is_transitive_closure
 
-    def _rebuild_relevant_entity(self, entity:Union[URIRef, Literal], isolated:bool=False) -> None:
+    def _rebuild_relevant_entity(self, entity:Union[URIRef, Literal]) -> None:
         if isinstance(entity, URIRef) and entity not in self.reconstructed_entities:
             self.reconstructed_entities.add(entity)
             if self.cache_endpoint:
                 relevant_timestamps_in_cache = self._get_relevant_timestamps_from_cache(entity)
                 if relevant_timestamps_in_cache:
                     for timestamp, cached_graph in relevant_timestamps_in_cache.items():
-                        timestamp = AgnosticEntity._convert_to_datetime(timestamp, stringify=True)
+                        timestamp = convert_to_datetime(timestamp, stringify=True)
                         self.reconstructed_entities.add(entity)
                         self.relevant_entities_graphs.setdefault(entity, dict())[timestamp] = cached_graph
                     self.already_cached_entities.add(entity)
                     return
             agnostic_entity = AgnosticEntity(entity, related_entities_history=False, config_path=self.config_path)
             if self.on_time:
-                entity_at_time = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=True)
+                entity_at_time = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=False)
                 if entity_at_time[0]:
                     for relevant_timestamp, cg in entity_at_time[0].items():
                         if self.cache_endpoint:
@@ -213,7 +214,7 @@ class AgnosticQuery(object):
         query_to_identify = self.get_full_text_search(uris_in_triple)
         for uri in uris_in_triple:
             if triple.index(uri) == 0 or triple.index(uri) == 2:
-                self._rebuild_relevant_entity(uri, isolated=True)
+                self._rebuild_relevant_entity(uri)
         return query_to_identify
     
     def get_full_text_search(self, uris_in_triple:set) -> str:
@@ -292,7 +293,7 @@ class AgnosticQuery(object):
             print(f"[VersionQuery:INFO] Rebuilding relevant entities' history.")
             pbar = tqdm(total=len(new_entities_found))
             with ThreadPoolExecutor() as executor:
-                results = [executor.submit(self._rebuild_relevant_entity, new_entity_found, True) for new_entity_found in new_entities_found]
+                results = [executor.submit(self._rebuild_relevant_entity, new_entity_found) for new_entity_found in new_entities_found]
                 for _ in as_completed(results):
                     pbar.update()
             pbar.close()
@@ -335,7 +336,7 @@ class AgnosticQuery(object):
                             explicit_triples.setdefault(se, dict())
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(result)
-                            self._rebuild_relevant_entity(result[variable_index], isolated=False)
+                            self._rebuild_relevant_entity(result[variable_index])
         return explicit_triples
 
     def _upload_data_to_cache(self):
@@ -378,7 +379,7 @@ class AgnosticQuery(object):
     def _sort_relevant_graphs(self):
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
             self.relevant_graphs.items(),
-            key=lambda x: AgnosticEntity._convert_to_datetime(x[0]),
+            key=lambda x: convert_to_datetime(x[0]),
             reverse=False # That is, from past to present, assuming that the past influences the present and not the opposite like in Dark
         )
         return ordered_data   
@@ -420,10 +421,11 @@ class AgnosticQuery(object):
         if entity in self.already_cached_entities:
             return
         reconstructed_graph = deepcopy(reconstructed_graph)
-        timestamp = AgnosticEntity._convert_to_datetime(timestamp, stringify=True)
+        timestamp = convert_to_datetime(timestamp, stringify=True)
         graph_iri = f"https://github.com/opencitations/time-agnostic-library/{timestamp}"
         graph_iri_cache = f"{entity}/cache"
         graph_iri_relevant = f"https://github.com/opencitations/time-agnostic-library/relevant/{timestamp}"
+        print(self.starting_cached_date, self.ending_cached_date)
         if not self.on_time:
             self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> 'true'}}}}")
         elif self.on_time:
@@ -452,6 +454,7 @@ class AgnosticQuery(object):
     def _get_relevant_timestamps_from_cache(self, entity:URIRef) -> Dict[str, Graph]:
         cached_graphs = dict()
         query_timestamps = f"""
+        PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
         SELECT DISTINCT ?p ?o ?datatype ?c ?complete ?relevant ?startingDate ?endingDate
         WHERE {{
             GRAPH ?relevant {{?se <{ProvEntity.iri_specialization_of}> <{entity}>.}}
@@ -460,10 +463,10 @@ class AgnosticQuery(object):
                 GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.}}
             }}
             OPTIONAL {{
-                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> ?startingDate.}}
+                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> ?startingDate. }}
             }}
             OPTIONAL {{
-                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> ?endingDate.}}
+                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> ?endingDate. }}
             }}                    
         }}
         """
@@ -478,19 +481,19 @@ class AgnosticQuery(object):
                     is_within_cached_interval = True
             if not is_within_cached_interval and self.on_time:
                 if "startingDate" in completeness_info and self.on_time[0]:
-                    starting_date = AgnosticEntity._convert_to_datetime(completeness_info["startingDate"]["value"], stringify=True)
+                    starting_date = convert_to_datetime(completeness_info["startingDate"]["value"], stringify=True)
                     self.starting_cached_date = starting_date
-                    is_within_cached_interval = True if AgnosticEntity._convert_to_datetime(self.on_time[0]) >= AgnosticEntity._convert_to_datetime(starting_date) else False
+                    is_within_cached_interval = True if convert_to_datetime(self.on_time[0]) >= convert_to_datetime(starting_date) else False
                     if "endingDate" in completeness_info and self.on_time[1]:
-                        ending_date = AgnosticEntity._convert_to_datetime(completeness_info["endingDate"]["value"], stringify=True)
+                        ending_date = convert_to_datetime(completeness_info["endingDate"]["value"], stringify=True)
                         self.ending_cached_date = ending_date
-                        is_within_cached_interval = True if AgnosticEntity._convert_to_datetime(self.on_time[1]) <= AgnosticEntity._convert_to_datetime(ending_date) else False
+                        is_within_cached_interval = True if convert_to_datetime(self.on_time[1]) <= convert_to_datetime(ending_date) else False
                 elif "endingDate" in completeness_info and self.on_time[1]:
-                    ending_date = AgnosticEntity._convert_to_datetime(completeness_info["endingDate"]["value"], stringify=True)
+                    ending_date = convert_to_datetime(completeness_info["endingDate"]["value"], stringify=True)
                     self.ending_cached_date = ending_date
-                    is_within_cached_interval = True if AgnosticEntity._convert_to_datetime(self.on_time[1]) <= AgnosticEntity._convert_to_datetime(ending_date) else False
-            for result in results["results"]["bindings"]:
-                if is_within_cached_interval:
+                    is_within_cached_interval = True if convert_to_datetime(self.on_time[1]) <= convert_to_datetime(ending_date) else False
+            if is_within_cached_interval:
+                for result in results["results"]["bindings"]:
                     relevant_timestamp = result["relevant"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
                     cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
                     found_timestamp = result["c"]["value"].split("https://github.com/opencitations/time-agnostic-library/")[-1]
@@ -526,7 +529,7 @@ class VersionQuery(AgnosticQuery):
             results = graph.query(self.query)._get_bindings()
         for result in results:
             Sparql._get_tuples_set(self.query, result, output)
-        normalized_timestamp = AgnosticEntity._convert_to_datetime(timestamp, stringify=True)
+        normalized_timestamp = convert_to_datetime(timestamp, stringify=True)
         return normalized_timestamp, output
         
     def run_agnostic_query(self) -> Dict[str, Set[Tuple]]:
@@ -582,8 +585,8 @@ class DeltaQuery(AgnosticQuery):
                 pbar.close()
                 self._find_entities_in_update_queries(triple)
             else:
-                self._rebuild_relevant_entity(triple[0], isolated=False)
-                self._rebuild_relevant_entity(triple[2], isolated=False)
+                self._rebuild_relevant_entity(triple[0])
+                self._rebuild_relevant_entity(triple[2])
             triples_checked.add(triple)
         self._align_snapshots()
         # Then, the graphs of the entities obtained from the hooks are reconstructed
@@ -659,15 +662,15 @@ class DeltaQuery(AgnosticQuery):
                 "modified": dict(), 
                 "deleted": None
             }
-            results = sorted(list(results), key=lambda x:AgnosticEntity._convert_to_datetime(x[0]))
-            creation_date = AgnosticEntity._convert_to_datetime(results[0][0], stringify=True)
+            results = sorted(list(results), key=lambda x:convert_to_datetime(x[0]))
+            creation_date = convert_to_datetime(results[0][0], stringify=True)
             exists = Sparql(query_existence, self.config_path).run_select_query()
             if not exists:
-                output[identified_entity]["deleted"] = AgnosticEntity._convert_to_datetime(results[-1][0], stringify=True)
+                output[identified_entity]["deleted"] = convert_to_datetime(results[-1][0], stringify=True)
             relevant_results = list(_filter_timestamps_by_interval(self.on_time, results, 0))
             if relevant_results:
                 for result_tuple in relevant_results:
-                    time = AgnosticEntity._convert_to_datetime(result_tuple[0], stringify=True)
+                    time = convert_to_datetime(result_tuple[0], stringify=True)
                     if time != creation_date:
                         if result_tuple[1] and self.changed_properties:
                             for changed_property in self.changed_properties:

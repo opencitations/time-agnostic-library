@@ -825,11 +825,5 @@ class Test_AgnosticEntity(unittest.TestCase):
         ]
         self.assertEqual(output, expected_output)
 
-    def test__convert_to_datetime(self):
-        input = "2021-05-21T19:08:56+00:00"
-        expected_output = datetime.datetime(2021, 5, 21, 19, 8, 56)
-        self.assertEqual(AgnosticEntity._convert_to_datetime(input), expected_output)
-
-
 if __name__ == '__main__':
     unittest.main()

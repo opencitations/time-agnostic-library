@@ -15,6 +15,8 @@
 # SOFTWARE.
 
 
+from datetime import datetime
+from dateutil import parser
 from rdflib.graph import ConjunctiveGraph
 from SPARQLWrapper import SPARQLWrapper, POST
 from rdflib import Literal
@@ -85,7 +87,14 @@ def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), 
     }
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(config, f)
-    
+
+def convert_to_datetime(time_string:str, stringify:bool=False) -> datetime:
+    if time_string and time_string != "None":
+        time = parser.parse(time_string).replace(tzinfo=None)
+        if stringify:
+            time = time.strftime("%Y-%m-%dT%H:%M:%S")
+        return time
+
 def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     if cg is None:
         return None

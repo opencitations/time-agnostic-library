@@ -16,12 +16,11 @@
 
 from typing import List, Tuple, Dict, Set, Union
 import copy, re
-from datetime import datetime
 from rdflib.graph import ConjunctiveGraph, Graph
 from rdflib.term import URIRef
 from rdflib.plugins.sparql.processor import processUpdate
-from dateutil import parser
 from time_agnostic_library.sparql import Sparql
+from time_agnostic_library.support import convert_to_datetime
 from time_agnostic_library.prov_entity import ProvEntity
 
 CONFIG_PATH = "./config.json"
@@ -156,7 +155,7 @@ class AgnosticEntity:
         results = list(Sparql(query_snapshots, config_path=self.config_path).run_select_query())
         if not results:
             return None, None, None
-        results.sort(key=lambda x:self._convert_to_datetime(x[1]), reverse=True)
+        results.sort(key=lambda x:convert_to_datetime(x[1]), reverse=True)
         relevant_results = _filter_timestamps_by_interval(time, results, time_index=1)
         entity_snapshots = dict()
         entity_graphs = dict()
@@ -166,11 +165,11 @@ class AgnosticEntity:
             sum_update_queries = ""
             for result in results:
                 if result[3]:
-                    if self._convert_to_datetime(result[1]) > self._convert_to_datetime(relevant_result[1]):
+                    if convert_to_datetime(result[1]) > convert_to_datetime(relevant_result[1]):
                         sum_update_queries += (result[3]) +  ";"   
             entity_present_graph = copy.deepcopy(entity_cg)
             self._manage_update_queries(entity_present_graph, sum_update_queries)
-            entity_graphs[self._convert_to_datetime(relevant_result[1], stringify=True)] = entity_present_graph
+            entity_graphs[convert_to_datetime(relevant_result[1], stringify=True)] = entity_present_graph
             entity_snapshots[relevant_result[0]] = {
                 "generatedAtTime": relevant_result[1],
                 "wasAttributedTo": relevant_result[2],
@@ -201,7 +200,7 @@ class AgnosticEntity:
             self.res: dict()
         }
         for triple in triples_generated_at_time:
-            time = self._convert_to_datetime(triple[2]).strftime("%Y-%m-%dT%H:%M:%S")
+            time = convert_to_datetime(triple[2]).strftime("%Y-%m-%dT%H:%M:%S")
             prov_metadata[self.res][str(triple[0])] = {
                 "generatedAtTime": time,
                 "wasAttributedTo": None,
@@ -232,9 +231,9 @@ class AgnosticEntity:
         most_recent_time = None
         for triple in triples_generated_at_time:
             snapshot_time = triple[2]
-            snapshot_date_time = self._convert_to_datetime(snapshot_time)
+            snapshot_date_time = convert_to_datetime(snapshot_time)
             if most_recent_time:
-                if snapshot_date_time > self._convert_to_datetime(most_recent_time):
+                if snapshot_date_time > convert_to_datetime(most_recent_time):
                     most_recent_time = snapshot_time
             elif not most_recent_time:
                 most_recent_time = snapshot_time
@@ -250,7 +249,7 @@ class AgnosticEntity:
     def _get_old_graphs(self, entity_current_state:List[Dict[str, Dict[str, ConjunctiveGraph]]]) -> list:
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
             entity_current_state[0][self.res].items(),
-            key=lambda x: self._convert_to_datetime(x[0]),
+            key=lambda x: convert_to_datetime(x[0]),
             reverse=True
         )
         for index, date_graph in enumerate(ordered_data):
@@ -271,7 +270,7 @@ class AgnosticEntity:
             cg_no_pro = entity_current_state[0][self.res].pop(time)
             for prov_property in ProvEntity.get_prov_properties():
                 cg_no_pro.remove((None, prov_property, None))
-            time_no_tz = self._convert_to_datetime(time)
+            time_no_tz = convert_to_datetime(time)
             entity_current_state[0][self.res][time_no_tz.strftime("%Y-%m-%dT%H:%M:%S")] = cg_no_pro
         return entity_current_state
 
@@ -374,14 +373,6 @@ class AgnosticEntity:
             """
         return Sparql(query_provenance, config_path=self.config_path).run_construct_query()
 
-    @classmethod
-    def _convert_to_datetime(cls, time_string:str, stringify:bool=False) -> datetime:
-        if time_string and time_string != "None":
-            time = parser.parse(time_string).replace(tzinfo=None)
-            if stringify:
-                time = time.strftime("%Y-%m-%dT%H:%M:%S")
-            return time
-
 def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False, config_path:str=".config.json") -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
     entities_histories = [dict(), dict()]
     for res in res_set:
@@ -397,11 +388,11 @@ def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False,
 
 def _filter_timestamps_by_interval(interval:Tuple[str, str], iterator:list, time_index:int=None) -> set:
     if interval:
-        after_time = AgnosticEntity._convert_to_datetime(interval[0])
-        before_time = AgnosticEntity._convert_to_datetime(interval[1])
+        after_time = convert_to_datetime(interval[0])
+        before_time = convert_to_datetime(interval[1])
         relevant_timestamps = set()
         for timestamp in iterator:
-            time = AgnosticEntity._convert_to_datetime(timestamp[time_index]) if time_index is not None else AgnosticEntity._convert_to_datetime(timestamp)
+            time = convert_to_datetime(timestamp[time_index]) if time_index is not None else convert_to_datetime(timestamp)
             if after_time and before_time:
                 if time >= after_time and time <= before_time:
                     relevant_timestamps.add(timestamp)
