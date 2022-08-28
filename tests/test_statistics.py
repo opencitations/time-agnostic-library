@@ -55,7 +55,6 @@ class Test_Statistics(unittest.TestCase):
             }
         """
         agnostic_query = VersionQuery(query, on_time=('2021-05-31T18:19:47', '2021-05-31T18:19:47'), config_path=CONFIG_PATH)
-        agnostic_query.cache_endpoint = False
         agnostic_query.run_agnostic_query()
         statistics = Statistics(agnostic_query.relevant_entities_graphs)
         number_of_entities = statistics.get_number_of_entities()

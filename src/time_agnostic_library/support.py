@@ -20,7 +20,7 @@ from dateutil import parser
 from rdflib.graph import ConjunctiveGraph
 from SPARQLWrapper import SPARQLWrapper, POST
 from rdflib import Literal
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import json
 import re
 
@@ -94,6 +94,26 @@ def convert_to_datetime(time_string:str, stringify:bool=False) -> datetime:
         if stringify:
             time = time.strftime("%Y-%m-%dT%H:%M:%S")
         return time
+
+def is_within_time_range(range_to_eval:Tuple[str, str], given_range:Tuple[str, str]) -> bool:
+    if not given_range:
+        return True
+    range_to_eval_start = convert_to_datetime(range_to_eval[0])
+    range_to_eval_end = convert_to_datetime(range_to_eval[1])
+    given_range_start = convert_to_datetime(given_range[0])
+    given_range_end = convert_to_datetime(given_range[1])
+    is_within_time_range = False
+    if given_range_start:
+        if range_to_eval_start >= given_range_start:
+            if given_range_end:
+                if range_to_eval_end <= given_range_end:
+                    is_within_time_range = True
+            else:
+                is_within_time_range = True
+    elif given_range_end:
+        if range_to_eval_end <= given_range_end:
+            is_within_time_range = True
+    return is_within_time_range
 
 def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     if cg is None:
