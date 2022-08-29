@@ -119,14 +119,19 @@ class AgnosticQuery(object):
                 pbar = tqdm(total=len(present_results))
                 for result in present_results:
                     self._rebuild_relevant_entity(result[0])
-                    self._rebuild_relevant_entity(result[2])
+                    if result[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"):
+                        self._rebuild_relevant_entity(result[2])
                     pbar.update()
                 pbar.close()
+                for el in triple:
+                    if triple.index(el) == 0 or (triple.index(el) == 2 and triple[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")):
+                        self._rebuild_relevant_entity(el)
                 self._find_entities_in_update_queries(triple)
             else:
                 all_isolated = False
                 self._rebuild_relevant_entity(triple[0])
-                self._rebuild_relevant_entity(triple[2])
+                if triple[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"):
+                    self._rebuild_relevant_entity(triple[2])
             triples_checked.add(triple)
         self._align_snapshots()
         # Then, the graphs of the entities obtained from the hooks are reconstructed
@@ -216,9 +221,6 @@ class AgnosticQuery(object):
     def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = self.get_full_text_search(uris_in_triple)
-        for uri in uris_in_triple:
-            if triple.index(uri) == 0 or triple.index(uri) == 2:
-                self._rebuild_relevant_entity(uri)
         return query_to_identify
     
     def get_full_text_search(self, uris_in_triple:set) -> str:
@@ -574,14 +576,19 @@ class DeltaQuery(AgnosticQuery):
                 for result in present_results:
                     if isinstance(result[0], URIRef):
                         self.reconstructed_entities.add(result[0])
-                    if isinstance(result[2], URIRef):
+                    if isinstance(result[2], URIRef) and result[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"):
                         self.reconstructed_entities.add(result[2])
                     pbar.update()
                 pbar.close()
+                for el in triple:
+                    if isinstance(el, URIRef):
+                        if triple.index(el) == 0 or (triple.index(el) == 2 and triple[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")):
+                            self.reconstructed_entities.add(el)
                 self._find_entities_in_update_queries(triple)
             else:
                 self._rebuild_relevant_entity(triple[0])
-                self._rebuild_relevant_entity(triple[2])
+                if result[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"):
+                    self._rebuild_relevant_entity(triple[2])
             triples_checked.add(triple)
         self._align_snapshots()
         # Then, the graphs of the entities obtained from the hooks are reconstructed
@@ -625,9 +632,6 @@ class DeltaQuery(AgnosticQuery):
     def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = self.get_full_text_search(uris_in_triple)
-        for uri in uris_in_triple:
-            if triple.index(uri) == 0 or triple.index(uri) == 2:
-                self.reconstructed_entities.add(uri)
         return query_to_identify
     
     def __identify_changed_entities(self, identified_entity:URIRef):

@@ -21,19 +21,16 @@ from time_agnostic_library.support import convert_to_datetime
 
 
 class Statistics:
-    def __init__(self, snapshots:Union[dict,tuple]):
-        if type(snapshots) is tuple:
-            entity_snapshots, other_snapshots = snapshots
+    def __init__(self, data:Union[dict,tuple]):
+        self.data = data
+
+    def get_overhead(self):
+        if type(self.data) is tuple:
+            entity_snapshots, other_snapshots = self.data
             entity_snapshots = sorted([convert_to_datetime(data['generatedAtTime']) for _, data in entity_snapshots.items()], reverse=True)
             other_snapshots = [data['generatedAtTime'] for _, data in other_snapshots.items() if convert_to_datetime(data['generatedAtTime']) >= entity_snapshots[0]]
-            self.snapshots = {'entity': len(entity_snapshots + other_snapshots)}
-        else:
-            self.snapshots = {entity:len(se) for entity,se in snapshots.items()}
-        
-    def get_number_of_snapshots(self):
-        return sum(se for _, se in self.snapshots.items())
-
-    def get_number_of_entities(self):
-        return len(self.snapshots)
-
-    
+            return len(entity_snapshots + other_snapshots)
+        elif type(self.data) is dict:
+            return sum(len(se) for _, se in self.data.items())
+        elif type(self.data) is set:
+            return len(self.data)  

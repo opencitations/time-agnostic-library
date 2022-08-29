@@ -38,11 +38,9 @@ class Test_Statistics(unittest.TestCase):
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.run_agnostic_query()
         statistics = Statistics(agnostic_query.relevant_entities_graphs)
-        number_of_entities = statistics.get_number_of_entities()
-        number_of_snapshots = statistics.get_number_of_snapshots()
-        output = (number_of_entities, number_of_snapshots)
-        expected_output = (3,7)
-        self.assertEqual(output, expected_output)
+        overhead = statistics.get_overhead()
+        expected_output = 7
+        self.assertEqual(overhead, expected_output)
 
     def test_statistics_sv(self):
         query = """
@@ -57,59 +55,81 @@ class Test_Statistics(unittest.TestCase):
         agnostic_query = VersionQuery(query, on_time=('2021-05-31T18:19:47', '2021-05-31T18:19:47'), config_path=CONFIG_PATH)
         agnostic_query.run_agnostic_query()
         statistics = Statistics(agnostic_query.relevant_entities_graphs)
-        number_of_entities = statistics.get_number_of_entities()
-        number_of_snapshots = statistics.get_number_of_snapshots()
-        output = (number_of_entities, number_of_snapshots)
-        expected_output = (1,1)
-        self.assertEqual(output, expected_output)
+        overhead = statistics.get_overhead()
+        expected_output = 1
+        self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_all(self):
         agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
         entity_history, _ = agnostic_entity.get_history()
         statistics = Statistics(entity_history)
-        number_of_entities = statistics.get_number_of_entities()
-        number_of_snapshots = statistics.get_number_of_snapshots()
-        output = (number_of_entities, number_of_snapshots)
-        expected_output = (1,3)
-        self.assertEqual(output, expected_output)
+        overhead = statistics.get_overhead()
+        expected_output = 3
+        self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_single(self):
         agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2021-05-07T09:59:15', '2021-05-07T09:59:15'), include_prov_metadata=True)
         statistics = Statistics((entity_snapshots, other_snapshots))
-        number_of_entities = statistics.get_number_of_entities()
-        number_of_snapshots = statistics.get_number_of_snapshots()
-        output = (number_of_entities, number_of_snapshots)
-        expected_output = (1,3)
-        self.assertEqual(output, expected_output)
+        overhead = statistics.get_overhead()
+        expected_output = 3
+        self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_single_2(self):
         agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2021-05-31T18:19:47', '2021-05-31T18:19:47'), include_prov_metadata=True)
         statistics = Statistics((entity_snapshots, other_snapshots))
-        number_of_entities = statistics.get_number_of_entities()
-        number_of_snapshots = statistics.get_number_of_snapshots()
-        output = (number_of_entities, number_of_snapshots)
-        expected_output = (1,2)
-        self.assertEqual(output, expected_output)
+        overhead = statistics.get_overhead()
+        expected_output = 2
+        self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_single_1(self):
         agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2021-06-01T18:46:41', '2021-06-01T18:46:41'), include_prov_metadata=True)
         statistics = Statistics((entity_snapshots, other_snapshots))
-        number_of_entities = statistics.get_number_of_entities()
-        number_of_snapshots = statistics.get_number_of_snapshots()
-        output = (number_of_entities, number_of_snapshots)
-        expected_output = (1,1)
-        self.assertEqual(output, expected_output)
+        overhead = statistics.get_overhead()
+        expected_output = 1
+        self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_single_interval(self):
         agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2021-05-31T18:19:47', '2021-06-01T18:46:41'), include_prov_metadata=True)
         statistics = Statistics((entity_snapshots, other_snapshots))
-        number_of_entities = statistics.get_number_of_entities()
-        number_of_snapshots = statistics.get_number_of_snapshots()
-        output = (number_of_entities, number_of_snapshots)
-        expected_output = (1,2)
-        self.assertEqual(output, expected_output)
+        overhead = statistics.get_overhead()
+        expected_output = 2
+        self.assertEqual(overhead, expected_output)
+
+    def test_statistics_cd(self):
+        query = """
+            prefix pro: <http://purl.org/spar/pro/>
+            SELECT DISTINCT ?ar
+            WHERE {
+                ?ar a pro:RoleInTime. 
+            }
+        """
+        changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
+        delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_path=CONFIG_PATH)
+        delta_query.run_agnostic_query()
+        statistics = Statistics(delta_query.reconstructed_entities)
+        overhead = statistics.get_overhead()
+        expected_output = 1
+        print(delta_query.reconstructed_entities)
+        self.assertEqual(overhead, expected_output)
+
+    def test_statistics_sd(self):
+        query = """
+            prefix pro: <http://purl.org/spar/pro/>
+            SELECT DISTINCT ?ar
+            WHERE {
+                ?ar a pro:RoleInTime. 
+            }
+        """
+        changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
+        delta_query = DeltaQuery(query=query, on_time=("2021-06-02T18:46:41", "2021-06-02T18:46:41"), changed_properties=changed_properties, config_path=CONFIG_PATH)
+        delta_query.run_agnostic_query()
+        statistics = Statistics(delta_query.reconstructed_entities)
+        overhead = statistics.get_overhead()
+        expected_output = 1
+        self.assertEqual(overhead, expected_output)
+
 
