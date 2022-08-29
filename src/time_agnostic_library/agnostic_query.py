@@ -119,19 +119,13 @@ class AgnosticQuery(object):
                 pbar = tqdm(total=len(present_results))
                 for result in present_results:
                     self._rebuild_relevant_entity(result[0])
-                    if result[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"):
-                        self._rebuild_relevant_entity(result[2])
                     pbar.update()
                 pbar.close()
-                for el in triple:
-                    if triple.index(el) == 0 or (triple.index(el) == 2 and triple[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")):
-                        self._rebuild_relevant_entity(el)
+                self._rebuild_relevant_entity(triple[0])
                 self._find_entities_in_update_queries(triple)
             else:
                 all_isolated = False
                 self._rebuild_relevant_entity(triple[0])
-                if triple[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"):
-                    self._rebuild_relevant_entity(triple[2])
             triples_checked.add(triple)
         self._align_snapshots()
         # Then, the graphs of the entities obtained from the hooks are reconstructed
@@ -420,8 +414,14 @@ class AgnosticQuery(object):
             if se not in self.vars_to_explicit_by_time:
                 self.vars_to_explicit_by_time[se] = set()
                 for triple in self.triples:
-                    if any(el for el in triple if isinstance(el, Variable)) and not self._is_isolated(triple):
+                    if any(el for el in triple if isinstance(el, Variable) and not self._is_a_dead_end(el, triple)) and not self._is_isolated(triple):
                         self.vars_to_explicit_by_time[se].add(triple)
+    
+    def _is_a_dead_end(self, el:Union[URIRef, Variable, Literal], triple:tuple) -> bool:
+        if isinstance(el, Variable):
+            if triple.index(el) == 2 and not any(triple for triple in self.triples if el in triple if triple.index(el) == 0):
+                return True
+        return False
 
     def _cache_entity_graph(self, entity:str, reconstructed_graph:ConjunctiveGraph, timestamp:str, prov_metadata:dict) -> None:
         if entity in self.already_cached_entities:
@@ -580,15 +580,12 @@ class DeltaQuery(AgnosticQuery):
                         self.reconstructed_entities.add(result[2])
                     pbar.update()
                 pbar.close()
-                for el in triple:
-                    if isinstance(el, URIRef):
-                        if triple.index(el) == 0 or (triple.index(el) == 2 and triple[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")):
-                            self.reconstructed_entities.add(el)
+                if isinstance(triple[0], URIRef):
+                    self.reconstructed_entities.add(triple[0])
                 self._find_entities_in_update_queries(triple)
             else:
-                self._rebuild_relevant_entity(triple[0])
-                if result[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"):
-                    self._rebuild_relevant_entity(triple[2])
+                if isinstance(triple[0], URIRef):
+                    self._rebuild_relevant_entity(triple[0])
             triples_checked.add(triple)
         self._align_snapshots()
         # Then, the graphs of the entities obtained from the hooks are reconstructed

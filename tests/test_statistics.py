@@ -39,7 +39,7 @@ class Test_Statistics(unittest.TestCase):
         agnostic_query.run_agnostic_query()
         statistics = Statistics(agnostic_query.relevant_entities_graphs)
         overhead = statistics.get_overhead()
-        expected_output = 7
+        expected_output = 3
         self.assertEqual(overhead, expected_output)
 
     def test_statistics_sv(self):
@@ -113,7 +113,6 @@ class Test_Statistics(unittest.TestCase):
         statistics = Statistics(delta_query.reconstructed_entities)
         overhead = statistics.get_overhead()
         expected_output = 1
-        print(delta_query.reconstructed_entities)
         self.assertEqual(overhead, expected_output)
 
     def test_statistics_sd(self):

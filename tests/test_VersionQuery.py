@@ -799,6 +799,29 @@ class Test_VersionQuery(unittest.TestCase):
         triple = (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
         output = agnostic_query._is_isolated(triple)
         self.assertEqual(output, False)
+    
+    def test___is_a_dead_end(self):
+        query = """
+            prefix literal: <http://www.essepuntato.it/2010/06/literalreification/>
+            prefix datacite: <http://purl.org/spar/datacite/>
+            prefix pro: <http://purl.org/spar/pro/>
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+            SELECT DISTINCT ?o ?id ?value
+            WHERE {
+                <https://github.com/arcangelo7/time_agnostic/ar/15519> pro:isHeldBy ?o;
+                OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/15519> rdf:type pro:RoleInTime.}
+                ?o datacite:hasIdentifier ?id.
+                ?id literal:hasLiteralValue ?value.
+            }
+        """        
+        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        triple_1 = (rdflib.term.URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519"), rdflib.term.URIRef("http://purl.org/spar/pro/isHeldBy"), rdflib.term.Variable("o"))
+        is_a_dead_end_1 = agnostic_query._is_a_dead_end(rdflib.term.URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519"), triple_1)
+        triple_2 = (rdflib.term.Variable("id"), rdflib.term.URIRef("http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue"), rdflib.term.Variable("value"))
+        is_a_dead_end_2 = agnostic_query._is_a_dead_end(rdflib.term.Variable("value"), triple_2)
+        is_a_dead_end = (is_a_dead_end_1, is_a_dead_end_2)
+        self.assertEqual(is_a_dead_end, (False, True))
 
     def test__explicit_solvable_variables(self):
         query = """
