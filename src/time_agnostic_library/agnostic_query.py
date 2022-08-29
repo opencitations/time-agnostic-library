@@ -38,9 +38,11 @@ CONFIG_PATH = "./config.json"
 
 
 class AgnosticQuery(object):
-    def __init__(self, query:str, on_time:Tuple[Union[str, None]]=(None, None), config_path:str=CONFIG_PATH):
+    def __init__(self, query:str, on_time:Tuple[Union[str, None]]=(None, None), other_snapshots:bool=False, config_path:str=CONFIG_PATH):
         self.query = query
+        self.other_snapshots = other_snapshots
         self.config_path = config_path
+        self.other_snapshots_metadata = dict()
         with open(config_path, encoding="utf8") as json_file:
             config = json.load(json_file)
         self.__init_cache(config)
@@ -73,7 +75,7 @@ class AgnosticQuery(object):
 
     def __init_cache(self, config:dict):
         cache_triplestore_url = config["cache_triplestore_url"]
-        self.cache_endpoint = cache_triplestore_url["endpoint"]
+        self.cache_endpoint = cache_triplestore_url["endpoint"] if not self.other_snapshots else None
         if self.cache_endpoint:
             self.sparql_select = SPARQLWrapper(self.cache_endpoint)
             self.sparql_select.setMethod(GET)
@@ -168,11 +170,13 @@ class AgnosticQuery(object):
                     return
             agnostic_entity = AgnosticEntity(entity, related_entities_history=False, config_path=self.config_path)
             if self.on_time:
-                entity_at_time = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=False)
-                if entity_at_time[0]:
-                    for relevant_timestamp, cg in entity_at_time[0].items():
+                entity_graphs, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
+                if other_snapshots:
+                    self.other_snapshots_metadata.update(other_snapshots)
+                if entity_graphs:
+                    for relevant_timestamp, cg in entity_graphs.items():
                         if self.cache_endpoint:
-                            self._cache_entity_graph(entity, cg, relevant_timestamp, entity_at_time[1])
+                            self._cache_entity_graph(entity, cg, relevant_timestamp, entity_snapshots)
                         # store in RAM
                         self.relevant_entities_graphs.setdefault(entity, dict())[relevant_timestamp] = cg
             else:
@@ -506,8 +510,8 @@ class VersionQuery(AgnosticQuery):
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time:Tuple[Union[str, None]]="", config_path:str=CONFIG_PATH):
-        super(VersionQuery, self).__init__(query, on_time, config_path)    
+    def __init__(self, query:str, on_time:Tuple[Union[str, None]]="", other_snapshots=False, config_path:str=CONFIG_PATH):
+        super(VersionQuery, self).__init__(query, on_time, other_snapshots, config_path)    
 
     def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph) -> tuple:
         output = set()
@@ -524,7 +528,7 @@ class VersionQuery(AgnosticQuery):
         normalized_timestamp = convert_to_datetime(timestamp, stringify=True)
         return normalized_timestamp, output
         
-    def run_agnostic_query(self) -> Dict[str, Set[Tuple]]:
+    def run_agnostic_query(self) -> Tuple[Dict[str, Set[Tuple]], dict]:
         """
         Run the query provided as a time-travel query. 
         If the **on_time** argument was specified, it runs on versions within the specified interval, on all versions otherwise.
@@ -538,7 +542,7 @@ class VersionQuery(AgnosticQuery):
                 normalized_timestamp, output = future.result()
                 agnostic_result[normalized_timestamp] = output
         agnostic_result = {timestamp:{tuple(Literal(el, datatype=None) if isinstance(el, Literal) else el for el in result_tuple) for result_tuple in results} for timestamp, results in agnostic_result.items()}
-        return agnostic_result
+        return agnostic_result, self.other_snapshots_metadata
 
 
 class DeltaQuery(AgnosticQuery):
@@ -555,7 +559,7 @@ class DeltaQuery(AgnosticQuery):
     :type config_path: str, optional
     """
     def __init__(self, query:str, on_time:Tuple[Union[str, None]]=(), changed_properties:Set[str]=set(), config_path:str = CONFIG_PATH):
-        super(DeltaQuery, self).__init__(query, on_time, config_path)    
+        super(DeltaQuery, self).__init__(query=query, on_time=on_time, config_path=config_path)    
         self.changed_properties = changed_properties
 
     def _rebuild_relevant_graphs(self) -> None:
@@ -675,7 +679,7 @@ class DeltaQuery(AgnosticQuery):
                         output[identified_entity]["created"] = creation_date
         return output
         
-    def run_agnostic_query(self) -> Dict[str, Dict[str, str]]:
+    def run_agnostic_query(self) -> Tuple[Dict[str, Dict[str, str]], dict]:
         """
         Queries the deltas relevant to the query and the properties set 
         in the specified time interval. If no property was indicated, 

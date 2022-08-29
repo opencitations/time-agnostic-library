@@ -16,7 +16,7 @@
 
 
 from pprint import pprint
-from time_agnostic_library.agnostic_query import VersionQuery, AgnosticEntity
+from time_agnostic_library.agnostic_query import VersionQuery, AgnosticEntity, DeltaQuery
 from time_agnostic_library.statistics import Statistics
 import os
 import unittest
@@ -112,5 +112,4 @@ class Test_Statistics(unittest.TestCase):
         output = (number_of_entities, number_of_snapshots)
         expected_output = (1,2)
         self.assertEqual(output, expected_output)
-
 

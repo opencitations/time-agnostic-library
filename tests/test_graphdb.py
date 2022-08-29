@@ -22,7 +22,7 @@ import rdflib
 import unittest
 
 
-CONFIG_GRAPHDB = "tests/config_graphdb.json"
+CONFIG_PATH = "tests/config_graphdb.json"
 
 
 class Test_GraphDB(unittest.TestCase):
@@ -36,9 +36,11 @@ class Test_GraphDB(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {'2021-05-07T09:59:15': set(), '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}}
+        expected_output = (
+            {'2021-05-07T09:59:15': set(), '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}},
+            dict())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_optional(self):
@@ -51,9 +53,11 @@ class Test_GraphDB(unittest.TestCase):
                 OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}, '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-05-07T09:59:15': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}}
+        expected_output = (
+            {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}, '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-05-07T09:59:15': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}},
+            dict())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_more_variables_and_more_optionals(self):
@@ -70,9 +74,9 @@ class Test_GraphDB(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-31T18:19:47': {
                 ('https://github.com/arcangelo7/time_agnostic/ra/15519', 
                 'https://github.com/arcangelo7/time_agnostic/id/85509', 
@@ -88,7 +92,7 @@ class Test_GraphDB(unittest.TestCase):
                 'https://github.com/arcangelo7/time_agnostic/id/14', 
                 'http://orcid.org/0000-0002-3259-2309')
             }
-        }
+        }, dict())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_obj_var(self):
@@ -105,9 +109,9 @@ class Test_GraphDB(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-07T09:59:15': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519', 'https://github.com/arcangelo7/time_agnostic/id/14')
             },
@@ -117,7 +121,7 @@ class Test_GraphDB(unittest.TestCase):
             '2021-06-01T18:46:41': {
                 (None, 'https://github.com/arcangelo7/time_agnostic/id/14')
             }
-        }
+        }, dict())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_p_obj_var(self):
@@ -134,9 +138,9 @@ class Test_GraphDB(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-07T09:59:15': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','http://purl.org/spar/pro/isHeldBy')
             },
@@ -144,7 +148,7 @@ class Test_GraphDB(unittest.TestCase):
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','http://purl.org/spar/pro/isHeldBy')
             },
             '2021-06-01T18:46:41': {(None, None)}
-        }
+        }, dict())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_subj_obj_var(self):
@@ -155,9 +159,9 @@ class Test_GraphDB(unittest.TestCase):
                 ?s pro:isHeldBy ?o.
             }        
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-07T09:59:15': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','https://github.com/arcangelo7/time_agnostic/ra/15519')
             },
@@ -167,7 +171,7 @@ class Test_GraphDB(unittest.TestCase):
             '2021-06-01T18:46:41': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','https://github.com/arcangelo7/time_agnostic/ra/4')
             }
-        }
+        }, dict())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_var_multi_cont_values(self):
@@ -182,9 +186,9 @@ class Test_GraphDB(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }   
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-07T09:59:15': set(),
             '2021-05-30T16:42:28': set(),
             '2021-05-30T18:15:04': set(),
@@ -212,7 +216,7 @@ class Test_GraphDB(unittest.TestCase):
                 ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751'),
                 ('https://github.com/arcangelo7/time_agnostic/br/33757','https://github.com/arcangelo7/time_agnostic/id/27139','10.1007/s11192-006-0133-x')
             }
-        }
+        }, dict())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_easy_on_time(self):
@@ -225,9 +229,19 @@ class Test_GraphDB(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {'2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}}
+        expected_output = (
+            {'2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}},
+            {
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
+                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1': {
+                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_easy_on_time_no_results(self):
@@ -240,25 +254,17 @@ class Test_GraphDB(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-06", "2021-05-06"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-06-01T18:46:41", "2021-06-01T18:46:41"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = dict()
-        self.assertEqual(output, expected_output)
-
-
-    def test_run_agnostic_query_optional_on_time(self):
-        query = """
-            PREFIX pro: <http://purl.org/spar/pro/>
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            SELECT DISTINCT ?o
-            WHERE {
-                <https://github.com/arcangelo7/time_agnostic/ar/15519> pro:isHeldBy ?o.
-                OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
-            }
-        """
-        agnostic_query = VersionQuery(query, on_time=("2021-06-01T18:46:41", "2021-06-01T18:46:41"), config_path=CONFIG_GRAPHDB)
-        output = agnostic_query.run_agnostic_query()
-        expected_output = {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}}
+        expected_output = (
+            {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}},
+            {
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
+                    'generatedAtTime': '2021-05-31T18:19:47+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
+                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1': {
+                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_more_variables_and_more_optionals_on_time(self):
@@ -275,15 +281,23 @@ class Test_GraphDB(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-07T09:59:15': {
                 ('https://github.com/arcangelo7/time_agnostic/ra/15519', 
                 'https://github.com/arcangelo7/time_agnostic/id/85509', 
                 'http://orcid.org/0000-0002-3259-2309')
-            }
-        }
+            }},
+            {
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
+                    'generatedAtTime': '2021-05-31T18:19:47+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/id/85509/prov/se/2': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_obj_var_on_time(self):
@@ -300,13 +314,23 @@ class Test_GraphDB(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-07T09:59:15': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519', 'https://github.com/arcangelo7/time_agnostic/id/14')
-            }
-        }
+            }},
+            {
+                'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/2': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
+                    'generatedAtTime': '2021-05-31T18:19:47+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/id/14/prov/se/2': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_p_obj_var_on_time(self):
@@ -323,13 +347,13 @@ class Test_GraphDB(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15", "2021-05-07T09:59:15"), other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-07T09:59:15': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','http://purl.org/spar/pro/isHeldBy')
             }
-        }
+        }, dict())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_subj_obj_var_on_time(self):
@@ -340,13 +364,25 @@ class Test_GraphDB(unittest.TestCase):
                 ?s pro:isHeldBy ?o.
             }        
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47", "2021-05-31T18:19:47"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-31T18:19:47': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','https://github.com/arcangelo7/time_agnostic/ra/15519')
-            }
-        }
+            }},
+            {
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
+                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/2': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1': {
+                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2': {
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
+                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1': {
+                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_var_multi_cont_values_on_time(self):
@@ -361,13 +397,13 @@ class Test_GraphDB(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }   
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-30T19:41:57", "2021-05-30T19:41:57"), config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-30T19:41:57", "2021-05-30T19:41:57"), other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-05-30T19:41:57': {
                 ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751')
             }
-        }
+        }, dict())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_updating_relevant_times(self):
@@ -382,9 +418,9 @@ class Test_GraphDB(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }   
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_GRAPHDB)
+        agnostic_query = VersionQuery(query, other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
-        expected_output = {
+        expected_output = ({
             '2021-09-09T14:34:43': set(), 
             '2021-09-13T16:42:27': set(), 
             '2021-09-13T16:43:22': set(), 
@@ -439,7 +475,7 @@ class Test_GraphDB(unittest.TestCase):
                 ('https://github.com/arcangelo7/time_agnostic/br/528725', 'https://github.com/arcangelo7/time_agnostic/id/282401', '10.3109/10673229.2010.493742'), 
                 ('https://github.com/arcangelo7/time_agnostic/br/528727', 'https://github.com/arcangelo7/time_agnostic/id/282403', '10.3928/00220124-20100126-03')
             }
-        }
+        }, dict())
         self.assertEqual(output, expected_output)
 
     def test__get_query_to_update_queries_graphdb(self):
@@ -451,7 +487,7 @@ class Test_GraphDB(unittest.TestCase):
             }
         """
         triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
-        query_to_identify = VersionQuery(query, config_path=CONFIG_GRAPHDB)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
+        query_to_identify = VersionQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify_bds = """
             PREFIX con: <http://www.ontotext.com/connectors/lucene#>
             PREFIX con-inst: <http://www.ontotext.com/connectors/lucene/instance#>
@@ -474,7 +510,7 @@ class Test_GraphDB(unittest.TestCase):
             }
         """
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
-        delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_path=CONFIG_PATH)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -497,7 +533,7 @@ class Test_GraphDB(unittest.TestCase):
         """
         on_time = (None, "2021-06-02T18:46:41")
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_PATH)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -520,7 +556,7 @@ class Test_GraphDB(unittest.TestCase):
         """
         on_time = ("2021-06-01", "2021-06-02T18:46:41")
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_PATH)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -544,7 +580,7 @@ class Test_GraphDB(unittest.TestCase):
         """
         on_time = ("2021-06-02", None)
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_PATH)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -563,7 +599,7 @@ class Test_GraphDB(unittest.TestCase):
                 ?ra a foaf:Agent. 
             }
         """
-        delta_query = DeltaQuery(query=query, config_path=CONFIG_GRAPHDB)
+        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ra/15519': {
