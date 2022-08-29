@@ -542,7 +542,7 @@ class VersionQuery(AgnosticQuery):
                 normalized_timestamp, output = future.result()
                 agnostic_result[normalized_timestamp] = output
         agnostic_result = {timestamp:{tuple(Literal(el, datatype=None) if isinstance(el, Literal) else el for el in result_tuple) for result_tuple in results} for timestamp, results in agnostic_result.items()}
-        return agnostic_result, self.other_snapshots_metadata
+        return agnostic_result, {data["generatedAtTime"] for _, data in self.other_snapshots_metadata.items()}
 
 
 class DeltaQuery(AgnosticQuery):

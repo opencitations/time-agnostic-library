@@ -42,7 +42,7 @@ class Test_Virtuoso(unittest.TestCase):
         output = agnostic_query.run_agnostic_query()
         expected_output = (
             {'2021-05-07T09:59:15': set(), '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}},
-            dict())
+            set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_optional(self):
@@ -59,7 +59,7 @@ class Test_Virtuoso(unittest.TestCase):
         output = agnostic_query.run_agnostic_query()
         expected_output = (
             {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}, '2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-05-07T09:59:15': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}},
-            dict())
+            set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_more_variables_and_more_optionals(self):
@@ -94,7 +94,7 @@ class Test_Virtuoso(unittest.TestCase):
                 'https://github.com/arcangelo7/time_agnostic/id/14', 
                 'http://orcid.org/0000-0002-3259-2309')
             }
-        }, dict())
+        }, set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_obj_var(self):
@@ -123,7 +123,7 @@ class Test_Virtuoso(unittest.TestCase):
             '2021-06-01T18:46:41': {
                 (None, 'https://github.com/arcangelo7/time_agnostic/id/14')
             }
-        }, dict())
+        }, set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_p_obj_var(self):
@@ -150,7 +150,7 @@ class Test_Virtuoso(unittest.TestCase):
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','http://purl.org/spar/pro/isHeldBy')
             },
             '2021-06-01T18:46:41': {(None, None)}
-        }, dict())
+        }, set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_subj_obj_var(self):
@@ -173,7 +173,7 @@ class Test_Virtuoso(unittest.TestCase):
             '2021-06-01T18:46:41': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','https://github.com/arcangelo7/time_agnostic/ra/4')
             }
-        }, dict())
+        }, set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_var_multi_cont_values(self):
@@ -218,7 +218,7 @@ class Test_Virtuoso(unittest.TestCase):
                 ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751'),
                 ('https://github.com/arcangelo7/time_agnostic/br/33757','https://github.com/arcangelo7/time_agnostic/id/27139','10.1007/s11192-006-0133-x')
             }
-        }, dict())
+        }, set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_easy_on_time(self):
@@ -235,15 +235,7 @@ class Test_Virtuoso(unittest.TestCase):
         output = agnostic_query.run_agnostic_query()
         expected_output = (
             {'2021-05-31T18:19:47': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}},
-            {
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
-                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1': {
-                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
+            {'2021-06-01T18:46:41+00:00', '2021-05-07T09:59:15+00:00'})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_easy_on_time_no_results(self):
@@ -256,17 +248,28 @@ class Test_Virtuoso(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
+        agnostic_query = VersionQuery(query, on_time=("2021-05-06", "2021-05-06"), other_snapshots=True, config_path=CONFIG_PATH)
+        output = agnostic_query.run_agnostic_query()
+        expected_output = (
+            dict(), 
+            {'2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00', '2021-05-07T09:59:15+00:00'})
+        self.assertEqual(output, expected_output)
+
+    def test_run_agnostic_query_optional_on_time(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            SELECT DISTINCT ?o
+            WHERE {
+                <https://github.com/arcangelo7/time_agnostic/ar/15519> pro:isHeldBy ?o.
+                OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
+            }
+        """
         agnostic_query = VersionQuery(query, on_time=("2021-06-01T18:46:41", "2021-06-01T18:46:41"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
             {'2021-06-01T18:46:41': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}},
-            {
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                    'generatedAtTime': '2021-05-31T18:19:47+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
-                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1': {
-                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
+            {'2021-05-31T18:19:47+00:00', '2021-05-07T09:59:15+00:00'})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_more_variables_and_more_optionals_on_time(self):
@@ -291,15 +294,7 @@ class Test_Virtuoso(unittest.TestCase):
                 'https://github.com/arcangelo7/time_agnostic/id/85509', 
                 'http://orcid.org/0000-0002-3259-2309')
             }},
-            {
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                    'generatedAtTime': '2021-05-31T18:19:47+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/id/85509/prov/se/2': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
+            {'2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00'})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_obj_var_on_time(self):
@@ -322,17 +317,7 @@ class Test_Virtuoso(unittest.TestCase):
             '2021-05-07T09:59:15': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519', 'https://github.com/arcangelo7/time_agnostic/id/14')
             }},
-            {
-                'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/2': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                    'generatedAtTime': '2021-05-31T18:19:47+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/id/14/prov/se/2': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
+            {'2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00'})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_p_obj_var_on_time(self):
@@ -355,7 +340,7 @@ class Test_Virtuoso(unittest.TestCase):
             '2021-05-07T09:59:15': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','http://purl.org/spar/pro/isHeldBy')
             }
-        }, dict())
+        }, set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_subj_obj_var_on_time(self):
@@ -372,19 +357,7 @@ class Test_Virtuoso(unittest.TestCase):
             '2021-05-31T18:19:47': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519','https://github.com/arcangelo7/time_agnostic/ra/15519')
             }},
-            {
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
-                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/2': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1': {
-                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}, 
-                'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1': {
-                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 'hadPrimarySource': None}})
+            {'2021-06-01T18:46:41+00:00', '2021-05-07T09:59:15+00:00'})
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_var_multi_cont_values_on_time(self):
@@ -405,7 +378,7 @@ class Test_Virtuoso(unittest.TestCase):
             '2021-05-30T19:41:57': {
                 ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751')
             }
-        }, dict())
+        }, set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_updating_relevant_times(self):
@@ -477,7 +450,7 @@ class Test_Virtuoso(unittest.TestCase):
                 ('https://github.com/arcangelo7/time_agnostic/br/528725', 'https://github.com/arcangelo7/time_agnostic/id/282401', '10.3109/10673229.2010.493742'), 
                 ('https://github.com/arcangelo7/time_agnostic/br/528727', 'https://github.com/arcangelo7/time_agnostic/id/282403', '10.3928/00220124-20100126-03')
             }
-        }, dict())
+        }, set())
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_cross_delta(self):
