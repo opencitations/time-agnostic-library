@@ -1047,7 +1047,7 @@ class Test_VersionQuery(unittest.TestCase):
                 }
             }
         expected_reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
-        agnostic_query._find_entities_in_update_queries(triple)
+        agnostic_query._find_entities_in_update_queries(triple, set())
         assert (agnostic_query.reconstructed_entities, _to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs)) == (expected_reconstructed_entities, expected_relevant_entities_graphs)
     
     def test__cache_entity_graph(self):

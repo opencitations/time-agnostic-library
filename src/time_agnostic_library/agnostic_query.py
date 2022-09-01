@@ -116,13 +116,9 @@ class AgnosticQuery(object):
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 query_to_identify = self._get_query_to_identify(triple)
                 present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
-                pbar = tqdm(total=len(present_results))
-                for result in present_results:
-                    self._rebuild_relevant_entity(result[0])
-                    pbar.update()
-                pbar.close()
+                present_entities = {result[0] for result in present_results}
                 self._rebuild_relevant_entity(triple[0])
-                self._find_entities_in_update_queries(triple)
+                self._find_entities_in_update_queries(triple, present_entities)
             else:
                 all_isolated = False
                 self._rebuild_relevant_entity(triple[0])
@@ -272,9 +268,9 @@ class AgnosticQuery(object):
             '''
         return query_to_identify
 
-    def _find_entities_in_update_queries(self, triple:tuple):
+    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
-        relevant_entities_found = set()
+        relevant_entities_found = present_entities
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config_path).run_select_query()
         if results:
@@ -288,12 +284,11 @@ class AgnosticQuery(object):
                                 relevant_entities = set(triple).difference(uris_in_triple) if len(uris_in_triple.intersection(triple)) == len(uris_in_triple) else None
                                 if relevant_entities is not None:
                                     relevant_entities_found.update(relevant_entities)
-        new_entities_found = relevant_entities_found.difference(self.reconstructed_entities)
-        if new_entities_found:
+        if relevant_entities_found:
             print(f"[VersionQuery:INFO] Rebuilding relevant entities' history.")
-            pbar = tqdm(total=len(new_entities_found))
+            pbar = tqdm(total=len(relevant_entities_found))
             with ThreadPoolExecutor() as executor:
-                results = [executor.submit(self._rebuild_relevant_entity, new_entity_found) for new_entity_found in new_entities_found]
+                results = [executor.submit(self._rebuild_relevant_entity, new_entity_found) for new_entity_found in relevant_entities_found]
                 for _ in as_completed(results):
                     pbar.update()
             pbar.close()
