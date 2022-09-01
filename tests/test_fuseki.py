@@ -533,13 +533,7 @@ class Test_Fuseki(unittest.TestCase):
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}   
         delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_PATH)
         agnostic_results = delta_query.run_agnostic_query()
-        expected_output = {
-            'https://github.com/arcangelo7/time_agnostic/ar/15519': {
-                'created': None, 
-                'modified': {}, 
-                'deleted': None
-            }
-        }
+        expected_output = dict()
         self.assertEqual(agnostic_results, expected_output)
 
     def test_run_agnostic_query_on_deleted_entity(self):

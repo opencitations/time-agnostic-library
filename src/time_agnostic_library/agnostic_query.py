@@ -576,16 +576,13 @@ class DeltaQuery(AgnosticQuery):
                 for result in present_results:
                     if isinstance(result[0], URIRef):
                         self.reconstructed_entities.add(result[0])
-                    if isinstance(result[2], URIRef) and result[1] != URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"):
-                        self.reconstructed_entities.add(result[2])
                     pbar.update()
                 pbar.close()
                 if isinstance(triple[0], URIRef):
                     self.reconstructed_entities.add(triple[0])
                 self._find_entities_in_update_queries(triple)
             else:
-                if isinstance(triple[0], URIRef):
-                    self._rebuild_relevant_entity(triple[0])
+                self._rebuild_relevant_entity(triple[0])
             triples_checked.add(triple)
         self._align_snapshots()
         # Then, the graphs of the entities obtained from the hooks are reconstructed
@@ -652,19 +649,19 @@ class DeltaQuery(AgnosticQuery):
         """
         results = Sparql(query, self.config_path).run_select_query()
         if results:
-            identified_entity = str(identified_entity)
-            output[identified_entity] = {
-                "created": None,
-                "modified": dict(), 
-                "deleted": None
-            }
-            results = sorted(list(results), key=lambda x:convert_to_datetime(x[0]))
-            creation_date = convert_to_datetime(results[0][0], stringify=True)
-            exists = Sparql(query_existence, self.config_path).run_select_query()
-            if not exists:
-                output[identified_entity]["deleted"] = convert_to_datetime(results[-1][0], stringify=True)
             relevant_results = list(_filter_timestamps_by_interval(self.on_time, results, 0))
             if relevant_results:
+                identified_entity = str(identified_entity)
+                output[identified_entity] = {
+                    "created": None,
+                    "modified": dict(), 
+                    "deleted": None
+                }
+                results = sorted(list(results), key=lambda x:convert_to_datetime(x[0]))
+                creation_date = convert_to_datetime(results[0][0], stringify=True)
+                exists = Sparql(query_existence, self.config_path).run_select_query()
+                if not exists:
+                    output[identified_entity]["deleted"] = convert_to_datetime(results[-1][0], stringify=True)
                 for result_tuple in relevant_results:
                     time = convert_to_datetime(result_tuple[0], stringify=True)
                     if time != creation_date:
