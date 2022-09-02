@@ -824,6 +824,33 @@ class Test_AgnosticEntity(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> \\"Giulio Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> \\"Giulio\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> \\"Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }"'
         ]
         self.assertEqual(output, expected_output)
+    
+    def test_materialization_with_blank_node(self):
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/br/528728', config_path="tests/config.json")
+        output = _to_dict_of_nt_sorted_lists(agnostic_entity.get_history()[0])
+        expected_output = {
+            'https://github.com/arcangelo7/time_agnostic/br/528728': {
+                '2021-09-13T16:42:27': [
+                    '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/282404>', 
+                    '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://purl.org/spar/datacite/hasIdentifier> _:identifier', 
+                    '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/Expression>', 
+                    '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/JournalArticle>'], 
+                '2021-09-13T16:51:57': [
+                    '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/282404>', 
+                    '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/Expression>', 
+                    '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/JournalArticle>']}}
+        self.assertEqual(output, expected_output)
+
+    def test_materialization_sv_with_blank_node(self):
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/br/528728', config_path="tests/config.json")
+        output = _to_dict_of_nt_sorted_lists(agnostic_entity.get_state_at_time(time=('2021-09-13T16:42:27', '2021-09-13T16:42:27'))[0])
+        expected_output = {'2021-09-13T16:42:27': [
+            '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/282404>', 
+            '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://purl.org/spar/datacite/hasIdentifier> _:identifier', 
+            '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/Expression>', 
+            '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/JournalArticle>']}
+        self.assertEqual(output, expected_output)
+    
 
 if __name__ == '__main__':
     unittest.main()
