@@ -174,6 +174,9 @@ class AgnosticQuery(object):
                             self._cache_entity_graph(entity, cg, relevant_timestamp, entity_snapshots)
                         # store in RAM
                         self.relevant_entities_graphs.setdefault(entity, dict())[relevant_timestamp] = cg
+                elif self.cache_endpoint:
+                    # Record that in this period there are no relevant timestamps
+                    self._cache_entity_graph(entity, ConjunctiveGraph(), dict(), dict())
             else:
                 entity_history = agnostic_entity.get_history(include_prov_metadata=True)
                 if entity_history[0][entity]:
@@ -433,8 +436,10 @@ class AgnosticQuery(object):
         if not self.on_time:
             self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> 'true'}}}}")
         elif self.on_time:
-            self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> '{self.on_time[0]}'}}}}")
-            self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> '{self.on_time[1]}'}}}}")
+            if self.on_time[0]:
+                self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> '{self.on_time[0]}'}}}}")
+            if self.on_time[1]:
+                self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> '{self.on_time[1]}'}}}}")
         insert_query = get_insert_query(graph_iri=graph_iri, data=reconstructed_graph)[0]
         if insert_query:
             self.cache_insert_queries.append(insert_query)
@@ -454,8 +459,12 @@ class AgnosticQuery(object):
         query_timestamps = f"""
         SELECT DISTINCT ?p ?o ?datatype ?c ?complete ?relevant ?startingDate ?endingDate
         WHERE {{
-            GRAPH ?relevant {{?se <{ProvEntity.iri_specialization_of}> <{entity}>.}}
-            GRAPH ?c {{<{URIRef(entity)}> ?p ?o. BIND (datatype(?o) AS ?datatype)}}
+            OPTIONAL {{            
+                GRAPH ?relevant {{?se <{ProvEntity.iri_specialization_of}> <{entity}>.}}
+                GRAPH ?c {{
+                    <{URIRef(entity)}> ?p ?o. 
+                    BIND (datatype(?o) AS ?datatype).}}
+            }}
             OPTIONAL {{
                 GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.}}
             }}
@@ -484,16 +493,21 @@ class AgnosticQuery(object):
                 is_within_cached_interval = is_within_time_range(self.on_time, (starting_date, ending_date))
             if is_within_cached_interval:
                 for result in results["results"]["bindings"]:
-                    relevant_timestamp = result["relevant"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
-                    found_timestamp = result["c"]["value"].split("https://github.com/opencitations/time-agnostic-library/")[-1]
-                    # Relevant times must be checked separately, because if in a certain snapshot the entity has been deleted, 
-                    # that time will be among the relevant times but not among the times found
-                    if is_within_time_range((relevant_timestamp, relevant_timestamp), self.on_time):
-                        cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
-                    if found_timestamp == relevant_timestamp and is_within_time_range((found_timestamp, found_timestamp), self.on_time):
-                        obj = result["o"]["value"]
-                        obj = Literal(obj) if 'datatype' in result else URIRef(obj)
-                        cached_graphs[found_timestamp].add((URIRef(entity), URIRef(result["p"]["value"]), obj))
+                    if "relevant" in result:
+                        relevant_timestamp = result["relevant"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
+                        found_timestamp = result["c"]["value"].split("https://github.com/opencitations/time-agnostic-library/")[-1]
+                        # Relevant times must be checked separately, because if in a certain snapshot the entity has been deleted, 
+                        # that time will be among the relevant times but not among the times found
+                        if is_within_time_range((relevant_timestamp, relevant_timestamp), self.on_time):
+                            cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
+                        if found_timestamp == relevant_timestamp and is_within_time_range((found_timestamp, found_timestamp), self.on_time):
+                            obj = result["o"]["value"]
+                            obj = Literal(obj) if 'datatype' in result else URIRef(obj)
+                            cached_graphs[found_timestamp].add((URIRef(entity), URIRef(result["p"]["value"]), obj))
+                    if starting_date:
+                        cached_graphs.setdefault(starting_date, ConjunctiveGraph())
+                    if ending_date:
+                        cached_graphs.setdefault(ending_date, ConjunctiveGraph())
         return cached_graphs
 
 class VersionQuery(AgnosticQuery):
