@@ -1813,7 +1813,7 @@
     ],
     "https://w3id.org/oc/ontology/hasUpdateQuery": [
       {
-        "@value": "INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/br/> { <https://github.com/arcangelo7/time_agnostic/br/528724> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/JournalArticle> .\n<https://github.com/arcangelo7/time_agnostic/br/528724> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/282400> .\n<https://github.com/arcangelo7/time_agnostic/br/528724> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/Expression> . } }"
+        "@value": "INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/br/> { <https://github.com/arcangelo7/time_agnostic/br/528724> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/JournalArticle> .\n<https://github.com/arcangelo7/time_agnostic/br/528724> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/Expression> . } }; DELETE DATA {GRAPH <https://github.com/arcangelo7/time_agnostic/br/> {<https://github.com/arcangelo7/time_agnostic/br/528724> <http://purl.org/spar/datacite/hasIdentifier> _:identifier .}}"
       }
     ]
   },
@@ -2168,7 +2168,7 @@
     ],
     "https://w3id.org/oc/ontology/hasUpdateQuery": [
       {
-        "@value": "INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/br/> { <https://github.com/arcangelo7/time_agnostic/br/528728> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/282404> .\n<https://github.com/arcangelo7/time_agnostic/br/528728> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/JournalArticle> .\n<https://github.com/arcangelo7/time_agnostic/br/528728> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/Expression> . } }"
+        "@value": "PREFIX base: <https://github.com/arcangelo7/time_agnostic/>\n PREFIX datacite: <http://purl.org/spar/datacite/>\n PREFIX base_br: <https://github.com/arcangelo7/time_agnostic/br/> DELETE DATA { GRAPH base:br {base_br:528728 datacite:hasIdentifier _:identifier . } }"
       }
     ]
   },
