@@ -75,6 +75,14 @@ class Test_Statistics(unittest.TestCase):
         expected_output = 3
         self.assertEqual(overhead, expected_output)
 
+    def test_statistics_ma_single_zero(self):
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
+        _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2022-05-07T09:59:15', '2022-05-07T09:59:15'), include_prov_metadata=True)
+        statistics = Statistics((entity_snapshots, other_snapshots))
+        overhead = statistics.get_overhead()
+        expected_output = 0
+        self.assertEqual(overhead, expected_output)
+
     def test_statistics_ma_single_2(self):
         agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2021-05-31T18:19:47', '2021-05-31T18:19:47'), include_prov_metadata=True)
