@@ -334,7 +334,8 @@ class AgnosticQuery(object):
                             explicit_triples.setdefault(se, dict())
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(result)
-                            self._rebuild_relevant_entity(result[variable_index])
+                        with ThreadPoolExecutor() as executor:
+                            executor.map(self._rebuild_relevant_entity, [result[variable_index] for result in results]) 
         return explicit_triples
 
     def _upload_data_to_cache(self):
