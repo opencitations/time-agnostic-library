@@ -457,24 +457,36 @@ class AgnosticQuery(object):
 
     def _get_relevant_timestamps_from_cache(self, entity:URIRef) -> Dict[str, Graph]:
         cached_graphs = dict()
+        query_completeness = f"""
+        OPTIONAL {{GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.}}}}
+        OPTIONAL {{
+            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> ?startingDate. }}
+        }}
+        OPTIONAL {{
+            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> ?endingDate. }}
+        }}
+        """ if not self.on_time else f"""
+        OPTIONAL {{
+            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.}}
+        }}
+        OPTIONAL {{
+            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> ?startingDate. }}
+        }}
+        OPTIONAL {{
+            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> ?endingDate. }}
+        }}
+        """
+        select = '?complete ?startingDate ?endingDate' if self.on_time else '?complete'
         query_timestamps = f"""
-        SELECT DISTINCT ?p ?o ?datatype ?c ?complete ?relevant ?startingDate ?endingDate
+        SELECT DISTINCT ?p ?o ?datatype ?c ?relevant {select}
         WHERE {{
             OPTIONAL {{            
-                GRAPH ?relevant {{?se <{ProvEntity.iri_specialization_of}> <{entity}>.}}
+                GRAPH ?relevant {{<{entity}> ^<{ProvEntity.iri_specialization_of}> ?se.}}
                 GRAPH ?c {{
                     <{URIRef(entity)}> ?p ?o. 
                     BIND (datatype(?o) AS ?datatype).}}
             }}
-            OPTIONAL {{
-                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.}}
-            }}
-            OPTIONAL {{
-                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> ?startingDate. }}
-            }}
-            OPTIONAL {{
-                GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> ?endingDate. }}
-            }}                    
+            {query_completeness}                 
         }}
         """
         self.sparql_select.setQuery(query_timestamps)
@@ -505,10 +517,10 @@ class AgnosticQuery(object):
                             obj = result["o"]["value"]
                             obj = Literal(obj) if 'datatype' in result else URIRef(obj)
                             cached_graphs[found_timestamp].add((URIRef(entity), URIRef(result["p"]["value"]), obj))
-                    if starting_date:
-                        cached_graphs.setdefault(starting_date, ConjunctiveGraph())
-                    if ending_date:
-                        cached_graphs.setdefault(ending_date, ConjunctiveGraph())
+            if starting_date and is_within_time_range(self.on_time, (starting_date, None)):
+                cached_graphs.setdefault(starting_date, ConjunctiveGraph())
+            if ending_date and is_within_time_range(self.on_time, (None, ending_date)):
+                cached_graphs.setdefault(ending_date, ConjunctiveGraph())
         return cached_graphs
 
 class VersionQuery(AgnosticQuery):
