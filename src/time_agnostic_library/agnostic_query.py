@@ -17,6 +17,7 @@
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
+from rdflib.namespace import XSD
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
@@ -445,12 +446,8 @@ class AgnosticQuery(object):
         if insert_query:
             self.cache_insert_queries.append(insert_query)
         prov = Graph()
-        for en, metadata in prov_metadata.items(): 
-            if 'generatedAtTime' in metadata:
-                prov.add((URIRef(en), ProvEntity.iri_specialization_of, URIRef(entity)))
-            else:
-                for se, _ in metadata.items():
-                    prov.add((URIRef(se), ProvEntity.iri_specialization_of, URIRef(en)))
+        if prov_metadata: 
+            prov.add((URIRef(entity), URIRef('https://github.com/opencitations/time-agnostic-library/hasRelevantTime'), Literal(timestamp, datatype=XSD.string)))
         prov_insert_query = get_insert_query(graph_iri=graph_iri_relevant, data=prov)[0]
         if prov_insert_query:
             self.cache_insert_queries.append(prov_insert_query)
@@ -478,10 +475,9 @@ class AgnosticQuery(object):
         """
         select = '?complete ?startingDate ?endingDate' if self.on_time else '?complete'
         query_timestamps = f"""
-        SELECT DISTINCT ?p ?o ?datatype ?c ?relevant {select}
+        SELECT DISTINCT ?p ?o ?datatype ?c {select}
         WHERE {{
             OPTIONAL {{            
-                GRAPH ?relevant {{<{entity}> ^<{ProvEntity.iri_specialization_of}> ?se.}}
                 GRAPH ?c {{
                     <{URIRef(entity)}> ?p ?o. 
                     BIND (datatype(?o) AS ?datatype).}}
@@ -489,8 +485,14 @@ class AgnosticQuery(object):
             {query_completeness}                 
         }}
         """
-        self.sparql_select.setQuery(query_timestamps)
+        query_relevant_timestamps = f"""
+        SELECT DISTINCT ?relevant
+        WHERE {{<{entity}> <https://github.com/opencitations/time-agnostic-library/hasRelevantTime> ?relevant.}}
+        """
+        self.sparql_select.setQuery(query_relevant_timestamps)
         self.sparql_select.setReturnFormat(JSON)
+        relevant_timestamps = {relevant_timestamp['relevant']['value'] for relevant_timestamp in self.sparql_select.queryAndConvert()['results']['bindings']}
+        self.sparql_select.setQuery(query_timestamps)
         results = self.sparql_select.queryAndConvert()
         is_within_cached_interval = False
         if results["results"]["bindings"]:
@@ -505,15 +507,15 @@ class AgnosticQuery(object):
             if not is_within_cached_interval and self.on_time:
                 is_within_cached_interval = is_within_time_range(self.on_time, (starting_date, ending_date))
             if is_within_cached_interval:
+                # Relevant times must be checked separately, because if in a certain snapshot the entity has been deleted, 
+                # that time will be among the relevant times but not among the times found
+                for relevant_timestamp in relevant_timestamps:
+                    if is_within_time_range((relevant_timestamp, relevant_timestamp), self.on_time):
+                        cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
                 for result in results["results"]["bindings"]:
-                    if "relevant" in result:
-                        relevant_timestamp = result["relevant"]["value"].split("https://github.com/opencitations/time-agnostic-library/relevant/")[-1]
+                    if relevant_timestamps:
                         found_timestamp = result["c"]["value"].split("https://github.com/opencitations/time-agnostic-library/")[-1]
-                        # Relevant times must be checked separately, because if in a certain snapshot the entity has been deleted, 
-                        # that time will be among the relevant times but not among the times found
-                        if is_within_time_range((relevant_timestamp, relevant_timestamp), self.on_time):
-                            cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
-                        if found_timestamp == relevant_timestamp and is_within_time_range((found_timestamp, found_timestamp), self.on_time):
+                        if found_timestamp in relevant_timestamps and is_within_time_range((found_timestamp, found_timestamp), self.on_time):
                             obj = result["o"]["value"]
                             obj = Literal(obj) if 'datatype' in result else URIRef(obj)
                             cached_graphs[found_timestamp].add((URIRef(entity), URIRef(result["p"]["value"]), obj))
