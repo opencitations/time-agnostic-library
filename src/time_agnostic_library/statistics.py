@@ -27,9 +27,12 @@ class Statistics:
     def get_overhead(self):
         if type(self.data) is tuple:
             entity_snapshots, other_snapshots = self.data
-            entity_snapshots = sorted([convert_to_datetime(data['generatedAtTime']) for _, data in entity_snapshots.items()], reverse=True)
-            other_snapshots = [data['generatedAtTime'] for _, data in other_snapshots.items() if convert_to_datetime(data['generatedAtTime']) >= entity_snapshots[0]]
-            return len(entity_snapshots + other_snapshots)
+            if entity_snapshots:
+                entity_snapshots = sorted([convert_to_datetime(data['generatedAtTime']) for _, data in entity_snapshots.items()], reverse=True)
+                other_snapshots = [data['generatedAtTime'] for _, data in other_snapshots.items() if convert_to_datetime(data['generatedAtTime']) >= entity_snapshots[0]]
+                return len(entity_snapshots + other_snapshots)
+            else:
+                return 0
         elif type(self.data) is dict:
             return sum(len(se) for _, se in self.data.items())
         elif type(self.data) is set:

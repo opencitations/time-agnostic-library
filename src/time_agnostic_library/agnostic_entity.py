@@ -157,9 +157,20 @@ class AgnosticEntity:
             return None, None, None
         results.sort(key=lambda x:convert_to_datetime(x[1]), reverse=True)
         relevant_results = _filter_timestamps_by_interval(time, results, time_index=1)
+        other_snapshots_metadata = None
         entity_snapshots = dict()
         entity_graphs = dict()
-        relevant_snapshots = set()
+        if include_prov_metadata:
+            other_snapshots = [snapshot for snapshot in results if snapshot[0] not in {relevant_result[0] for relevant_result in relevant_results}]
+            other_snapshots_metadata = dict()
+            for other_snapshot in other_snapshots:
+                other_snapshots_metadata[other_snapshot[0]] = {
+                    "generatedAtTime": other_snapshot[1],
+                    "wasAttributedTo": other_snapshot[2],
+                    "hadPrimarySource": other_snapshot[4]
+            }
+        if not relevant_results:
+            return entity_graphs, entity_snapshots, other_snapshots_metadata
         entity_cg = self._query_dataset()
         for relevant_result in relevant_results:
             sum_update_queries = ""
@@ -175,18 +186,7 @@ class AgnosticEntity:
                 "wasAttributedTo": relevant_result[2],
                 "hadPrimarySource": relevant_result[4]
             }
-            relevant_snapshots.add(relevant_result[0])
-        if include_prov_metadata:
-            results = [snapshot for snapshot in results if snapshot[0] not in relevant_snapshots]
-            other_snapshots = dict()
-            for result_tuple in results:
-                other_snapshots[result_tuple[0]] = {
-                    "generatedAtTime": result_tuple[1],
-                    "wasAttributedTo": result_tuple[2],
-                    "hadPrimarySource": result_tuple[4]
-            }
-            return entity_graphs, entity_snapshots, other_snapshots
-        return entity_graphs, entity_snapshots, None
+        return entity_graphs, entity_snapshots, other_snapshots_metadata
     
     def _include_prov_metadata(self, triples_generated_at_time:list, current_state:ConjunctiveGraph) -> dict:
         if list(current_state.triples((URIRef(self.res), URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), ProvEntity.iri_entity))): 
