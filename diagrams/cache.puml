@@ -1,0 +1,34 @@
+@startuml
+!theme blueprint
+actor User
+participant VersionQuery
+database Cache
+
+group _cache_entity_graph
+VersionQuery -> Cache: insert_query
+end
+group _rebuild_relevant_entity()
+    alt cache_triplestore_url
+        group _get_relevant_timestamps_from_cache()
+        VersionQuery -> Cache: query_timestamps
+        Cache -> VersionQuery: results
+        end
+        alt complete == "true" OR\n is_within_required_interval(startingCachedDate, endingCacheDate)
+        VersionQuery -> VersionQuery: _store_relevant_timestamps()
+        note right
+        return without materializing 
+        the entity history
+        end note
+        end
+    end
+end
+User -> VersionQuery: run_agnostic_query()
+alt cache_triplestore_url
+    loop relevant_graphs
+    VersionQuery -> VersionQuery: split_by_where
+    VersionQuery -> Cache: query_named_graph
+    Cache --> VersionQuery
+    end
+end
+VersionQuery -> User: agnostic_results
+@enduml
