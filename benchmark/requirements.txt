@@ -1,2 +1,2 @@
-time-agnostic-library==2.2.3
+time-agnostic-library==4.3.0
 psutil==5.9.0
