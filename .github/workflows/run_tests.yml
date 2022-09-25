@@ -39,7 +39,7 @@ jobs:
         pip3 install poetry
         poetry install
         poetry run pip3 install coverage
-        python3 tests/download_test_datasets.py
+        poetry run python3 tests/download_test_datasets.py
     - name: Check the overage
       run: |
         poetry run coverage run --rcfile=test/coverage/.coveragerc
