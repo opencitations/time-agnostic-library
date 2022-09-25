@@ -46,7 +46,7 @@ jobs:
     - name: Generate the badge
       run: |
         mv .coverage tests/coverage/
-        cd test/coverage/
+        cd tests/coverage/
         rm coverage.svg
         poetry run coverage-badge -o coverage.svg
     - uses: actions/upload-artifact@v3.1.0
