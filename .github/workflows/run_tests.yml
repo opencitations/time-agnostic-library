@@ -38,8 +38,6 @@ jobs:
       run: |
         pip3 install poetry
         poetry install
-        poetry run pip3 install coverage
-        poetry run pip3 install coverage-badge
         poetry run python3 tests/download_test_datasets.py
         python3 -c 'import time; time.sleep(10)'
     - name: Check the overage
