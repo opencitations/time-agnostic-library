@@ -42,7 +42,7 @@ jobs:
         poetry run python3 tests/download_test_datasets.py
     - name: Check the overage
       run: |
-        poetry run coverage run --rcfile=test/coverage/.coveragerc
+        poetry run coverage run --rcfile=tests/coverage/.coveragerc
     - name: Generate the badge
       run: |
         mv .coverage tests/coverage/
