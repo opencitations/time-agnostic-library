@@ -852,5 +852,5 @@ class Test_AgnosticEntity(unittest.TestCase):
         self.assertEqual(output, expected_output)
     
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     unittest.main()

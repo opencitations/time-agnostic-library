@@ -81,7 +81,7 @@ def launch_virtuoso(ts_dir:str):
         creationflags=CREATE_NEW_CONSOLE
     )
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     if not os.path.isfile(f'{BASE_DIR}/blazegraph.jnl'):
         download_tests_datasets_from_zenodo()
         unzip(f'{BASE_DIR}/tests.zip', f'{BASE_DIR}/')

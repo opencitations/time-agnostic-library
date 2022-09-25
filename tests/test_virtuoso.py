@@ -566,5 +566,5 @@ class Test_Virtuoso(unittest.TestCase):
         self.assertEqual(agnostic_results, expected_output)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     unittest.main()
