@@ -393,27 +393,12 @@ The configuration file is mainly used to indicate to the library where to search
 
 ### How to benchmark
 
-Two benchmarks were performed, one on the **execution times** and the other on the **RAM**. The experiments were conducted on the dataset described in [10.5281/zenodo.5579743](https://doi.org/10.5281/zenodo.5579743), using a computer with the following hardware specifications. Only the components relevant to the results' reproduction are reported:
+Two benchmarks were designed, one on the execution times and the other on the RAM. Moreover, all benchmarks are performed on four different triplestores: Blazegraph, GraphDB Free Edition, Apache Jena Fuseki, and OpenLink Virtuoso.
 
-<table>
-  <tr>
-    <th>CPU</th>
-    <td>Intel Core i5 8500 @ 3.00 GHz, 6 core, 6 logic processors</td>
-  </tr>
-  <tr>
-    <th>RAM</th>
-    <td>32 GB DDR4 3000 MHz CL15</td>
-  </tr>
-  <tr>
-    <th>Storage</th>
-    <td>1 TB SSD Nvme PCIe 3.0</td>
-  </tr>
-</table
+The dataset used for the benchmarks contains bibliographical information about scholarly works in the journal Scientometrics only if the DOI is known. The data was extracted via Crossref. It is a temporal dataset in which provenance information and change-tracking have been managed by adopting the OpenCitations Data Model. Moreover, the dataset contains information on all the cited academic works. Journals, bibliographic resources, and authors always appear unambiguously, without duplicates. Finally, heuristics have been applied to recover the DOI of the cited works in case Crossref did not provide such information.
 
-The results obtained strictly depend on the hardware employed and are reproducible uniquely under the same conditions. They are available at [10.5281/zenodo.5579701](https://doi.org/10.5281/zenodo.5579701), as well as the code to reproduce them. 
-
-In order to reproduce the benchmark results, do the following steps:
-1. Download the dataset from [10.5281/zenodo.5579701](https://doi.org/10.5281/zenodo.5579701). 
+In order to run the benchmark, do the following steps:
+1. Download the dataset from [10.5281/zenodo.7105258](https://doi.org/10.5281/zenodo.7105258). 
 2. Extract `reproduce_results.zip`. 
     + _on Windows_
       
@@ -421,7 +406,7 @@ In order to reproduce the benchmark results, do the following steps:
     + _on Linux and MacOs_
       
       Execute `run_banchmarks.sh`
-3. As the results become available, they are readable in the `statistics.json` file within the folder where you run the bash script.
+3. As the results become available, they can be read by opening `json_to_table.html` via a local server.
 
 In the event that the execution should stop due to unforeseen causes, it will resume from where it was interrupted.
 
