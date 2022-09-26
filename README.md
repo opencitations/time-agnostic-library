@@ -309,7 +309,7 @@ The configuration file is mainly used to indicate to the library where to search
 - **provenance** (required)
   - **triplestore_urls**: Specify a list of triplestore URLs containing provenance metadata.    
   - **file_paths** Specify a list of paths of files containing provenance metadata.      
-- **blazegraph_full_text_search** (optional): Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see [https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure](https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure). The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
+- **blazegraph_full_text_search**, **fuseki_full_text_search**, **virtuoso_full_text_search** (optional): Specify an affirmative Boolean value if Blazegraph, Fuseki or Virtuoso was used as a triplestore, and a textual index was built to speed up queries. For more information, see [https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure](https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure). The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
 - **graphdb_connector_name** (optional): Specify the name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see [https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html](https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html).
 - **cache_triplestore_url** (optional): Specifies the triplestore URL to use as a cache to make queries faster. If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for reading in the "endpoint" field and the endpoint for writing in the "update_endpoint" field. If there is only one endpoint (e.g. Blazegraph), specify it in both fields.
 
@@ -324,6 +324,8 @@ The configuration file is mainly used to indicate to the library where to search
           "file_paths": ["PATH_1", "PATH_2", "PATH_N"]
       },
       "blazegraph_full_text_search": "no",
+      "fuseki_full_text_search": "no",
+      "virtuoso_full_text_search": "no",
       "graphdb_connector_name": "CONNECTOR_NAME",
       "cache_triplestore_url": {
         "endpoint": "READ_ENDPOINT",
