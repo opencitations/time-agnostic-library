@@ -6,7 +6,7 @@
 # with or without fee is hereby granted, provided that the above copyright notice
 # and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+# THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
 # REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
 # FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT,
 # OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
@@ -25,18 +25,18 @@ import json
 import re
 
 
-CONFIG_PATH = "./config.json"
+CONFIG_PATH = './config.json'
 
 def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
-    """
+    '''
     It empties the entire cache.
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
-    """
-    with open(config_path, encoding="utf8") as json_file:
-        cache_triplestores = json.load(json_file)["cache_triplestore_url"]
-        read_triplestore_url = cache_triplestores["endpoint"]
-        write_triplestore_url = cache_triplestores["update_endpoint"]
+    '''
+    with open(config_path, encoding='utf8') as json_file:
+        cache_triplestores = json.load(json_file)['cache_triplestore_url']
+        read_triplestore_url = cache_triplestores['endpoint']
+        write_triplestore_url = cache_triplestores['update_endpoint']
     if write_triplestore_url:
         delete_everything_query = '''
             DELETE {GRAPH ?g {?s ?p ?o}}
@@ -47,8 +47,11 @@ def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
         sparql.setMethod(POST)
         sparql.query()
 
-def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), provenance_urls:list=list(), provenance_dirs:list=list(), blazegraph_full_text_search:bool=False, graphdb_connector_name:str='', cache_endpoint:str='', cache_update_endpoint:str='') -> None:
-    """
+def generate_config_file(
+        config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), provenance_urls:list=list(), provenance_dirs:list=list(), 
+        blazegraph_full_text_search:bool=False, fuseki_full_text_search:bool=False, virtuoso_full_text_search:bool=False, graphdb_connector_name:str='', 
+        cache_endpoint:str='', cache_update_endpoint:str='') -> None:
+    '''
     Given the configuration parameters, a file compliant with the syntax of the time-agnostic-library configuration files is generated.
     :param config_path: The output configuration file path
     :type config_path: str
@@ -62,13 +65,17 @@ def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), 
     :type provenance_dirs: list
     :param blazegraph_full_text_search: True if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure
     :type blazegraph_full_text_search: bool
+    :param fuseki_full_text_search: True if Fuseki was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://jena.apache.org/documentation/query/text-query.html
+    :type fuseki_full_text_search: bool
+    :param virtuoso_full_text_search: True if Virtuoso was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://docs.openlinksw.com/virtuoso/rdfsparqlrulefulltext/
+    :type virtuoso_full_text_search: bool
     :param graphdb_connector_name: The name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see [https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html](https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html)
     :type graphdb_connector_name: str
     :param cache_endpoint: A triplestore URL to use as a cache to make queries on provenance faster
     :type cache_endpoint: str
     :param cache_update_endpoint: If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for writing in this parameter
     :type cache_update_endpoint: str
-    """
+    '''
     config = {
         'dataset': {
             'triplestore_urls': dataset_urls,
@@ -79,20 +86,22 @@ def generate_config_file(config_path:str=CONFIG_PATH, dataset_urls:list=list(), 
             'file_paths': provenance_dirs
         },
         'blazegraph_full_text_search': blazegraph_full_text_search,
-        "graphdb_connector_name": graphdb_connector_name,
-        "cache_triplestore_url": {
-            "endpoint": cache_endpoint,
-            "update_endpoint": cache_update_endpoint
+        'fuseki_full_text_search': fuseki_full_text_search,
+        'blazegraph_full_text_search': blazegraph_full_text_search,
+        'virtuoso_full_text_search': virtuoso_full_text_search,
+        'cache_triplestore_url': {
+            'endpoint': cache_endpoint,
+            'update_endpoint': cache_update_endpoint
         }    
     }
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(config, f)
 
 def convert_to_datetime(time_string:str, stringify:bool=False) -> datetime:
-    if time_string and time_string != "None":
+    if time_string and time_string != 'None':
         time = parser.parse(time_string).replace(tzinfo=None)
         if stringify:
-            time = time.strftime("%Y-%m-%dT%H:%M:%S")
+            time = time.strftime('%Y-%m-%dT%H:%M:%S')
         return time
 
 def is_within_time_range(range_to_eval:Tuple[str, str], given_range:Tuple[str, str]) -> bool:
@@ -122,7 +131,7 @@ def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     for quad in cg.quads():
         normalized_quad = tuple(Literal(str(el), datatype=None) if isinstance(el, Literal) else el for el in quad)
         normalized_cg.add(normalized_quad)
-    nt_list = re.split('\s?\.?\n+', normalized_cg.serialize(format="nt"))
+    nt_list = re.split('\s?\.?\n+', normalized_cg.serialize(format='nt'))
     nt_list = filter(None, nt_list)
     sorted_nt_list = sorted(nt_list)
     return sorted_nt_list
@@ -141,7 +150,7 @@ def _to_dict_of_nt_sorted_lists(dictionary:Dict[str, Dict[str, ConjunctiveGraph]
 def _to_conjunctive_graph(nt_list:List[str]) -> ConjunctiveGraph:
     cg = ConjunctiveGraph()
     for triple in nt_list:
-        cg.parse(data=triple + ".", format="nt")
+        cg.parse(data=triple + '.', format='nt')
     return cg
 
 def _to_dict_of_conjunctive_graphs(dictionary:Dict[str, Dict[str, List]]) -> Dict[str, Dict[str, ConjunctiveGraph]]:
