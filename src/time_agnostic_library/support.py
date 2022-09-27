@@ -87,8 +87,8 @@ def generate_config_file(
         },
         'blazegraph_full_text_search': blazegraph_full_text_search,
         'fuseki_full_text_search': fuseki_full_text_search,
-        'blazegraph_full_text_search': blazegraph_full_text_search,
         'virtuoso_full_text_search': virtuoso_full_text_search,
+        'graphdb_connector_name': graphdb_connector_name,
         'cache_triplestore_url': {
             'endpoint': cache_endpoint,
             'update_endpoint': cache_update_endpoint
