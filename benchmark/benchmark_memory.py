@@ -15,17 +15,21 @@
 # SOFTWARE.
 
 
-from setup_and_tests import save, already_done, get_setup, tests_memory_w_cache_w_out_index, \
-    tests_memory_w_out_cache_w_out_index, create_statistics_file, save_baseline, \
-    OUTPUT_PATH, TRIPLESTORES
-from subprocess import Popen, PIPE
+from subprocess import PIPE, Popen
 from sys import platform
+
+from setup_and_tests import (OUTPUT_PATH, TRIPLESTORES, already_done,
+                             create_statistics_file, get_setup, save,
+                             save_baseline, tests_memory_w_cache_w_out_index,
+                             tests_memory_w_out_cache_w_out_index)
 from triplestore_manager import TriplestoreManager
+
 IS_UNIX = platform == 'darwin' or platform.startswith('linux')
 if not IS_UNIX:
     from subprocess import CREATE_NEW_CONSOLE
-import os, re
 
+import os
+import re
 
 repetitions = 10
 parameters = {
