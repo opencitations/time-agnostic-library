@@ -14,14 +14,17 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-from typing import List, Tuple, Dict, Set, Union
-import copy, re
+import copy
+import re
+from typing import Dict, List, Set, Tuple, Union
+
 from rdflib.graph import ConjunctiveGraph, Graph
-from rdflib.term import URIRef
 from rdflib.plugins.sparql.processor import processUpdate
+from rdflib.term import URIRef
+
+from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import convert_to_datetime
-from time_agnostic_library.prov_entity import ProvEntity
 
 CONFIG_PATH = "./config.json"
 

@@ -15,15 +15,15 @@
 # SOFTWARE.
 
 
-from datetime import datetime
-from dateutil import parser
-from rdflib.graph import ConjunctiveGraph
-from SPARQLWrapper import SPARQLWrapper, POST
-from rdflib import Literal
-from typing import Dict, List, Tuple
 import json
 import re
+from datetime import datetime
+from typing import Dict, List, Tuple
 
+from dateutil import parser
+from rdflib import Literal
+from rdflib.graph import ConjunctiveGraph
+from SPARQLWrapper import POST, SPARQLWrapper
 
 CONFIG_PATH = './config.json'
 

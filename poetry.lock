@@ -200,6 +200,44 @@ files = [
 ]
 
 [[package]]
+name = "filelock"
+version = "3.12.0"
+description = "A platform independent file lock."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "filelock-3.12.0-py3-none-any.whl", hash = "sha256:ad98852315c2ab702aeb628412cbf7e95b7ce8c3bf9565670b4eaecf1db370a9"},
+    {file = "filelock-3.12.0.tar.gz", hash = "sha256:fc03ae43288c013d2ea83c8597001b1129db351aad9c57fe2409327916b8e718"},
+]
+
+[package.extras]
+docs = ["furo (>=2023.3.27)", "sphinx (>=6.1.3)", "sphinx-autodoc-typehints (>=1.23,!=1.23.4)"]
+testing = ["covdefaults (>=2.3)", "coverage (>=7.2.3)", "diff-cover (>=7.5)", "pytest (>=7.3.1)", "pytest-cov (>=4)", "pytest-mock (>=3.10)", "pytest-timeout (>=2.1)"]
+
+[[package]]
+name = "html5lib"
+version = "1.1"
+description = "HTML parser based on the WHATWG HTML specification"
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+files = [
+    {file = "html5lib-1.1-py2.py3-none-any.whl", hash = "sha256:0d78f8fde1c230e99fe37986a60526d7049ed4bf8a9fadbad5f00e22e58e041d"},
+    {file = "html5lib-1.1.tar.gz", hash = "sha256:b2e5b40261e20f354d198eae92afc10d750afb487ed5e50f9c4eaf07c184146f"},
+]
+
+[package.dependencies]
+six = ">=1.9"
+webencodings = "*"
+
+[package.extras]
+all = ["chardet (>=2.2)", "genshi", "lxml"]
+chardet = ["chardet (>=2.2)"]
+genshi = ["genshi"]
+lxml = ["lxml"]
+
+[[package]]
 name = "idna"
 version = "3.3"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -405,10 +443,43 @@ files = [
 ]
 
 [[package]]
+name = "oc-ocdm"
+version = "7.1.15"
+description = "Object mapping library for manipulating RDF graphs that are compliant with the OpenCitations datamodel."
+category = "main"
+optional = false
+python-versions = ">=3.7.4,<4.0.0"
+files = [
+    {file = "oc_ocdm-7.1.15-py3-none-any.whl", hash = "sha256:768fb696cd9637b9a4b33d7272456093329e394033fc0b1d2e8740480fb924c6"},
+    {file = "oc_ocdm-7.1.15.tar.gz", hash = "sha256:529baf299995bf4c05f7600dab3a5b3ddddd466b2f6d75fb84b943df2e7fbafd"},
+]
+
+[package.dependencies]
+filelock = ">=3.6.0,<4.0.0"
+pyshacl = ">=0.20.0,<0.21.0"
+rdflib = ">=6.0.0,<7.0.0"
+SPARQLWrapper = "2.0.0"
+
+[[package]]
+name = "owlrl"
+version = "6.0.2"
+description = "OWL-RL and RDFS based RDF Closure inferencing for Python"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "owlrl-6.0.2-py3-none-any.whl", hash = "sha256:57eca06b221edbbc682376c8d42e2ddffc99f61e82c0da02e26735592f08bacc"},
+    {file = "owlrl-6.0.2.tar.gz", hash = "sha256:904e3310ff4df15101475776693d2427d1f8244ee9a6a9f9e13c3c57fae90b74"},
+]
+
+[package.dependencies]
+rdflib = ">=6.0.2"
+
+[[package]]
 name = "packaging"
 version = "21.3"
 description = "Core utilities for Python packages"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6"
 files = [
@@ -418,6 +489,25 @@ files = [
 
 [package.dependencies]
 pyparsing = ">=2.0.2,<3.0.5 || >3.0.5"
+
+[[package]]
+name = "prettytable"
+version = "2.5.0"
+description = "A simple Python library for easily displaying tabular data in a visually appealing ASCII table format"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "prettytable-2.5.0-py3-none-any.whl", hash = "sha256:1411c65d21dca9eaa505ba1d041bed75a6d629ae22f5109a923f4e719cfecba4"},
+    {file = "prettytable-2.5.0.tar.gz", hash = "sha256:f7da57ba63d55116d65e5acb147bfdfa60dceccabf0d607d6817ee2888a05f2c"},
+]
+
+[package.dependencies]
+importlib-metadata = {version = "*", markers = "python_version < \"3.8\""}
+wcwidth = "*"
+
+[package.extras]
+tests = ["pytest", "pytest-cov", "pytest-lazy-fixture"]
 
 [[package]]
 name = "psutil"
@@ -492,6 +582,32 @@ files = [
 diagrams = ["jinja2", "railroad-diagrams"]
 
 [[package]]
+name = "pyshacl"
+version = "0.20.0"
+description = "Python SHACL Validator"
+category = "main"
+optional = false
+python-versions = ">=3.7.0,<4.0.0"
+files = [
+    {file = "pyshacl-0.20.0-py3-none-any.whl", hash = "sha256:5de57ed490748f621301f69e47224fa5bd84b0fb5aab40126118dc8e90d4ede6"},
+    {file = "pyshacl-0.20.0.tar.gz", hash = "sha256:47f014c52cc69167b902c89b3940dd400f7f5d2169a62f97f837f3419b4a737d"},
+]
+
+[package.dependencies]
+html5lib = ">=1.1,<2"
+owlrl = ">=6.0.2,<7"
+packaging = ">=21.3"
+prettytable = ">=2.2.1,<3.0.0"
+rdflib = ">=6.2.0,<7"
+
+[package.extras]
+dev-coverage = ["coverage (>6.1,!=6.1.1,<7)", "platformdirs", "pytest-cov (>=2.8.1,<3.0.0)"]
+dev-lint = ["black (==22.8.0)", "flake8 (>=5.0.4,<6.0.0)", "isort (>=5.10.1,<6.0.0)", "platformdirs"]
+dev-type-checking = ["mypy (>=0.800,<0.801)", "platformdirs", "types-setuptools"]
+js = ["pyduktape2 (>=0.4.1,<0.5.0)"]
+jsonld = ["rdflib-jsonld (>=0.4.0,<0.6)"]
+
+[[package]]
 name = "python-dateutil"
 version = "2.8.2"
 description = "Extensions to the standard Python datetime module"
@@ -562,6 +678,23 @@ docs = ["myst-parser", "sphinx (<6)", "sphinx-autodoc-typehints", "sphinxcontrib
 html = ["html5lib"]
 networkx = ["networkx"]
 tests = ["html5lib", "pytest", "pytest-cov"]
+
+[[package]]
+name = "rdflib-ocdm"
+version = "0.1.1"
+description = ""
+category = "main"
+optional = false
+python-versions = ">=3.7.4,<4.0.0"
+files = [
+    {file = "rdflib_ocdm-0.1.1-py3-none-any.whl", hash = "sha256:f570d79faf6d46c326c7f55a938c91a0efa3d6d08e1d1685004912fd852554dc"},
+    {file = "rdflib_ocdm-0.1.1.tar.gz", hash = "sha256:058f40dbe0531b277bd1e24062d43f28f53e68fcf527e5ceae71399134597db4"},
+]
+
+[package.dependencies]
+oc-ocdm = ">=7.1.7,<8.0.0"
+rdflib = ">=6.2.0,<7.0.0"
+sparqlwrapper = ">=2.0.0,<3.0.0"
 
 [[package]]
 name = "requests"
@@ -906,6 +1039,30 @@ secure = ["certifi", "cryptography (>=1.3.4)", "idna (>=2.0.0)", "ipaddress", "p
 socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 
 [[package]]
+name = "wcwidth"
+version = "0.2.6"
+description = "Measures the displayed width of unicode strings in a terminal"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "wcwidth-0.2.6-py2.py3-none-any.whl", hash = "sha256:795b138f6875577cd91bba52baf9e445cd5118fd32723b460e30a0af30ea230e"},
+    {file = "wcwidth-0.2.6.tar.gz", hash = "sha256:a5220780a404dbe3353789870978e472cfe477761f06ee55077256e509b156d0"},
+]
+
+[[package]]
+name = "webencodings"
+version = "0.5.1"
+description = "Character encoding aliases for legacy web content"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "webencodings-0.5.1-py2.py3-none-any.whl", hash = "sha256:a0af1213f3c2226497a97e2b3aa01a7e4bee4f403f95be16fc9acd2947514a78"},
+    {file = "webencodings-0.5.1.tar.gz", hash = "sha256:b36a1c245f2d304965eb4e0a82848379241dc04b865afcc4aab16748587e1923"},
+]
+
+[[package]]
 name = "wget"
 version = "3.2"
 description = "pure python download utility"
@@ -934,5 +1091,5 @@ testing = ["func-timeout", "jaraco.itertools", "pytest (>=6)", "pytest-black (>=
 
 [metadata]
 lock-version = "2.0"
-python-versions = "^3.7"
-content-hash = "a9b909a035337cf33ef90d6b5b52337e74e5121e67a11f12322ef9c1495205a4"
+python-versions = "^3.7.4"
+content-hash = "e0c7cac0aec4d72b020dfe8078c30f7f027b51507fea154cb018ade7e67fb99e"

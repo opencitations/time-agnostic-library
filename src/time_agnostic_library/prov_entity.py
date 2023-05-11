@@ -15,7 +15,9 @@
 # SOFTWARE.
 
 from typing import ClassVar
+
 from rdflib import Namespace, URIRef
+
 
 class ProvEntity:
     """Snapshot of entity metadata: a particular snapshot recording the

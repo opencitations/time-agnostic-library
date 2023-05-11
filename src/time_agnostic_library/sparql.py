@@ -15,18 +15,18 @@
 # SOFTWARE.
 
 
-from rdflib import ConjunctiveGraph, XSD
+import json
+import multiprocessing
+from typing import Set, Tuple
+
+from rdflib import XSD, ConjunctiveGraph
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.sparql import Query
-from rdflib.term import _toPythonMapping
-from rdflib.term import URIRef, Literal
-from SPARQLWrapper import SPARQLWrapper, POST, RDFXML, JSON
-from time_agnostic_library.prov_entity import ProvEntity
-from typing import Set, Tuple
-import multiprocessing
-import json
+from rdflib.term import Literal, URIRef, _toPythonMapping
+from SPARQLWrapper import JSON, POST, RDFXML, SPARQLWrapper
 
+from time_agnostic_library.prov_entity import ProvEntity
 
 CONFIG_PATH = "./config.json"
 lock = multiprocessing.Lock()

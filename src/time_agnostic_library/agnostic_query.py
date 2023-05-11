@@ -15,25 +15,28 @@
 # SOFTWARE.
 
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from copy import deepcopy
-from rdflib.namespace import XSD
-from rdflib.plugins.sparql.processor import prepareQuery
-from rdflib.plugins.sparql.parser import parseUpdate
-from rdflib.plugins.sparql.parserutils import CompValue
-from rdflib import ConjunctiveGraph, Graph, URIRef, Literal, Variable
-from rdflib.paths import InvPath
-from SPARQLWrapper.Wrapper import SPARQLWrapper, POST, GET, JSON
-from time_agnostic_library.agnostic_entity import AgnosticEntity, _filter_timestamps_by_interval
-from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.support import convert_to_datetime, is_within_time_range
-from time_agnostic_library.sparql import Sparql
-from tqdm import tqdm
-from typing import Set, Tuple, Dict, List, Union
 import json
 import multiprocessing
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
+from typing import Dict, List, Set, Tuple, Union
 
+from rdflib import ConjunctiveGraph, Graph, Literal, URIRef, Variable
+from rdflib.namespace import XSD
+from rdflib.paths import InvPath
+from rdflib.plugins.sparql.parser import parseUpdate
+from rdflib.plugins.sparql.parserutils import CompValue
+from rdflib.plugins.sparql.processor import prepareQuery
+from SPARQLWrapper.Wrapper import GET, JSON, POST, SPARQLWrapper
+from tqdm import tqdm
+
+from time_agnostic_library.agnostic_entity import (
+    AgnosticEntity, _filter_timestamps_by_interval)
+from time_agnostic_library.prov_entity import ProvEntity
+from time_agnostic_library.sparql import Sparql
+from time_agnostic_library.support import (convert_to_datetime,
+                                           is_within_time_range)
 
 CONFIG_PATH = "./config.json"
 

@@ -16,6 +16,7 @@
 
 
 from typing import Union
+
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.support import convert_to_datetime
 
