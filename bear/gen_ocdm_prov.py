@@ -19,8 +19,10 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import time
 from typing import Dict
 
+from oc_ocdm.support.reporter import Reporter
 from rdflib import Literal, URIRef
 from rdflib_ocdm.counter_handler.counter_handler import CounterHandler
 from rdflib_ocdm.counter_handler.sqlite_counter_handler import \
@@ -42,8 +44,9 @@ def raw_newline_count_gzip(fname):
     f_gen = _reader_generator(f.read)
     return sum(buf.count(b'\n') for buf in f_gen)
 
-def update_cache(cache_filepath: str, data: dict, processed_files: list) -> None:
+def update_cache(cache_filepath: str, data: dict, processed_files: list, version: str, elapsed_time: int) -> None:
     data['processed_files'].extend(processed_files)
+    data['processing_times'][version] = elapsed_time
     with open(cache_filepath, 'w', encoding='utf-8') as f:
         json.dump(data, f)
 
@@ -52,11 +55,10 @@ def read_cache(cache_filepath: str) -> dict:
         with open(cache_filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
     else:
-        data = {'processed_files': []}
+        data = {'processed_files': [], 'processing_times': {}}
     return data
 
-def generate_ocdm_provenance(cb_dir: str, ts_url: str, counter_handler: CounterHandler, cache_filepath: str, base_dir: str = None):
-    ocdm_graph = OCDMGraph(counter_handler)
+def generate_ocdm_provenance(cb_dir: str, data_ts_url: str, prov_ts_url: str, counter_handler: CounterHandler, cache_filepath: str, base_dir: str = None):
     versions = set()
     for filename in os.listdir(cb_dir):
         versions.add(filename.split('_')[1].replace('.nt.gz', ''))
@@ -64,8 +66,10 @@ def generate_ocdm_provenance(cb_dir: str, ts_url: str, counter_handler: CounterH
     cache = read_cache(cache_filepath)
     pbar = tqdm(total=len(versions))
     for version in versions:
+        start_time = time.time()
         changes: Dict[URIRef, dict] = dict()
         processed_files = []
+        ocdm_graph = OCDMGraph(counter_handler)
         for operation in ['added', 'deleted']:
             operation_file = f'data-{operation}_{version}.nt.gz'
             if operation_file not in cache['processed_files']:
@@ -73,7 +77,6 @@ def generate_ocdm_provenance(cb_dir: str, ts_url: str, counter_handler: CounterH
                 gzip_file_path = os.path.join(cb_dir, operation_file)
                 number_of_lines = raw_newline_count_gzip(gzip_file_path)
                 with gzip.open(gzip_file_path,'rt') as f:
-                    print(operation_file)
                     pbar_1 = tqdm(total=number_of_lines)
                     for i, line in enumerate(f):
                         triple = line.split(' ')[:-1]
@@ -83,9 +86,9 @@ def generate_ocdm_provenance(cb_dir: str, ts_url: str, counter_handler: CounterH
                         changes.setdefault(subject, {'added': list(), 'deleted': list()})
                         changes[subject][operation].append((predicate, obj))
                         accumulated_sujects.append(subject)
-                        if i > 0 and i % 100 == 0:
+                        if (i > 0 and i % 100 == 0) or (i == number_of_lines - 1):
                             try:
-                                Reader.import_entities_from_triplestore(ocdm_graph, ts_url, accumulated_sujects)
+                                Reader.import_entities_from_triplestore(ocdm_graph, data_ts_url, accumulated_sujects)
                             except ValueError:
                                 pass
                             accumulated_sujects = list()
@@ -99,16 +102,19 @@ def generate_ocdm_provenance(cb_dir: str, ts_url: str, counter_handler: CounterH
             for triple in modifications['deleted']:
                 ocdm_graph.remove((entity, triple[0], triple[1]))
         ocdm_graph.generate_provenance()
-        storer = Storer(ocdm_graph)
-        prov_storer = Storer(ocdm_graph.provenance)
-        storer.upload_all(ts_url, base_dir)
-        prov_storer.upload_all(ts_url, base_dir)
-        ocdm_graph.commit_changes()
-        update_cache(cache_filepath, cache, processed_files)
+        repok  = Reporter(print_sentences = False)
+        reperr = Reporter(print_sentences = True, prefix='[Storer: ERROR] ')
+        storer = Storer(ocdm_graph, repok=repok, reperr=reperr)
+        prov_storer = Storer(ocdm_graph.provenance, repok=repok, reperr=reperr)
+        storer.upload_all(data_ts_url, base_dir)
+        prov_storer.upload_all(prov_ts_url, base_dir)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        update_cache(cache_filepath, cache, processed_files, version, elapsed_time)
         pbar.update()
     pbar.close()
 
 
 sqllite_counter_handler = SqliteCounterHandler('C:/Users/arcangelo.massari2/Desktop/time-agnostic-library/bear/counter.db')
 # filesystem_counter_handler = FilesystemCounterHandler(info_dir='C:/Users/arcangelo.massari2/Desktop/time-agnostic-library/bear/info_dir')
-generate_ocdm_provenance('E:/CB', 'http://192.168.10.23:29999/blazegraph/sparql', sqllite_counter_handler, 'C:/Users/arcangelo.massari2/Desktop/time-agnostic-library/bear/generate_ocdm_provenance.json', 'C:/Users/arcangelo.massari2/Desktop/time-agnostic-library/bear')
+generate_ocdm_provenance('D:/CB', 'http://192.168.10.23:29999/blazegraph/sparql', 'http://192.168.10.23:39999/blazegraph/sparql', sqllite_counter_handler, 'C:/Users/arcangelo.massari2/Desktop/time-agnostic-library/bear/generate_ocdm_provenance.json', 'C:/Users/arcangelo.massari2/Desktop/time-agnostic-library/bear')

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "time-agnostic-library"
-version = "4.3.2"
+version = "4.3.3"
 description = "time-agnostic-library is a Python ≥3.7 library that allows performing time-travel queries on RDF datasets compliant with the OCDM v2.0.1 provenance specification."
 authors = ["Arcangelo Massari <arcangelo.massari@unibo.it>"]
 readme = "README.md"
@@ -26,7 +26,9 @@ python_dateutil = "^2.8.2"
 rdflib = "6.2.0"
 SPARQLWrapper = "2.0.0"
 tqdm = "^4.62.3"
-rdflib-ocdm = "0.1.1"
+rdflib-ocdm = "0.3.4"
+validators = "^0.20.0"
+psycopg2 = "^2.9.6"
 
 [tool.poetry.dev-dependencies]
 chardet = "^4.0.0"
@@ -40,6 +42,7 @@ coverage-badge = "^1.1.0"
 
 [tool.poetry.group.dev.dependencies]
 tqdm = "^4.65.0"
+pebble = "^5.0.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
