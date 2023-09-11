@@ -15,14 +15,19 @@
 # SOFTWARE.
 
 
-from pprint import pprint
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
-from time_agnostic_library.agnostic_query import VersionQuery
-from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph, empty_the_cache
 import json
 import os
-import rdflib
 import unittest
+from pprint import pprint
+
+import rdflib
+from SPARQLWrapper import JSON, POST, SPARQLWrapper
+
+from time_agnostic_library.agnostic_query import VersionQuery
+from time_agnostic_library.support import (_to_conjunctive_graph,
+                                           _to_dict_of_conjunctive_graphs,
+                                           _to_dict_of_nt_sorted_lists,
+                                           empty_the_cache)
 
 CONFIG_PATH = os.path.join('tests', 'config.json')
 CONFIG_BLAZEGRAPH = os.path.join('tests', 'config_blazegraph.json')

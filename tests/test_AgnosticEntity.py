@@ -14,11 +14,17 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest, datetime, rdflib
+import datetime
+import unittest
 from pprint import pprint
+
+import rdflib
 from rdflib.graph import ConjunctiveGraph
+
 from time_agnostic_library.agnostic_entity import AgnosticEntity
-from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_nt_sorted_list, _to_conjunctive_graph
+from time_agnostic_library.support import (_to_conjunctive_graph,
+                                           _to_dict_of_nt_sorted_lists,
+                                           _to_nt_sorted_list)
 
 CONFIG_PATH = "tests/config.json"
 

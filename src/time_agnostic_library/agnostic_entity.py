@@ -142,7 +142,7 @@ class AgnosticEntity:
         :returns: Tuple[dict, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is a dictionary that associates graphs and timestamps within the specified interval; the second contains the snapshots metadata of which the states has been returned. If the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
         """
         query_snapshots = f"""
-            SELECT ?snapshot ?time ?responsibleAgent ?updateQuery ?primarySource
+            SELECT ?snapshot ?time ?responsibleAgent ?updateQuery ?primarySource ?description
             WHERE {{
                 ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
                     <{ProvEntity.iri_generated_at_time}> ?time;

@@ -106,7 +106,7 @@ class Sparql:
             file_cg = ConjunctiveGraph()
             file_cg.parse(location=file_path, format="json-ld")
             lock.acquire()
-            results = file_cg.query(self.query)._get_bindings()
+            results = file_cg.query(self.query).bindings
             lock.release()
             for result in results:
                 self._get_tuples_set(self.query, result, output)

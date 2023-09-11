@@ -551,7 +551,7 @@ class VersionQuery(AgnosticQuery):
             self.sparql_select.setReturnFormat(JSON)
             results = self.sparql_select.queryAndConvert()["results"]["bindings"]
         else:
-            results = graph.query(self.query)._get_bindings()
+            results = graph.query(self.query).bindings
         for result in results:
             Sparql._get_tuples_set(self.query, result, output)
         normalized_timestamp = convert_to_datetime(timestamp, stringify=True)
