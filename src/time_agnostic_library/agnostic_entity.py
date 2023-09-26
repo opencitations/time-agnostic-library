@@ -142,11 +142,17 @@ class AgnosticEntity:
         :returns: Tuple[dict, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is a dictionary that associates graphs and timestamps within the specified interval; the second contains the snapshots metadata of which the states has been returned. If the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
         """
         query_snapshots = f"""
-            SELECT ?snapshot ?time ?responsibleAgent ?updateQuery ?primarySource ?description
+            SELECT ?snapshot ?time ?responsibleAgent ?updateQuery ?primarySource ?description ?invalidatedAtTime
             WHERE {{
                 ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
                     <{ProvEntity.iri_generated_at_time}> ?time;
                     <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent.
+                OPTIONAL {{
+                    ?snapshot <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime.
+                }}
+                OPTIONAL {{
+                    ?snapshot <{ProvEntity.iri_description}> ?description.
+                }}
                 OPTIONAL {{
                     ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 }}
@@ -169,8 +175,11 @@ class AgnosticEntity:
             for other_snapshot in other_snapshots:
                 other_snapshots_metadata[other_snapshot[0]] = {
                     "generatedAtTime": other_snapshot[1],
+                    "invalidatedAtTime": other_snapshot[6],
                     "wasAttributedTo": other_snapshot[2],
-                    "hadPrimarySource": other_snapshot[4]
+                    "hasUpdateQuery": other_snapshot[3],
+                    "hadPrimarySource": other_snapshot[4],
+                    "description": other_snapshot[5]
             }
         if not relevant_results:
             return entity_graphs, entity_snapshots, other_snapshots_metadata
@@ -187,8 +196,11 @@ class AgnosticEntity:
             entity_graphs[convert_to_datetime(relevant_result[1], stringify=True)] = entity_present_graph
             entity_snapshots[relevant_result[0]] = {
                 "generatedAtTime": relevant_result[1],
+                "invalidatedAtTime": relevant_result[6],
                 "wasAttributedTo": relevant_result[2],
-                "hadPrimarySource": relevant_result[4]
+                "hasUpdateQuery": relevant_result[3],
+                "hadPrimarySource": relevant_result[4],
+                "description": relevant_result[5]
             }
         return entity_graphs, entity_snapshots, other_snapshots_metadata
     
@@ -196,9 +208,11 @@ class AgnosticEntity:
         if list(current_state.triples((URIRef(self.res), URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), ProvEntity.iri_entity))): 
             return dict()
         prov_properties = {
+            ProvEntity.iri_invalidated_at_time: "invalidatedAtTime",
             ProvEntity.iri_was_attributed_to: "wasAttributedTo", 
             ProvEntity.iri_had_primary_source: "hadPrimarySource", 
-            ProvEntity.iri_description: "description"
+            ProvEntity.iri_description: "description",
+            ProvEntity.iri_has_update_query: "hasUpdateQuery"
         }
         prov_metadata = {
             self.res: dict()
@@ -207,9 +221,11 @@ class AgnosticEntity:
             time = convert_to_datetime(triple[2]).strftime("%Y-%m-%dT%H:%M:%S")
             prov_metadata[self.res][str(triple[0])] = {
                 "generatedAtTime": time,
+                "invalidatedAtTime": None,
                 "wasAttributedTo": None,
                 "hadPrimarySource": None,
-                "description": None
+                "description": None,
+                "hasUpdateQuery": None
             }
         for entity, metadata in dict(prov_metadata).items():
             for se, _ in metadata.items():
