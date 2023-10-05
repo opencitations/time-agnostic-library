@@ -188,7 +188,10 @@ class Sparql:
                         if quad[var]["type"] == "uri":
                             quad_to_add.append(URIRef(quad[var]["value"]))
                         elif quad[var]["type"] == "literal":
-                            quad_to_add.append(Literal(quad[var]["value"]))
+                            if 'datatype' in quad[var]:
+                                quad_to_add.append(Literal(quad[var]["value"], datatype=quad[var]['datatype']))
+                            else:
+                                quad_to_add.append(Literal(quad[var]["value"], datatype=XSD.string))
                     cg.add(tuple(quad_to_add))
             elif algebra.name == "ConstructQuery":
                 sparql.setReturnFormat(RDFXML)
@@ -217,4 +220,3 @@ class Sparql:
             limit = int(algebra["p"]["length"])
             input = input[:limit]
         return input
-    
