@@ -41,7 +41,7 @@ def generate_ocdm_provenance(cb_dir: str, cache_filepath: str, counter_handler: 
         processed_files = []
         start_time = time.time()
         cur_time: str = datetime.fromtimestamp(start_time, tz=timezone.utc).replace(microsecond=0).isoformat(sep="T")
-        all_entities = []
+        all_entities = set()
         for operation in ['added', 'deleted']:
             operation_file = f'data-{operation}_{version}.nt.gz'
             if operation_file in cache['processed_files']:
@@ -57,7 +57,7 @@ def generate_ocdm_provenance(cb_dir: str, cache_filepath: str, counter_handler: 
                     obj = triple[2]
                     changes.setdefault(f'{subject}_{operation}', list())
                     changes[f'{subject}_{operation}'].append((predicate, obj))
-                    all_entities.append(subject)
+                    all_entities.add(subject)
                     pbar_file.update()
                 serialized_changes = [(urllib.parse.quote((k)), json.dumps(v)) for k, v in changes.items()]
                 query = "INSERT INTO changes (key, value) VALUES %s"
@@ -71,42 +71,45 @@ def generate_ocdm_provenance(cb_dir: str, cache_filepath: str, counter_handler: 
         updated_snapshots = dict()
         pbar_provenance = tqdm(total=len(all_entities))
         batch_size = 1000000
-        entities_batch = [all_entities[i:i + batch_size] for i in range(0, len(all_entities), batch_size)]
+        entities_batch = [list(all_entities)[i:i + batch_size] for i in range(0, len(all_entities), batch_size)]
+
         for entity_batch in entities_batch:
             ocdm_prov = OCDMProvenance(
                 source=source, resp_agent=resp_agent, counter_handler=counter_handler)
+
             modifications_added = get_modifications('added', entity_batch, psyco_cursor)
             modifications_deleted = get_modifications('deleted', entity_batch, psyco_cursor)
+
             for entity in entity_batch:
                 entity = URIRef(entity[1:-1])
                 last_snapshot_res = ocdm_prov.retrieve_last_snapshot(entity, existing_snapshots)
+
                 if last_snapshot_res is None:
                     # CREATION SNAPSHOT
                     cur_snapshot: SnapshotEntity = ocdm_prov.create_snapshot(entity, cur_time, existing_snapshots, updated_snapshots)
-                    cur_snapshot.has_description(
-                        f"The entity '{str(entity)}' has been created.")
+                    cur_snapshot.has_description(f"The entity '{str(entity)}' has been created.")
                 else:
                     # MODIFICATION SNAPSHOT
-                    last_snapshot: SnapshotEntity = ocdm_prov.add_se(
-                        prov_subject=entity, res=last_snapshot_res, existing_snapshots=existing_snapshots, updated_snapshots=updated_snapshots)
+                    last_snapshot: SnapshotEntity = ocdm_prov.add_se(prov_subject=entity, res=last_snapshot_res, existing_snapshots=existing_snapshots, updated_snapshots=updated_snapshots)
                     last_snapshot.has_invalidation_time(cur_time)
-                    cur_snapshot: SnapshotEntity = ocdm_prov.create_snapshot(
-                        entity, cur_time, existing_snapshots, updated_snapshots)
+                    cur_snapshot: SnapshotEntity = ocdm_prov.create_snapshot(entity, cur_time, existing_snapshots, updated_snapshots)
                     cur_snapshot.derives_from(last_snapshot)
-                    cur_snapshot.has_description(
-                        f"The entity '{str(entity)}' was modified.")
+                    cur_snapshot.has_description(f"The entity '{str(entity)}' was modified.")
+                    formatted_entity = f'<{str(entity)}>'
                     insert_query = ''
+                    if formatted_entity in modifications_added:
+                        if modifications_added[formatted_entity]:
+                            insert_query, _ = get_insert_query(entity, modifications_added[formatted_entity])
                     delete_query = ''
-                    if f'<{str(entity)}>' in modifications_added:
-                        if modifications_added[f'<{entity}>']:
-                            insert_query, _ = get_insert_query(entity, modifications_added[f'<{str(entity)}>'])
-                    if f'<{str(entity)}>' in modifications_deleted:
-                        if modifications_deleted[f'<{entity}>']:
-                            delete_query, _ = get_delete_query(entity, modifications_deleted[f'<{str(entity)}>'])
+                    if formatted_entity in modifications_deleted:
+                        if modifications_deleted[formatted_entity]:
+                            delete_query, _ = get_delete_query(entity, modifications_deleted[formatted_entity])
                     update_query = ocdm_prov.get_update_query(insert_query, delete_query)
                     cur_snapshot.has_update_action(update_query)
                 pbar_provenance.update()
+
             save_graphs_to_nquads(ocdm_prov, output_dir)
+
         psyco_cursor.execute("TRUNCATE TABLE changes")
         psyco_connection.commit()
         pbar_provenance.close()
@@ -195,6 +198,7 @@ class OCDMProvenance(ConjunctiveGraph):
         self.res_to_entity: Dict[URIRef, ProvEntity] = dict()
         self.source = source
         self.resp_agent = resp_agent
+        self.all_entities = set()
 
     @staticmethod
     def get_update_query(insert_string: str, delete_string: str) -> str:

@@ -1,11 +1,11 @@
-from sys import platform
-from subprocess import Popen
 import json
 import os
+import zipfile
+from subprocess import Popen
+from sys import platform
+
 import requests
 import wget
-import zipfile
-
 
 BASE_DIR = os.path.abspath('tests')
 is_unix = platform == 'darwin' or platform.startswith('linux')
