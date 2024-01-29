@@ -30,6 +30,7 @@ validators = "^0.20.0"
 psycopg2 = "^2.9.6"
 setuptools = "^68.2.2"
 rdflib-ocdm = "0.3.6"
+lxml = "^5.1.0"
 
 [tool.poetry.dev-dependencies]
 chardet = "^4.0.0"

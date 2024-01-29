@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import glob
 import gzip
 import json
@@ -9,10 +10,10 @@ import urllib.parse
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
-
+import re
 import psycopg2
 from psycopg2.extras import execute_values
-from rdflib import ConjunctiveGraph, URIRef
+from rdflib import ConjunctiveGraph, Graph, URIRef, Literal
 from rdflib_ocdm.counter_handler.redis_counter_handler import \
     RedisCounterHandler
 from rdflib_ocdm.prov.prov_entity import ProvEntity
@@ -28,6 +29,66 @@ def is_uri(stringa):
         return True
     except ValueError:
         return False
+
+def parse_triple(line):
+    match = re.match(r"(<.+?>) (<.+?>) (.+?)\s?\.$", line)
+    if match:
+        subject = match.group(1)
+        predicate = match.group(2)
+        obj = match.group(3)
+        return subject, predicate, obj
+    else:
+        raise ValueError(f"Impossibile analizzare la tripla: {line}")
+
+def read_rdf_gzip_file(gzip_file_path: str):
+    g = Graph()
+    with gzip.open(gzip_file_path, 'rt') as f:
+        g.parse(f, format='nt')
+    return g
+
+def serialize_modifications(modifications):
+    serialized_modifications = []
+    for predicate, obj in modifications:
+        mod_dict = {
+            "predicate": predicate, 
+            "value": str(obj)
+        }
+
+        if isinstance(obj, URIRef):
+            mod_dict["type"] = "uri"
+        elif isinstance(obj, Literal):
+            mod_dict["type"] = "literal"
+            if obj.datatype:
+                mod_dict["datatype"] = str(obj.datatype)
+            if obj.language:
+                mod_dict["language"] = obj.language
+
+        serialized_modifications.append(json.dumps(mod_dict))
+    return serialized_modifications
+
+def deserialize_modifications(serialized_modifications):
+    modifications = []
+    serialized_modifications = json.loads(serialized_modifications)
+    for serialized_modification in serialized_modifications:
+        mod_dict: dict = json.loads(serialized_modification)
+        predicate = mod_dict["predicate"]
+        obj_type = mod_dict["type"]
+        value = mod_dict["value"]
+
+        if obj_type == "uri":
+            obj = URIRef(value)
+        elif obj_type == "literal":
+            datatype = mod_dict.get("datatype")
+            language = mod_dict.get("language")
+            if datatype:
+                obj = Literal(value, datatype=URIRef(datatype))
+            elif language:
+                obj = Literal(value, lang=language)
+            else:
+                obj = Literal(value)
+        
+        modifications.append((predicate, obj))
+    return modifications
 
 def generate_ocdm_provenance(cb_dir: str, cache_filepath: str, counter_handler: RedisCounterHandler, psyco_cursor, psyco_connection, source: str, resp_agent: str, output_dir: str):
     versions = set()
@@ -47,24 +108,17 @@ def generate_ocdm_provenance(cb_dir: str, cache_filepath: str, counter_handler: 
             if operation_file in cache['processed_files']:
                 continue
             gzip_file_path = os.path.join(cb_dir, operation_file)
-            number_of_lines = raw_newline_count_gzip(gzip_file_path)
-            pbar_file = tqdm(total=number_of_lines)
-            with gzip.open(gzip_file_path, 'rt') as f:
-                for i, line in enumerate(f):
-                    triple = line.split(' ')[:-1]
-                    subject = triple[0]
-                    predicate = triple[1]
-                    obj = triple[2]
-                    changes.setdefault(f'{subject}_{operation}', list())
-                    changes[f'{subject}_{operation}'].append((predicate, obj))
-                    all_entities.add(subject)
-                    pbar_file.update()
-                serialized_changes = [(urllib.parse.quote((k)), json.dumps(v)) for k, v in changes.items()]
-                query = "INSERT INTO changes (key, value) VALUES %s"
-                execute_values(psyco_cursor, query, serialized_changes)
-                psyco_connection.commit()
-                changes = dict()
-            pbar_file.close()
+            graph = read_rdf_gzip_file(gzip_file_path)
+            for subj, pred, obj in graph:
+                subject = str(subj)
+                key = f"{subject}_{operation}"
+                changes.setdefault(key, []).extend(serialize_modifications([(str(pred), obj)]))
+                all_entities.add(subject)
+            serialized_changes = [(urllib.parse.quote((k)), json.dumps(v)) for k, v in changes.items()]
+            query = "INSERT INTO changes (key, value) VALUES %s"
+            execute_values(psyco_cursor, query, serialized_changes)
+            psyco_connection.commit()
+            changes = dict()
             processed_files.append(operation_file)
         all_prov_counters = [int(counter.decode('utf8')) if counter else counter for counter in counter_handler.connection.mget(all_entities)]
         existing_snapshots = {entity: all_prov_counters[i] for i, entity in enumerate(all_entities)}
@@ -79,9 +133,8 @@ def generate_ocdm_provenance(cb_dir: str, cache_filepath: str, counter_handler: 
 
             modifications_added = get_modifications('added', entity_batch, psyco_cursor)
             modifications_deleted = get_modifications('deleted', entity_batch, psyco_cursor)
-
             for entity in entity_batch:
-                entity = URIRef(entity[1:-1])
+                entity = URIRef(entity)
                 last_snapshot_res = ocdm_prov.retrieve_last_snapshot(entity, existing_snapshots)
 
                 if last_snapshot_res is None:
@@ -95,7 +148,7 @@ def generate_ocdm_provenance(cb_dir: str, cache_filepath: str, counter_handler: 
                     cur_snapshot: SnapshotEntity = ocdm_prov.create_snapshot(entity, cur_time, existing_snapshots, updated_snapshots)
                     cur_snapshot.derives_from(last_snapshot)
                     cur_snapshot.has_description(f"The entity '{str(entity)}' was modified.")
-                    formatted_entity = f'<{str(entity)}>'
+                    formatted_entity = str(entity)
                     insert_query = ''
                     if formatted_entity in modifications_added:
                         if modifications_added[formatted_entity]:
@@ -122,10 +175,22 @@ def generate_ocdm_provenance(cb_dir: str, cache_filepath: str, counter_handler: 
         pbar.update()
     pbar.close()
 
-def build_statements(entity, modifications: List[Tuple[str, str, str]]) -> str:
+def build_statements(entity, modifications: List[Tuple[str, URIRef | Literal]]) -> str:
     statements = ''
-    for modification in modifications:
-        statements += f"<{entity}> {modification[0]} {modification[1]} . "
+    for predicate, obj in modifications:
+        if isinstance(obj, URIRef):
+            obj_str = f"<{obj}>"
+        elif isinstance(obj, Literal):
+            obj_value = str(obj).replace('"', '\\"')
+            if obj.datatype:
+                obj_str = f"\"{obj_value}\"^^<{obj.datatype}>"
+            elif obj.language:
+                obj_str = f"\"{obj_value}\"@{obj.language}"
+            else:
+                obj_str = f"\"{obj_value}\""
+        else:
+            obj_str = f"\"{obj}\""
+        statements += f"<{entity}> <{predicate}> {obj_str} . "
     return statements
 
 def get_insert_query(entity: str, modifications: List[Tuple[str, str, str]], graph_iri: str = None) -> Tuple[str, int]:
@@ -157,7 +222,7 @@ def get_modifications(operation: str, entities: list, cursor) -> list:
     query = f"SELECT key, value FROM changes WHERE key IN ({quoted_entities})"
     cursor.execute(query)
     results = cursor.fetchall()
-    modifications = {urllib.parse.unquote(key).replace(f'_{operation}', ''): json.loads(value) for key, value in results} if results else {}
+    modifications = {urllib.parse.unquote(key).replace(f'_{operation}', ''): deserialize_modifications(value) for key, value in results} if results else {}
     return modifications
 
 def raw_newline_count_gzip(fname):
@@ -212,7 +277,7 @@ class OCDMProvenance(ConjunctiveGraph):
             return ""
 
     def retrieve_last_snapshot(self, prov_subject: URIRef, existing_snapshots: dict) -> Optional[URIRef]:
-        last_snapshot_count = existing_snapshots[f'<{prov_subject}>']
+        last_snapshot_count = existing_snapshots[str(prov_subject)]
         if last_snapshot_count is None:
             return None
         else:
@@ -236,14 +301,14 @@ class OCDMProvenance(ConjunctiveGraph):
     def add_prov(self, prov_subject: str, res: URIRef, existing_snapshots: dict, updated_snapshots: dict) -> Optional[str]:
         if res is not None:
             res_count: int = int(get_prov_count(res))
-            if res_count > existing_snapshots[f'<{prov_subject}>']:
-                updated_snapshots[f'<{prov_subject}>'] = res_count
+            if res_count > existing_snapshots[str(prov_subject)]:
+                updated_snapshots[str(prov_subject)] = res_count
             return str(res_count)
-        res_count = existing_snapshots[f'<{prov_subject}>']
+        res_count = existing_snapshots[str(prov_subject)]
         if res_count is None:
             res_count = 0
         res_count += 1
-        updated_snapshots[f'<{prov_subject}>'] = res_count
+        updated_snapshots[str(prov_subject)] = res_count
         return str(res_count)
 
 def save_graphs_to_nquads(ocdm_prov: OCDMProvenance, output_dir: str):
@@ -282,29 +347,52 @@ def save_graphs_to_nquads(ocdm_prov: OCDMProvenance, output_dir: str):
         current_graph.serialize(destination=output_file, format='nquads', encoding='utf-8')
 
 
-redis_counter_handler = RedisCounterHandler(host='127.0.0.1', port=6379, db=0)
-db_host = 'localhost'
-db_port = '5432'
-db_name = 'bear'
-db_user = 'postgres'
-db_password = 'Permesiva1!'
+def main(args):
+    redis_counter_handler = RedisCounterHandler(host=args.redis_host, port=args.redis_port, db=args.redis_db)
 
-psyco = psycopg2.connect(
-    host=db_host,
-    port=db_port,
-    dbname=db_name,
-    user=db_user,
-    password=db_password
-)
-psyco_cursor = psyco.cursor()
-psyco_cursor.execute('''CREATE TABLE IF NOT EXISTS changes(
-    key TEXT PRIMARY KEY,
-    value TEXT
-)''')
-psyco.commit()
-psyco_cursor.execute("TRUNCATE TABLE changes")
-psyco.commit()
+    if not os.path.exists(args.cache_filepath):
+        print("Il file di cache non esiste. Svuotamento del database Redis selezionato.")
+        redis_counter_handler.connect()
+        redis_counter_handler.connection.flushdb()
+        redis_counter_handler.disconnect()
 
-redis_counter_handler.connect()
-generate_ocdm_provenance('E:/CB', 'E:/generate_ocdm_provenance.json', redis_counter_handler, psyco_cursor, psyco, URIRef('https://aic.ai.wu.ac.at/qadlod/bear/BEAR_A/datasets/CB/alldata.CB.nt.tar.gz'), URIRef('https://orcid.org/0000-0002-8420-0696'), 'E:/provenance_files')
-redis_counter_handler.disconnect()
+    psyco = psycopg2.connect(
+        host=args.db_host,
+        port=args.db_port,
+        dbname=args.db_name,
+        user=args.db_user,
+        password=args.db_password
+    )
+    psyco_cursor = psyco.cursor()
+    psyco_cursor.execute('''CREATE TABLE IF NOT EXISTS changes(
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )''')
+    psyco.commit()
+    psyco_cursor.execute("TRUNCATE TABLE changes")
+    psyco.commit()
+
+    redis_counter_handler.connect()
+    generate_ocdm_provenance(args.cb_dir, args.cache_filepath, redis_counter_handler, psyco_cursor, psyco, URIRef(args.source), URIRef(args.resp_agent), args.output_dir)
+    redis_counter_handler.disconnect()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate OCDM Provenance")
+    parser.add_argument("--cb_dir", required=True, help="Path to the CB directory")
+    parser.add_argument("--cache_filepath", required=True, help="Path to the cache file")
+    parser.add_argument("--redis_host", default="127.0.0.1", help="Redis host address")
+    parser.add_argument("--redis_port", default=6379, type=int, help="Redis port")
+    parser.add_argument("--redis_db", default=0, type=int, help="Redis database number")
+    parser.add_argument("--db_host", default="localhost", help="PostgreSQL host address")
+    parser.add_argument("--db_port", default="5432", help="PostgreSQL port")
+    parser.add_argument("--db_name", required=True, help="PostgreSQL database name")
+    parser.add_argument("--db_user", required=True, help="PostgreSQL user")
+    parser.add_argument("--db_password", required=True, help="PostgreSQL password")
+    parser.add_argument("--source", required=True, help="URI of the source")
+    parser.add_argument("--resp_agent", required=True, help="URI of the responsible agent")
+    parser.add_argument("--output_dir", required=True, help="Directory for output files")
+
+    args = parser.parse_args()
+    main(args)
+
+# python3 -m bear.gen_prov_from_last --cb_dir /srv/data/arcangelo/bear/b/instant/ --cache_filepath /srv/data/arcangelo/bear/b/instant_ocdm/cache.json --redis_db 15 --db_name bear --db_host localhost --db_user arcangelo --db_port 5432 --db_password Permesiva1! --source https://aic.ai.wu.ac.at/qadlod/bear/BEAR_B/datasets/instant/CB/alldata.CB.nt.tar.gz --resp_agent https://orcid.org/0000-0002-8420-0696 --output_dir /srv/data/arcangelo/bear/b/instant_ocdm/provenance_files

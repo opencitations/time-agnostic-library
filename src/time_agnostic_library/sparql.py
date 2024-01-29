@@ -67,11 +67,10 @@ class Sparql:
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, config_path:str=CONFIG_PATH):
+    def __init__(self, query:str, config:dict):
         self.query = query
+        self.config = config
         prov_properties = ProvEntity.get_prov_properties()
-        with open(config_path, encoding="utf8") as json_file:
-            config:list = json.load(json_file)
         if any(uri in query for uri in prov_properties):
             self.storer:dict = config["provenance"]
         else:
@@ -196,7 +195,7 @@ class Sparql:
             elif algebra.name == "ConstructQuery":
                 sparql.setReturnFormat(RDFXML)
                 sparql.setOnlyConneg(True)
-                cg += sparql.queryAndConvert()            
+                cg += sparql.queryAndConvert()     
         return cg        
     
     @classmethod

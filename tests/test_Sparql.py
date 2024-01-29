@@ -20,7 +20,26 @@ from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.support import _to_nt_sorted_list
 
-CONFIG_PATH = "tests/config.json"
+CONFIG = {
+    "dataset": {
+        "triplestore_urls": ["http://127.0.0.1:9999/blazegraph/sparql"],
+        "file_paths": [],
+        "is_quadstore": True
+    },
+    "provenance": {
+        "triplestore_urls": [],
+        "file_paths": ["tests/prov.json"],
+        "is_quadstore": True
+    },
+    "blazegraph_full_text_search": "no",
+    "fuseki_full_text_search": "no",
+    "virtuoso_full_text_search": "no",
+    "graphdb_connector_name": "",
+    "cache_triplestore_url": {
+        "endpoint": "",
+        "update_endpoint": ""
+    }
+}
 
 class Test_Sparql(unittest.TestCase):
     def test_run_select_query(self):
@@ -31,7 +50,7 @@ class Test_Sparql(unittest.TestCase):
                 ?s ?p ?o
             }
         """
-        output = Sparql(input, CONFIG_PATH).run_select_query()
+        output = Sparql(input, CONFIG).run_select_query()
         expected_output = {
             ('http://purl.org/spar/pro/isHeldBy', 'https://github.com/arcangelo7/time_agnostic/ra/4'), 
             ('http://purl.org/spar/pro/withRole', 'http://purl.org/spar/pro/author'), 
@@ -49,7 +68,7 @@ class Test_Sparql(unittest.TestCase):
                     a <{ProvEntity.iri_entity}>.
             }}
         """
-        output = Sparql(input_1, CONFIG_PATH)._get_tuples_from_files()
+        output = Sparql(input_1, CONFIG)._get_tuples_from_files()
         expected_output = {
             ('http://www.w3.org/ns/prov#generatedAtTime', '2021-05-07T09:59:15+00:00'), 
             ('http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/ns/prov#Entity'), 
@@ -68,7 +87,7 @@ class Test_Sparql(unittest.TestCase):
                 ?s ?p ?o
             }
         """
-        output = Sparql(input_1, CONFIG_PATH)._get_tuples_from_triplestores()
+        output = Sparql(input_1, CONFIG)._get_tuples_from_triplestores()
         expected_output = {
             ('http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://purl.org/spar/datacite/Identifier'), 
             ('http://purl.org/spar/datacite/usesIdentifierScheme', 'http://purl.org/spar/datacite/orcid'), 
@@ -84,7 +103,7 @@ class Test_Sparql(unittest.TestCase):
                 GRAPH ?c {?s ?p ?o}
             }           
         """
-        output = _to_nt_sorted_list(Sparql(input, CONFIG_PATH).run_construct_query())
+        output = _to_nt_sorted_list(Sparql(input, CONFIG).run_construct_query())
         expected_output = [
             '<https://github.com/arcangelo7/time_agnostic/id/14> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid>', 
             '<https://github.com/arcangelo7/time_agnostic/id/14> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "http://orcid.org/0000-0002-3259-2309"', 
@@ -106,7 +125,7 @@ class Test_Sparql(unittest.TestCase):
                 }}   
             }}
         """       
-        output = _to_nt_sorted_list(Sparql(input_1, CONFIG_PATH)._get_graph_from_files()) 
+        output = _to_nt_sorted_list(Sparql(input_1, CONFIG)._get_graph_from_files()) 
         expected_output = [
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-31T18:19:47+00:00"', 
@@ -125,7 +144,7 @@ class Test_Sparql(unittest.TestCase):
                 <https://github.com/arcangelo7/time_agnostic/ra/4> ?p ?o. 
             }}
         """       
-        sparql = Sparql(input, CONFIG_PATH)
+        sparql = Sparql(input, CONFIG)
         output = _to_nt_sorted_list(sparql._get_graph_from_triplestores()) 
         expected_output = [
             '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/14>', 
@@ -152,7 +171,7 @@ class Test_Sparql(unittest.TestCase):
             ('http://www.w3.org/ns/prov#specializationOf', 'https://github.com/arcangelo7/time_agnostic/id/1'), 
             ('http://www.w3.org/ns/prov#generatedAtTime', '2021-05-06T18:14:42')
         ]
-        output = len(Sparql(input_1)._cut_by_limit(input_2))
+        output = len(Sparql(input_1, CONFIG)._cut_by_limit(input_2))
         expected_output = 2
         self.assertEqual(output, expected_output)
 

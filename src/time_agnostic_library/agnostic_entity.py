@@ -41,10 +41,10 @@ class AgnosticEntity:
     :type config_path: str, optional
     """
 
-    def __init__(self, res:str, related_entities_history:bool=False, config_path:str=CONFIG_PATH):
+    def __init__(self, res:str, config:dict, related_entities_history:bool=False):
         self.res = res
         self.related_entities_history = related_entities_history
-        self.config_path = config_path
+        self.config = config
 
     def get_history(self, include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]]]:
         """
@@ -87,7 +87,7 @@ class AgnosticEntity:
             for entity in related_entities:
                 if ProvEntity.PROV not in entity[1]:
                     entities_to_query.add(str(entity[0]))
-            return _get_entities_histories(entities_to_query, include_prov_metadata, self.config_path)
+            return _get_entities_histories(entities_to_query, self.config, include_prov_metadata)
         entity_history = self._get_entity_current_state(include_prov_metadata)
         entity_history = self._get_old_graphs(entity_history)
         return tuple(entity_history)
@@ -161,7 +161,7 @@ class AgnosticEntity:
                 }}
             }}
         """
-        results = list(Sparql(query_snapshots, config_path=self.config_path).run_select_query())
+        results = list(Sparql(query_snapshots, config=self.config).run_select_query())
         if not results:
             return None, None, None
         results.sort(key=lambda x:convert_to_datetime(x[1]), reverse=True)
@@ -340,25 +340,30 @@ class AgnosticEntity:
         #
         # Aftwerwards, the rdflib add method can be used to add quads to a Conjunctive Graph,
         # where the fourth element is the context.
+        is_quadstore = self.config['dataset']['is_quadstore']
+        if is_quadstore:
+            graph_clause = "GRAPH ?c {?s ?p ?o}"
+        else:
+            graph_clause = "{?s ?p ?o}"
         if self.related_entities_history:
             query_dataset = f"""
-                SELECT DISTINCT ?s ?p ?o ?c
+                SELECT DISTINCT ?s ?p ?o {('?c' if is_quadstore else '')}
                 WHERE {{
                     {{BIND (<{self.res}> AS ?s)}}
                     UNION 
                     {{BIND (<{self.res}> AS ?o)}}
-                    GRAPH ?c {{?s ?p ?o}}
+                    {graph_clause}
                 }}   
             """
         else:
             query_dataset = f"""
-                SELECT DISTINCT ?s ?p ?o ?c
+                SELECT DISTINCT ?s ?p ?o {('?c' if is_quadstore else '')}
                 WHERE {{
                     BIND (<{self.res}> AS ?s) 
-                    GRAPH ?c {{?s ?p ?o}}
+                    {graph_clause}
                 }}   
             """
-        return Sparql(query_dataset, config_path=self.config_path).run_construct_query()
+        return Sparql(query_dataset, config=self.config).run_construct_query()
 
     def _query_provenance(self, include_prov_metadata:bool=False) -> ConjunctiveGraph:
         if include_prov_metadata:
@@ -391,12 +396,12 @@ class AgnosticEntity:
                     OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}   
                 }}
             """
-        return Sparql(query_provenance, config_path=self.config_path).run_construct_query()
+        return Sparql(query_provenance, config=self.config).run_construct_query()
 
-def _get_entities_histories(res_set: Set[str], include_prov_metadata:bool=False, config_path:str=".config.json") -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
+def _get_entities_histories(res_set: Set[str], config: dict, include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
     entities_histories = [dict(), dict()]
     for res in res_set:
-        agnosticEntity = AgnosticEntity(res, related_entities_history=False, config_path=config_path)
+        agnosticEntity = AgnosticEntity(res, config, related_entities_history=False)
         history_and_metadata = agnosticEntity.get_history(include_prov_metadata=include_prov_metadata)
         if history_and_metadata:
             history = history_and_metadata[0]

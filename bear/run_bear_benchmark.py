@@ -1,9 +1,9 @@
+import argparse
 import json
 import os
 import time
 
-from time_agnostic_library.agnostic_query import \
-    VersionQuery  # Assumendo che la libreria sia così importabile
+from time_agnostic_library.agnostic_query import VersionQuery
 
 
 def run_benchmark(query_file_path, timestamp, key, config_path):
@@ -40,19 +40,11 @@ def run_benchmark(query_file_path, timestamp, key, config_path):
 def format_query(raw_query):
     return f"SELECT * WHERE {{ {raw_query.strip()} }}"
 
-if __name__ == "__main__":
-    BASE_FOLDER = 'C:/Users/arcangelo.massari2/Desktop/time-agnostic-library'
-
-    with open(os.path.join(BASE_FOLDER, "timestamps.json"), "r") as file:
+def main(query_folder, timestamp_path, config_path, result_path):
+    with open(timestamp_path, "r") as file:
         timestamps = json.load(file)
 
-    # Lista di query SPARQL
-    query_folder = os.path.join(BASE_FOLDER, "bear", "queries", "bear_a")
     all_results = {}
-
-    start_time = None  # Puoi specificare un inizio se necessario
-    end_time = None  # Puoi specificare una fine se necessario
-    config_path = os.path.join(BASE_FOLDER, "bear", "config.json")
 
     for file_name in os.listdir(query_folder):
         if file_name.endswith('.txt'):
@@ -61,5 +53,17 @@ if __name__ == "__main__":
                 results = run_benchmark(file_path, timestamp, key, config_path)
                 all_results.update(results)
 
-    with open(os.path.join(BASE_FOLDER, "bear", "bear_a_results.json"), "w") as outfile:
+    with open(result_path, "w") as outfile:
         json.dump(all_results, outfile, indent=4)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run a SPARQL benchmark test")
+    parser.add_argument('query_folder', type=str, help="Folder containing SPARQL query files")
+    parser.add_argument('timestamp_path', type=str, help="Path to the JSON file with timestamps")
+    parser.add_argument('config_path', type=str, help="Path to the configuration JSON file")
+    parser.add_argument('result_path', type=str, help="Path where to save the results JSON file")
+    
+    args = parser.parse_args()
+    main(args.query_folder, args.timestamp_path, args.config_path, args.result_path)
+
+# python3 -m bear.run_bear_benchmark /srv/data/arcangelo/bear/b/queries/ /srv/data/arcangelo/bear/b/instant_ocdm/cache.json /srv/data/arcangelo/bear/b/instant_ocdm/config.json /srv/data/arcangelo/bear/b/instant_ocdm/results.json

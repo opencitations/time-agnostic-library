@@ -49,6 +49,7 @@ class AgnosticQuery(object):
         self.other_snapshots_metadata = dict()
         with open(config_path, encoding="utf8") as json_file:
             config = json.load(json_file)
+        self.config = config
         self.__init_cache(config)
         self.__init_text_index(config)
         if on_time:
@@ -119,7 +120,7 @@ class AgnosticQuery(object):
         for triple in self.triples:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 query_to_identify = self._get_query_to_identify(triple)
-                present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
+                present_results = Sparql(query_to_identify, self.config).run_construct_query()
                 present_entities = {result[0] for result in present_results}
                 self._rebuild_relevant_entity(triple[0])
                 self._find_entities_in_update_queries(triple, present_entities)
@@ -167,7 +168,7 @@ class AgnosticQuery(object):
                         self.relevant_entities_graphs.setdefault(entity, dict())[timestamp] = cached_graph
                     self.already_cached_entities.add(entity)
                     return
-            agnostic_entity = AgnosticEntity(entity, related_entities_history=False, config_path=self.config_path)
+            agnostic_entity = AgnosticEntity(entity, config=self.config, related_entities_history=False)
             if self.on_time:
                 entity_graphs, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
                 if other_snapshots:
@@ -276,28 +277,42 @@ class AgnosticQuery(object):
         return query_to_identify
 
     def _find_entities_in_update_queries(self, triple:tuple, present_entities:set):
+        def _process_triple(processed_triple, uris_in_triple: set, relevant_entities_found: set):
+            processed_triple = [el["string"] if "string" in el else el for el in processed_triple]
+            relevant_entities = set(processed_triple).difference(uris_in_triple) if len(uris_in_triple.intersection(processed_triple)) == len(uris_in_triple) else None
+            if relevant_entities is not None:
+                relevant_entities_found.update(relevant_entities)
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = present_entities
         query_to_identify = self._get_query_to_update_queries(triple)
-        results = Sparql(query_to_identify, self.config_path).run_select_query()
+        results = Sparql(query_to_identify, self.config).run_select_query()
         if results:
             for result in results:
                 if result[0]:
-                    update = parseUpdate(result[0])
+                    try:
+                        update = parseUpdate(result[0])
+                    except Exception as e:
+                        print(e)
+                        print(result[0])
+                        raise
                     for request in update["request"]:
-                        for quadsNotTriples in request["quads"]["quadsNotTriples"]:
-                            for triple in quadsNotTriples["triples"]:
-                                triple = [el["string"] if "string" in el else el for el in triple]
-                                relevant_entities = set(triple).difference(uris_in_triple) if len(uris_in_triple.intersection(triple)) == len(uris_in_triple) else None
-                                if relevant_entities is not None:
-                                    relevant_entities_found.update(relevant_entities)
+                        if "quadsNotTriples" in request["quads"]:
+                            for quadsNotTriples in request["quads"]["quadsNotTriples"]:
+                                for inner_triple in quadsNotTriples["triples"]:
+                                    _process_triple(inner_triple, uris_in_triple, relevant_entities_found)
+                        elif "triples" in request["quads"]:
+                            for inner_triple in request["quads"]["triples"]:
+                                    _process_triple(inner_triple, uris_in_triple, relevant_entities_found)
         if relevant_entities_found:
             print(f"[VersionQuery:INFO] Rebuilding relevant entities' history.")
             pbar = tqdm(total=len(relevant_entities_found))
-            with ThreadPoolExecutor() as executor:
-                results = [executor.submit(self._rebuild_relevant_entity, new_entity_found) for new_entity_found in relevant_entities_found]
-                for _ in as_completed(results):
-                    pbar.update()
+            for new_entity_found in relevant_entities_found:
+                self._rebuild_relevant_entity(new_entity_found)
+                pbar.update()
+            # with ThreadPoolExecutor() as executor:
+            #     results = [executor.submit(self._rebuild_relevant_entity, new_entity_found) for new_entity_found in relevant_entities_found]
+            #     for _ in as_completed(results):
+            #         pbar.update()
             pbar.close()
     
     def _solve_variables(self) -> None:
@@ -598,7 +613,7 @@ class DeltaQuery(AgnosticQuery):
         for triple in self.triples:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 query_to_identify = self._get_query_to_identify(triple)
-                present_results = Sparql(query_to_identify, self.config_path).run_construct_query()
+                present_results = Sparql(query_to_identify, self.config).run_construct_query()
                 pbar = tqdm(total=len(present_results))
                 for result in present_results:
                     if isinstance(result[0], URIRef):
@@ -619,7 +634,7 @@ class DeltaQuery(AgnosticQuery):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = set()
         query_to_identify = self._get_query_to_update_queries(triple)
-        results = Sparql(query_to_identify, self.config_path).run_select_query()
+        results = Sparql(query_to_identify, self.config).run_select_query()
         if results:
             for result in results:
                 if result[0]:
@@ -674,7 +689,7 @@ class DeltaQuery(AgnosticQuery):
                 <{identified_entity}> ?p ?o.
             }}
         """
-        results = Sparql(query, self.config_path).run_select_query()
+        results = Sparql(query, self.config).run_select_query()
         if results:
             relevant_results = list(_filter_timestamps_by_interval(self.on_time, results, 0))
             if relevant_results:
@@ -686,7 +701,7 @@ class DeltaQuery(AgnosticQuery):
                 }
                 results = sorted(list(results), key=lambda x:convert_to_datetime(x[0]))
                 creation_date = convert_to_datetime(results[0][0], stringify=True)
-                exists = Sparql(query_existence, self.config_path).run_select_query()
+                exists = Sparql(query_existence, self.config).run_select_query()
                 if not exists:
                     output[identified_entity]["deleted"] = convert_to_datetime(results[-1][0], stringify=True)
                 for result_tuple in relevant_results:

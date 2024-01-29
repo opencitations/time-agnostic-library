@@ -1,11 +1,13 @@
 {
     "dataset": {
         "triplestore_urls": ["http://127.0.0.1:9999/blazegraph/sparql"],
-        "file_paths": []
+        "file_paths": [],
+        "is_quadstore": true
     },
     "provenance": {
         "triplestore_urls": ["http://127.0.0.1:19999/blazegraph/sparql"],
-        "file_paths": []
+        "file_paths": [],
+        "is_quadstore": true
     },
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",

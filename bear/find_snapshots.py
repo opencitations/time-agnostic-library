@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import re
@@ -20,7 +21,7 @@ def find_generated_at_time(filename):
 
     return results
 
-def main(directory):
+def main(directory, output_file):
     """
     Esplora tutti i file .nq nella directory specificata e cerca gli oggetti dei predicati prov:generatedAtTime.
     """
@@ -40,10 +41,13 @@ def main(directory):
 
     timestamps_sorted = sorted(list(timestamps))
 
-    with open("timestamps.json", "w", encoding='utf-8') as json_file:
+    with open(output_file, "w", encoding='utf-8') as json_file:
         json.dump({str(i+1): ts for i, ts in enumerate(timestamps_sorted)}, json_file, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":
-    directory = input("Inserisci il percorso della cartella da esplorare: ")
-    main(directory)
+    parser = argparse.ArgumentParser(description="Find prov:generatedAtTime objects in .nq files.")
+    parser.add_argument("directory", type=str, help="The directory to explore for .nq files")
+    parser.add_argument("--output", type=str, default="timestamps.json", help="Output file path (default: timestamps.json)")
+    args = parser.parse_args()
+    main(args.directory, args.output)

@@ -26,12 +26,31 @@ from time_agnostic_library.support import (_to_conjunctive_graph,
                                            _to_dict_of_nt_sorted_lists,
                                            _to_nt_sorted_list)
 
-CONFIG_PATH = "tests/config.json"
+CONFIG = {
+    "dataset": {
+        "triplestore_urls": ["http://127.0.0.1:9999/blazegraph/sparql"],
+        "file_paths": [],
+        "is_quadstore": True
+    },
+    "provenance": {
+        "triplestore_urls": [],
+        "file_paths": ["tests/prov.json"],
+        "is_quadstore": True
+    },
+    "blazegraph_full_text_search": "no",
+    "fuseki_full_text_search": "no",
+    "virtuoso_full_text_search": "no",
+    "graphdb_connector_name": "",
+    "cache_triplestore_url": {
+        "endpoint": "",
+        "update_endpoint": ""
+    }
+}
 
 class Test_AgnosticEntity(unittest.TestCase):
     def test_get_history(self):
         input = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        entity_history = AgnosticEntity(input, config_path="tests/config.json").get_history()
+        entity_history = AgnosticEntity(input, config=CONFIG).get_history()
         output = (_to_dict_of_nt_sorted_lists(entity_history[0]), entity_history[1])
         expected_output = ({
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -58,7 +77,7 @@ class Test_AgnosticEntity(unittest.TestCase):
 
     def test_get_history_with_metadata(self):
         input = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        output = AgnosticEntity(input, config_path="tests/config.json").get_history(include_prov_metadata=True)
+        output = AgnosticEntity(input, config=CONFIG).get_history(include_prov_metadata=True)
         output_0 = _to_dict_of_nt_sorted_lists(output[0])
         output_1 = output[1]
         expected_output_0 = {
@@ -110,7 +129,7 @@ class Test_AgnosticEntity(unittest.TestCase):
     
     def test_get_history_and_related_entities(self):
         input = "https://github.com/arcangelo7/time_agnostic/id/14"
-        output = AgnosticEntity(input, related_entities_history=True, config_path="tests/config.json").get_history(include_prov_metadata=False)
+        output = AgnosticEntity(input, related_entities_history=True, config=CONFIG).get_history(include_prov_metadata=False)
         output_0 = _to_dict_of_nt_sorted_lists(output[0])
         expected_output_0 = {
             'https://github.com/arcangelo7/time_agnostic/ra/4': {
@@ -145,7 +164,7 @@ class Test_AgnosticEntity(unittest.TestCase):
 
     def test_get_history_and_related_entities_with_metadata(self):
         input = "https://github.com/arcangelo7/time_agnostic/id/14"
-        output = AgnosticEntity(input, related_entities_history=True, config_path="tests/config.json").get_history(include_prov_metadata=True)
+        output = AgnosticEntity(input, related_entities_history=True, config=CONFIG).get_history(include_prov_metadata=True)
         output_0 = _to_dict_of_nt_sorted_lists(output[0])
         output_1 = output[1]
         expected_output_0 = {
@@ -214,7 +233,7 @@ class Test_AgnosticEntity(unittest.TestCase):
     def test_get_state_at_time_no_hooks(self):
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         input_2 = ("2021-05-31T18:19:47", "2021-05-31T18:19:47")
-        output = AgnosticEntity(input_1, config_path="tests/config.json").get_state_at_time(input_2, include_prov_metadata=False)
+        output = AgnosticEntity(input_1, config=CONFIG).get_state_at_time(input_2, include_prov_metadata=False)
         output_0 = dict()
         for timestamp, cg in output[0].items():
             output_0[timestamp] = _to_nt_sorted_list(cg)
@@ -239,7 +258,7 @@ class Test_AgnosticEntity(unittest.TestCase):
     def test_get_state_at_interval_no_hooks(self):
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         input_2 = ("2021-05-1", "2021-06-2")
-        output = AgnosticEntity(input_1, config_path="tests/config.json").get_state_at_time(input_2, include_prov_metadata=False)
+        output = AgnosticEntity(input_1, config=CONFIG).get_state_at_time(input_2, include_prov_metadata=False)
         output_0 = dict()
         for timestamp, cg in output[0].items():
             output_0[timestamp] = _to_nt_sorted_list(cg)
@@ -289,7 +308,7 @@ class Test_AgnosticEntity(unittest.TestCase):
         self.maxDiff = None
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         input_2 = (None, "2021-05-31T19:19:47+00:00")
-        output = AgnosticEntity(input_1, config_path="tests/config.json").get_state_at_time(input_2, include_prov_metadata=True)
+        output = AgnosticEntity(input_1, config=CONFIG).get_state_at_time(input_2, include_prov_metadata=True)
         output_0 = dict()
         for timestamp, cg in output[0].items():
             output_0[timestamp] = _to_nt_sorted_list(cg)
@@ -331,7 +350,7 @@ class Test_AgnosticEntity(unittest.TestCase):
 
     def test__get_entity_current_state(self):
         input = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        output = _to_dict_of_nt_sorted_lists(AgnosticEntity(input, config_path="tests/config.json")._get_entity_current_state()[0])
+        output = _to_dict_of_nt_sorted_lists(AgnosticEntity(input, config=CONFIG)._get_entity_current_state()[0])
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 rdflib.term.Literal('2021-06-01T18:46:41+00:00'): [
@@ -351,8 +370,8 @@ class Test_AgnosticEntity(unittest.TestCase):
     
     def test__old_graphs(self):
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        input_2 = AgnosticEntity(input_1, config_path="tests/config.json")._get_entity_current_state()
-        output = _to_dict_of_nt_sorted_lists(AgnosticEntity(input_1, config_path="tests/config.json")._get_old_graphs(input_2)[0])
+        input_2 = AgnosticEntity(input_1, config=CONFIG)._get_entity_current_state()
+        output = _to_dict_of_nt_sorted_lists(AgnosticEntity(input_1, config=CONFIG)._get_old_graphs(input_2)[0])
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 '2021-06-01T18:46:41': [
@@ -401,7 +420,7 @@ class Test_AgnosticEntity(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
         ])
-        agnostic_entity = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ar/15519", config_path="tests/config.json")
+        agnostic_entity = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ar/15519", config=CONFIG)
         output = agnostic_entity._include_prov_metadata(triples_generated_at_time, current_state)
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -440,7 +459,7 @@ class Test_AgnosticEntity(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/ns/prov#specializationOf> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/ns/prov#wasAttributedTo> <https://orcid.org/0000-0002-8420-0696>'
         ])
-        agnostic_entity = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1", config_path="tests/config.json")
+        agnostic_entity = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1", config=CONFIG)
         output = agnostic_entity._include_prov_metadata(triples_generated_at_time, current_state)
         expected_output = dict()
         self.assertEqual(output, expected_output)
@@ -809,7 +828,7 @@ class Test_AgnosticEntity(unittest.TestCase):
         self.assertEqual(output, expected_output)
 
     def test__query_dataset(self):
-        input = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ar/15519", config_path="tests/config.json")
+        input = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ar/15519", config=CONFIG)
         output = _to_nt_sorted_list(input._query_dataset())
         expected_output = [
             '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
@@ -820,7 +839,7 @@ class Test_AgnosticEntity(unittest.TestCase):
         self.assertEqual(output, expected_output)
     
     def test__query_provenance(self):
-        input = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ra/15519", config_path="tests/config.json")
+        input = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ra/15519", config=CONFIG)
         output = _to_nt_sorted_list(input._query_provenance())
         expected_output = [
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"', 
@@ -830,7 +849,7 @@ class Test_AgnosticEntity(unittest.TestCase):
         self.assertEqual(output, expected_output)
     
     def test_materialization_with_blank_node(self):
-        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/br/528728', config_path="tests/config.json")
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/br/528728', config=CONFIG)
         output = _to_dict_of_nt_sorted_lists(agnostic_entity.get_history()[0])
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/br/528728': {
@@ -846,7 +865,7 @@ class Test_AgnosticEntity(unittest.TestCase):
         self.assertEqual(output, expected_output)
 
     def test_materialization_sv_with_blank_node(self):
-        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/br/528728', config_path="tests/config.json")
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/br/528728', config=CONFIG)
         output = _to_dict_of_nt_sorted_lists(agnostic_entity.get_state_at_time(time=('2021-09-13T16:42:27', '2021-09-13T16:42:27'))[0])
         expected_output = {'2021-09-13T16:42:27': [
             '<https://github.com/arcangelo7/time_agnostic/br/528728> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/282404>', 
