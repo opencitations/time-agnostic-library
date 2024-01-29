@@ -22,6 +22,26 @@ import os
 import unittest
 
 CONFIG_PATH = os.path.join('tests', 'config.json')
+CONFIG = {
+    "dataset": {
+        "triplestore_urls": ["http://127.0.0.1:9999/blazegraph/sparql"],
+        "file_paths": [],
+        "is_quadstore": True
+    },
+    "provenance": {
+        "triplestore_urls": [],
+        "file_paths": ["tests/prov.json"],
+        "is_quadstore": True
+    },
+    "blazegraph_full_text_search": "no",
+    "fuseki_full_text_search": "no",
+    "virtuoso_full_text_search": "no",
+    "graphdb_connector_name": "",
+    "cache_triplestore_url": {
+        "endpoint": "",
+        "update_endpoint": ""
+    }
+}
 CONFIG_BLAZEGRAPH = os.path.join('tests', 'config_blazegraph.json')
 
 class Test_Statistics(unittest.TestCase):
@@ -60,7 +80,7 @@ class Test_Statistics(unittest.TestCase):
         self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_all(self):
-        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config=CONFIG)
         entity_history, _ = agnostic_entity.get_history()
         statistics = Statistics(entity_history)
         overhead = statistics.get_overhead()
@@ -68,7 +88,7 @@ class Test_Statistics(unittest.TestCase):
         self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_single(self):
-        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config=CONFIG)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2021-05-07T09:59:15', '2021-05-07T09:59:15'), include_prov_metadata=True)
         statistics = Statistics((entity_snapshots, other_snapshots))
         overhead = statistics.get_overhead()
@@ -76,7 +96,7 @@ class Test_Statistics(unittest.TestCase):
         self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_single_zero(self):
-        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config=CONFIG)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2022-05-07T09:59:15', '2022-05-07T09:59:15'), include_prov_metadata=True)
         statistics = Statistics((entity_snapshots, other_snapshots))
         overhead = statistics.get_overhead()
@@ -84,7 +104,7 @@ class Test_Statistics(unittest.TestCase):
         self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_single_2(self):
-        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config=CONFIG)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2021-05-31T18:19:47', '2021-05-31T18:19:47'), include_prov_metadata=True)
         statistics = Statistics((entity_snapshots, other_snapshots))
         overhead = statistics.get_overhead()
@@ -92,7 +112,7 @@ class Test_Statistics(unittest.TestCase):
         self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_single_1(self):
-        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config=CONFIG)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2021-06-01T18:46:41', '2021-06-01T18:46:41'), include_prov_metadata=True)
         statistics = Statistics((entity_snapshots, other_snapshots))
         overhead = statistics.get_overhead()
@@ -100,7 +120,7 @@ class Test_Statistics(unittest.TestCase):
         self.assertEqual(overhead, expected_output)
 
     def test_statistics_ma_single_interval(self):
-        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config_path=CONFIG_PATH)
+        agnostic_entity = AgnosticEntity('https://github.com/arcangelo7/time_agnostic/ar/15519', config=CONFIG)
         _, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=('2021-05-31T18:19:47', '2021-06-01T18:46:41'), include_prov_metadata=True)
         statistics = Statistics((entity_snapshots, other_snapshots))
         overhead = statistics.get_overhead()
