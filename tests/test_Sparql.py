@@ -15,7 +15,6 @@
 # SOFTWARE.
 
 import unittest
-from pprint import pprint
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.support import _to_nt_sorted_list
@@ -29,7 +28,7 @@ CONFIG = {
     "provenance": {
         "triplestore_urls": [],
         "file_paths": ["tests/prov.json"],
-        "is_quadstore": True
+        "is_quadstore": False
     },
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",

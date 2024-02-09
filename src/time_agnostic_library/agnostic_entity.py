@@ -141,30 +141,35 @@ class AgnosticEntity:
         :type include_prov_metadata: bool, optional
         :returns: Tuple[dict, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is a dictionary that associates graphs and timestamps within the specified interval; the second contains the snapshots metadata of which the states has been returned. If the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
         """
+        is_quadstore = self.config["provenance"]["is_quadstore"]
+        graph_statement = f"GRAPH <{self.res}/prov/>" if is_quadstore else ""
         query_snapshots = f"""
             SELECT ?snapshot ?time ?responsibleAgent ?updateQuery ?primarySource ?description ?invalidatedAtTime
             WHERE {{
-                ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
-                    <{ProvEntity.iri_generated_at_time}> ?time;
-                    <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent.
-                OPTIONAL {{
-                    ?snapshot <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime.
-                }}
-                OPTIONAL {{
-                    ?snapshot <{ProvEntity.iri_description}> ?description.
-                }}
-                OPTIONAL {{
-                    ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                }}
-                OPTIONAL {{
-                    ?snapshot <{ProvEntity.iri_had_primary_source}> ?primarySource.
+                {graph_statement}
+                {{
+                    ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
+                        <{ProvEntity.iri_generated_at_time}> ?time;
+                        <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent.
+                    OPTIONAL {{
+                        ?snapshot <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime.
+                    }}
+                    OPTIONAL {{
+                        ?snapshot <{ProvEntity.iri_description}> ?description.
+                    }}
+                    OPTIONAL {{
+                        ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                    }}
+                    OPTIONAL {{
+                        ?snapshot <{ProvEntity.iri_had_primary_source}> ?primarySource.
+                    }}
                 }}
             }}
         """
         results = list(Sparql(query_snapshots, config=self.config).run_select_query())
         if not results:
             return None, None, None
-        results.sort(key=lambda x:convert_to_datetime(x[1]), reverse=True)
+        results.sort(key=lambda x: convert_to_datetime(x[1]), reverse=True)
         relevant_results = _filter_timestamps_by_interval(time, results, time_index=1)
         other_snapshots_metadata = None
         entity_snapshots = dict()
@@ -420,6 +425,7 @@ def _filter_timestamps_by_interval(interval:Tuple[str, str], iterator:list, time
             time = convert_to_datetime(timestamp[time_index]) if time_index is not None else convert_to_datetime(timestamp)
             if after_time and before_time:
                 if time >= after_time and time <= before_time:
+                # if time <= before_time:
                     relevant_timestamps.add(timestamp)
             if after_time and not before_time:
                 if time >= after_time:

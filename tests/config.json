@@ -7,7 +7,7 @@
     "provenance": {
         "triplestore_urls": [],
         "file_paths": ["tests/prov.json"],
-        "is_quadstore": true
+        "is_quadstore": false
     },
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",

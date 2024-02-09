@@ -35,7 +35,7 @@ CONFIG = {
     "provenance": {
         "triplestore_urls": [],
         "file_paths": ["tests/prov.json"],
-        "is_quadstore": True
+        "is_quadstore": False
     },
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",
@@ -238,7 +238,7 @@ class Test_AgnosticEntity(unittest.TestCase):
         for timestamp, cg in output[0].items():
             output_0[timestamp] = _to_nt_sorted_list(cg)
         output = (output_0, output[1], output[2])
-        expected_output =         (
+        expected_output = (
             {'2021-05-31T18:19:47': [
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 

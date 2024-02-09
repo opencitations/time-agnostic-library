@@ -3,7 +3,6 @@ import unittest
 import rdflib
 
 from time_agnostic_library.agnostic_query import DeltaQuery, VersionQuery
-from time_agnostic_library.support import empty_the_cache
 
 CONFIG_PATH = "tests/config_fuseki.json"
 

@@ -90,106 +90,184 @@ def deserialize_modifications(serialized_modifications):
         modifications.append((predicate, obj))
     return modifications
 
-def generate_ocdm_provenance(cb_dir: str, cache_filepath: str, counter_handler: RedisCounterHandler, psyco_cursor, psyco_connection, source: str, resp_agent: str, output_dir: str):
+def process_initial_version(gzip_file_path: str, cb_dir: str, psyco_cursor, psyco_connection, counter_handler: RedisCounterHandler, source: str, resp_agent: str, output_dir: str, cache: Dict, in_memory_changes: Dict, in_memory_counters: Dict):
+    cur_time: str = datetime.now(timezone.utc).isoformat(sep="T")
+    graph = read_rdf_gzip_file(gzip_file_path)
+    changes: Dict[URIRef, dict] = dict()
+    all_entities = set()
+    for subj, pred, obj in graph:
+        subject = str(subj)
+        key = f"{subject}_added"
+        if psyco_cursor is not None and psyco_connection is not None:
+            changes.setdefault(key, []).extend(serialize_modifications([(str(pred), obj)]))
+        else:
+            changes.setdefault(key, []).extend([(str(pred), obj)])
+        all_entities.add(subject)
+    if psyco_cursor is not None and psyco_connection is not None:
+        serialized_changes = [(urllib.parse.quote((k)), json.dumps(v)) for k, v in changes.items()]
+        query = "INSERT INTO changes (key, value) VALUES %s"
+        execute_values(psyco_cursor, query, serialized_changes)
+        psyco_connection.commit()
+    else:
+        in_memory_changes.update({urllib.parse.quote(k): v for k, v in changes.items()})
+    process_changes(all_entities, psyco_cursor, psyco_connection, counter_handler, source, resp_agent, output_dir, cur_time, in_memory_changes, in_memory_counters)
+
+def process_changes(all_entities: set, psyco_cursor, psyco_connection, counter_handler: RedisCounterHandler, source: str, resp_agent: str, output_dir: str, cur_time: str, in_memory_changes: Dict, in_memory_counters: Dict):    
+    if counter_handler:
+        all_prov_counters = [int(counter.decode('utf8')) if counter else counter for counter in counter_handler.connection.mget(all_entities)]
+    else:
+        all_prov_counters = [in_memory_counters.get(entity, None) for entity in all_entities]
+
+    existing_snapshots = {e: all_prov_counters[i] for i, e in enumerate(all_entities)}
+    updated_snapshots = dict()
+
+    ocdm_prov = OCDMProvenance(source=URIRef(source), resp_agent=URIRef(resp_agent), counter_handler=counter_handler)
+
+    batch_size = 1000000
+    entities_batch = [list(all_entities)[i:i + batch_size] for i in range(0, len(all_entities), batch_size)]
+
+    for entity_batch in entities_batch:
+        if psyco_cursor is not None:
+            modifications_added = get_modifications('added', entity_batch, psyco_cursor)
+            modifications_deleted = get_modifications('deleted', entity_batch, psyco_cursor)
+        else:
+            modifications_added = get_in_memory_modifications('added', entity_batch, in_memory_changes)
+            modifications_deleted = get_in_memory_modifications('deleted', entity_batch, in_memory_changes)
+        for entity in entity_batch:
+            entity_uri = URIRef(entity)
+            last_snapshot_res = ocdm_prov.retrieve_last_snapshot(entity_uri, existing_snapshots)
+
+            if last_snapshot_res is None:
+                # CREATION SNAPSHOT for version 0 or first appearance of the entity
+                cur_snapshot = ocdm_prov.create_snapshot(entity_uri, cur_time, existing_snapshots, updated_snapshots)
+                cur_snapshot.has_description(f"The entity '{str(entity_uri)}' has been created.")
+            else:
+                # MODIFICATION SNAPSHOT for subsequent versions
+                last_snapshot = ocdm_prov.add_se(prov_subject=entity_uri, res=last_snapshot_res, existing_snapshots=existing_snapshots, updated_snapshots=updated_snapshots)
+                last_snapshot.has_invalidation_time(cur_time)
+                cur_snapshot = ocdm_prov.create_snapshot(entity_uri, cur_time, existing_snapshots, updated_snapshots)
+                cur_snapshot.derives_from(last_snapshot)
+                cur_snapshot.has_description(f"The entity '{str(entity_uri)}' was modified.")
+                formatted_entity = str(entity)
+                insert_query = ''
+                if formatted_entity in modifications_added:
+                    if modifications_added[formatted_entity]:
+                        insert_query, _ = get_insert_query(entity, modifications_added[formatted_entity])
+                delete_query = ''
+                if formatted_entity in modifications_deleted:
+                    if modifications_deleted[formatted_entity]:
+                        delete_query, _ = get_delete_query(entity, modifications_deleted[formatted_entity])
+                update_query = ocdm_prov.get_update_query(insert_query, delete_query)
+                cur_snapshot.has_update_action(update_query)
+
+        save_graphs_to_nquads(ocdm_prov, output_dir)
+
+    # Clear the changes after processing them
+    if psyco_cursor is not None and psyco_connection is not None:
+        psyco_cursor.execute("TRUNCATE TABLE changes")
+        psyco_connection.commit()
+    else:
+        in_memory_changes.clear()
+
+    # Update the snapshots counters
+    if updated_snapshots:
+        if counter_handler:
+            counter_handler.connection.mset(updated_snapshots)
+        else:
+            in_memory_counters.update(updated_snapshots)
+
+def generate_ocdm_provenance(cb_dir: str, initial_version_path: str, cache_filepath: str, counter_handler: RedisCounterHandler, psyco_cursor, psyco_connection, source: str, resp_agent: str, output_dir: str):
+    in_memory_changes = dict()
+    in_memory_counters = dict()
+    cache = read_cache(cache_filepath)
+    
+    start_time = time.time()
+    initial_version_file = os.path.basename(initial_version_path)
+    if initial_version_file not in cache['processed_files']:
+        process_initial_version(initial_version_path, cb_dir, psyco_cursor, psyco_connection, counter_handler, source, resp_agent, output_dir, cache, in_memory_changes, in_memory_counters)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        update_cache(cache_filepath, cache, [initial_version_file], '0-1', elapsed_time)
+
     versions = set()
     for filename in os.listdir(cb_dir):
-        versions.add(filename.split('_')[1].replace('.nt.gz', ''))
+        if filename.startswith('data-added_') or filename.startswith('data-deleted_'):
+            version = filename.split('_')[1].replace('.nt.gz', '')
+            versions.add(version)
     versions = sorted(list(versions), key=lambda x: int(x.split('-')[0]))
-    cache = read_cache(cache_filepath)
+
     pbar = tqdm(total=len(versions))
+    last_time = None
     for version in versions:
-        changes: Dict[URIRef, dict] = dict()
+        changes = dict()
+        all_entities = set()
         processed_files = []
         start_time = time.time()
-        cur_time: str = datetime.fromtimestamp(start_time, tz=timezone.utc).replace(microsecond=0).isoformat(sep="T")
-        all_entities = set()
+
+        while True:
+            cur_time = datetime.now(timezone.utc).isoformat(sep="T")
+            if cur_time != last_time:
+                break
+            time.sleep(0.001)
+        last_time = cur_time
+
         for operation in ['added', 'deleted']:
             operation_file = f'data-{operation}_{version}.nt.gz'
             if operation_file in cache['processed_files']:
-                continue
+                continue 
             gzip_file_path = os.path.join(cb_dir, operation_file)
             graph = read_rdf_gzip_file(gzip_file_path)
             for subj, pred, obj in graph:
                 subject = str(subj)
                 key = f"{subject}_{operation}"
-                changes.setdefault(key, []).extend(serialize_modifications([(str(pred), obj)]))
+                if psyco_cursor is not None and psyco_connection is not None:
+                    changes.setdefault(key, []).extend(serialize_modifications([(str(pred), obj)]))
+                else:
+                    changes.setdefault(key, []).extend([(str(pred), obj)])
                 all_entities.add(subject)
-            serialized_changes = [(urllib.parse.quote((k)), json.dumps(v)) for k, v in changes.items()]
-            query = "INSERT INTO changes (key, value) VALUES %s"
-            execute_values(psyco_cursor, query, serialized_changes)
-            psyco_connection.commit()
+            if psyco_cursor is not None and psyco_connection is not None:
+                serialized_changes = [(urllib.parse.quote((k)), json.dumps(v)) for k, v in changes.items()]
+                query = "INSERT INTO changes (key, value) VALUES %s"
+                execute_values(psyco_cursor, query, serialized_changes)
+                psyco_connection.commit()
+            else:
+                in_memory_changes.update({urllib.parse.quote(k): v for k, v in changes.items()})
             changes = dict()
             processed_files.append(operation_file)
-        all_prov_counters = [int(counter.decode('utf8')) if counter else counter for counter in counter_handler.connection.mget(all_entities)]
-        existing_snapshots = {entity: all_prov_counters[i] for i, entity in enumerate(all_entities)}
-        updated_snapshots = dict()
-        pbar_provenance = tqdm(total=len(all_entities))
-        batch_size = 1000000
-        entities_batch = [list(all_entities)[i:i + batch_size] for i in range(0, len(all_entities), batch_size)]
 
-        for entity_batch in entities_batch:
-            ocdm_prov = OCDMProvenance(
-                source=source, resp_agent=resp_agent, counter_handler=counter_handler)
-
-            modifications_added = get_modifications('added', entity_batch, psyco_cursor)
-            modifications_deleted = get_modifications('deleted', entity_batch, psyco_cursor)
-            for entity in entity_batch:
-                entity = URIRef(entity)
-                last_snapshot_res = ocdm_prov.retrieve_last_snapshot(entity, existing_snapshots)
-
-                if last_snapshot_res is None:
-                    # CREATION SNAPSHOT
-                    cur_snapshot: SnapshotEntity = ocdm_prov.create_snapshot(entity, cur_time, existing_snapshots, updated_snapshots)
-                    cur_snapshot.has_description(f"The entity '{str(entity)}' has been created.")
-                else:
-                    # MODIFICATION SNAPSHOT
-                    last_snapshot: SnapshotEntity = ocdm_prov.add_se(prov_subject=entity, res=last_snapshot_res, existing_snapshots=existing_snapshots, updated_snapshots=updated_snapshots)
-                    last_snapshot.has_invalidation_time(cur_time)
-                    cur_snapshot: SnapshotEntity = ocdm_prov.create_snapshot(entity, cur_time, existing_snapshots, updated_snapshots)
-                    cur_snapshot.derives_from(last_snapshot)
-                    cur_snapshot.has_description(f"The entity '{str(entity)}' was modified.")
-                    formatted_entity = str(entity)
-                    insert_query = ''
-                    if formatted_entity in modifications_added:
-                        if modifications_added[formatted_entity]:
-                            insert_query, _ = get_insert_query(entity, modifications_added[formatted_entity])
-                    delete_query = ''
-                    if formatted_entity in modifications_deleted:
-                        if modifications_deleted[formatted_entity]:
-                            delete_query, _ = get_delete_query(entity, modifications_deleted[formatted_entity])
-                    update_query = ocdm_prov.get_update_query(insert_query, delete_query)
-                    cur_snapshot.has_update_action(update_query)
-                pbar_provenance.update()
-
-            save_graphs_to_nquads(ocdm_prov, output_dir)
-
-        psyco_cursor.execute("TRUNCATE TABLE changes")
-        psyco_connection.commit()
-        pbar_provenance.close()
-        if updated_snapshots:
-            counter_handler.connection.mset(updated_snapshots)
+        # Processa le modifiche raccolte per la versione corrente
+        process_changes(all_entities, psyco_cursor, psyco_connection, counter_handler, source, resp_agent, output_dir, cur_time, in_memory_changes, in_memory_counters)
         end_time = time.time()
         elapsed_time = end_time - start_time
-        update_cache(cache_filepath, cache,
-                     processed_files, version, elapsed_time)
+        update_cache(cache_filepath, cache, processed_files, version, elapsed_time)
         pbar.update()
     pbar.close()
 
+    # Dopo l'elaborazione, assicurati di disconnettere eventuali gestori esterni come Redis
+    if counter_handler:
+        counter_handler.disconnect()
+    if psyco_connection:
+        psyco_cursor.close()
+        psyco_connection.close()
+  
 def build_statements(entity, modifications: List[Tuple[str, URIRef | Literal]]) -> str:
     statements = ''
     for predicate, obj in modifications:
         if isinstance(obj, URIRef):
             obj_str = f"<{obj}>"
         elif isinstance(obj, Literal):
-            obj_value = str(obj).replace('"', '\\"')
+            obj_value = str(obj).replace('\\', '\\\\').replace('\"', '\\\"')
+            obj_value = f'\"\"\"{obj_value}\"\"\"' if '\n' in obj_value else f"\"{obj_value}\""
             if obj.datatype:
-                obj_str = f"\"{obj_value}\"^^<{obj.datatype}>"
+                obj_str = f"{obj_value}^^<{obj.datatype}>"
             elif obj.language:
-                obj_str = f"\"{obj_value}\"@{obj.language}"
+                obj_str = f"{obj_value}@{obj.language}"
             else:
-                obj_str = f"\"{obj_value}\""
+                obj_str = f"{obj_value}"
         else:
-            obj_str = f"\"{obj}\""
+            obj_value = str(obj).replace('\\', '\\\\').replace('\"', '\\\"')
+            obj_value = f'\"\"\"{obj_value}\"\"\"' if '\n' in obj_value else f"\"{obj_value}\""
+            obj_str = f"\"{obj_value}\""
         statements += f"<{entity}> <{predicate}> {obj_str} . "
     return statements
 
@@ -223,6 +301,14 @@ def get_modifications(operation: str, entities: list, cursor) -> list:
     cursor.execute(query)
     results = cursor.fetchall()
     modifications = {urllib.parse.unquote(key).replace(f'_{operation}', ''): deserialize_modifications(value) for key, value in results} if results else {}
+    return modifications
+
+def get_in_memory_modifications(operation: str, entities: list, in_memory_changes: dict) -> dict:
+    modifications = {}
+    for entity in entities:
+        key = f"{urllib.parse.quote(entity)}_{operation}"
+        if key in in_memory_changes:
+            modifications[entity] = in_memory_changes[key]
     return modifications
 
 def raw_newline_count_gzip(fname):
@@ -350,44 +436,55 @@ def save_graphs_to_nquads(ocdm_prov: OCDMProvenance, output_dir: str):
 def main(args):
     redis_counter_handler = RedisCounterHandler(host=args.redis_host, port=args.redis_port, db=args.redis_db)
 
-    if not os.path.exists(args.cache_filepath):
-        print("Il file di cache non esiste. Svuotamento del database Redis selezionato.")
+    if args.redis_host and args.redis_port and args.redis_db is not None:
+        redis_counter_handler = RedisCounterHandler(host=args.redis_host, port=args.redis_port, db=args.redis_db)
         redis_counter_handler.connect()
-        redis_counter_handler.connection.flushdb()
+        if not os.path.exists(args.cache_filepath):
+            print("Il file di cache non esiste. Svuotamento del database Redis selezionato.")
+            redis_counter_handler.connection.flushdb()
+    else:
+        redis_counter_handler = None
+    if args.db_host and args.db_port and args.db_name and args.db_user and args.db_password:
+        psyco = psycopg2.connect(
+            host=args.db_host,
+            port=args.db_port,
+            dbname=args.db_name,
+            user=args.db_user,
+            password=args.db_password
+        )
+        psyco_cursor = psyco.cursor()
+        psyco_cursor.execute('''CREATE TABLE IF NOT EXISTS changes(
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )''')
+        psyco.commit()
+        psyco_cursor.execute("TRUNCATE TABLE changes")
+        psyco.commit()
+    else:
+        psyco = None
+        psyco_cursor = None
+
+    generate_ocdm_provenance(args.cb_dir, args.initial_version_path, args.cache_filepath, redis_counter_handler, psyco_cursor, psyco, URIRef(args.source), URIRef(args.resp_agent), args.output_dir)
+    
+    if redis_counter_handler:
         redis_counter_handler.disconnect()
-
-    psyco = psycopg2.connect(
-        host=args.db_host,
-        port=args.db_port,
-        dbname=args.db_name,
-        user=args.db_user,
-        password=args.db_password
-    )
-    psyco_cursor = psyco.cursor()
-    psyco_cursor.execute('''CREATE TABLE IF NOT EXISTS changes(
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )''')
-    psyco.commit()
-    psyco_cursor.execute("TRUNCATE TABLE changes")
-    psyco.commit()
-
-    redis_counter_handler.connect()
-    generate_ocdm_provenance(args.cb_dir, args.cache_filepath, redis_counter_handler, psyco_cursor, psyco, URIRef(args.source), URIRef(args.resp_agent), args.output_dir)
-    redis_counter_handler.disconnect()
+    if psyco:
+        psyco_cursor.close()
+        psyco.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate OCDM Provenance")
     parser.add_argument("--cb_dir", required=True, help="Path to the CB directory")
+    parser.add_argument("--initial_version_path", required=False, help="Path to the initial version's gzip N-Triples file")
     parser.add_argument("--cache_filepath", required=True, help="Path to the cache file")
-    parser.add_argument("--redis_host", default="127.0.0.1", help="Redis host address")
-    parser.add_argument("--redis_port", default=6379, type=int, help="Redis port")
-    parser.add_argument("--redis_db", default=0, type=int, help="Redis database number")
-    parser.add_argument("--db_host", default="localhost", help="PostgreSQL host address")
-    parser.add_argument("--db_port", default="5432", help="PostgreSQL port")
-    parser.add_argument("--db_name", required=True, help="PostgreSQL database name")
-    parser.add_argument("--db_user", required=True, help="PostgreSQL user")
-    parser.add_argument("--db_password", required=True, help="PostgreSQL password")
+    parser.add_argument("--redis_host", required=False, help="Redis host address")
+    parser.add_argument("--redis_port", type=int, required=False, help="Redis port")
+    parser.add_argument("--redis_db", type=int, required=False, help="Redis database number")
+    parser.add_argument("--db_host", required=False, help="PostgreSQL host address")
+    parser.add_argument("--db_port", required=False, help="PostgreSQL port")
+    parser.add_argument("--db_name", required=False, help="PostgreSQL database name")
+    parser.add_argument("--db_user", required=False, help="PostgreSQL user")
+    parser.add_argument("--db_password", required=False, help="PostgreSQL password")
     parser.add_argument("--source", required=True, help="URI of the source")
     parser.add_argument("--resp_agent", required=True, help="URI of the responsible agent")
     parser.add_argument("--output_dir", required=True, help="Directory for output files")

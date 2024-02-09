@@ -1,53 +1,40 @@
 import argparse
 import json
-import os
-import re
-
-from tqdm import tqdm
+from SPARQLWrapper import SPARQLWrapper, JSON
 
 
-def find_generated_at_time(filename):
+def execute_sparql_query(endpoint_url):
     """
-    Esplora il file specificato e restituisce tutti gli oggetti dei predicati prov:generatedAtTime.
+    Esegue una query SPARQL all'endpoint specificato utilizzando SPARQLWrapper e restituisce i timestamp ordinati.
     """
-    results = set()
-    date_pattern = re.compile(r'"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2})"')
+    sparql = SPARQLWrapper(endpoint_url)
+    sparql.setQuery("""
+        PREFIX prov: <http://www.w3.org/ns/prov#>
+        SELECT DISTINCT ?timestamp
+        WHERE {
+            ?se a prov:Entity;
+                prov:generatedAtTime ?timestamp
+        }
+        ORDER BY ?timestamp
+    """)
+    sparql.setReturnFormat(JSON)
+    results = sparql.query().convert()
 
-    with open(filename, 'r', encoding='utf-8') as file:
-        for line in file:
-            if "<http://www.w3.org/ns/prov#generatedAtTime>" in line:
-                matches = date_pattern.findall(line)
-                results.update(matches)
+    timestamps = [result['timestamp']['value'] for result in results['results']['bindings']]
+    return timestamps
 
-    return results
-
-def main(directory, output_file):
+def main(endpoint_url, output_file):
     """
-    Esplora tutti i file .nq nella directory specificata e cerca gli oggetti dei predicati prov:generatedAtTime.
+    Interroga l'endpoint SPARQL specificato per ottenere i timestamp e li salva in un file JSON.
     """
-    timestamps = set()
-
-    # Calcola il numero totale di file .nq
-    total_files = sum(1 for _, _, files in os.walk(directory) for filename in files if filename.endswith('.nq'))
-
-    # Utilizza tqdm per creare una barra di progressione basata sul numero di file .nq
-    with tqdm(total=total_files, desc="Processing files", unit="file") as pbar:
-        for root, _, files in os.walk(directory):
-            for filename in files:
-                if filename.endswith('.nq'):
-                    full_path = os.path.join(root, filename)
-                    timestamps.update(find_generated_at_time(full_path))
-                    pbar.update(1)
-
-    timestamps_sorted = sorted(list(timestamps))
-
+    timestamps = execute_sparql_query(endpoint_url)
     with open(output_file, "w", encoding='utf-8') as json_file:
-        json.dump({str(i+1): ts for i, ts in enumerate(timestamps_sorted)}, json_file, ensure_ascii=False, indent=4)
+        json.dump({str(i): ts for i, ts in enumerate(timestamps)}, json_file, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Find prov:generatedAtTime objects in .nq files.")
-    parser.add_argument("directory", type=str, help="The directory to explore for .nq files")
+    parser.add_argument("endpoint_url", type=str, help="The SPARQL endpoint URL")
     parser.add_argument("--output", type=str, default="timestamps.json", help="Output file path (default: timestamps.json)")
     args = parser.parse_args()
-    main(args.directory, args.output)
+    main(args.endpoint_url, args.output)

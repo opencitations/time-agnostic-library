@@ -18,7 +18,6 @@
 import json
 import os
 import unittest
-from pprint import pprint
 
 import rdflib
 from SPARQLWrapper import JSON, POST, SPARQLWrapper
@@ -1240,6 +1239,7 @@ class Test_VersionQuery(unittest.TestCase):
                 (None, 'https://github.com/arcangelo7/time_agnostic/id/14')
             }
         }, set())
+        print(output)
         self.assertEqual(output, expected_output)
 
     def test_run_agnostic_query_p_obj_var(self):

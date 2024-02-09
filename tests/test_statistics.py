@@ -15,7 +15,6 @@
 # SOFTWARE.
 
 
-from pprint import pprint
 from time_agnostic_library.agnostic_query import VersionQuery, AgnosticEntity, DeltaQuery
 from time_agnostic_library.statistics import Statistics
 import os
@@ -31,7 +30,7 @@ CONFIG = {
     "provenance": {
         "triplestore_urls": [],
         "file_paths": ["tests/prov.json"],
-        "is_quadstore": True
+        "is_quadstore": False
     },
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",

@@ -17,7 +17,7 @@
 
 from datetime import datetime
 from SPARQLWrapper import SPARQLWrapper, JSON
-from time_agnostic_library.support import _to_dict_of_nt_sorted_lists, _to_nt_sorted_list, _to_dict_of_conjunctive_graphs, _to_conjunctive_graph, empty_the_cache, convert_to_datetime
+from time_agnostic_library.support import empty_the_cache, convert_to_datetime
 import unittest, json
 
 

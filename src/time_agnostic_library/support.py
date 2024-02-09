@@ -101,7 +101,7 @@ def convert_to_datetime(time_string:str, stringify:bool=False) -> datetime:
     if time_string and time_string != 'None':
         time = parser.parse(time_string).replace(tzinfo=None)
         if stringify:
-            time = time.strftime('%Y-%m-%dT%H:%M:%S')
+            time = time.isoformat()
         return time
 
 def is_within_time_range(range_to_eval:Tuple[str, str], given_range:Tuple[str, str]) -> bool:

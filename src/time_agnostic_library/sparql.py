@@ -105,10 +105,12 @@ class Sparql:
             file_cg = ConjunctiveGraph()
             file_cg.parse(location=file_path, format="json-ld")
             lock.acquire()
-            results = file_cg.query(self.query).bindings
+            query_results = file_cg.query(self.query)
             lock.release()
+            vars_list = query_results.vars
+            results = query_results.bindings
             for result in results:
-                self._get_tuples_set(self.query, result, output)
+                self._get_tuples_set(result, output, vars_list)
         return output
     
     def _get_tuples_from_triplestores(self) -> Set[Tuple]:
@@ -120,8 +122,9 @@ class Sparql:
             sparql.setQuery(self.query)
             sparql.setReturnFormat(JSON)
             results = sparql.queryAndConvert()
+            vars_list = results["head"]["vars"]
             for result_dict in results["results"]["bindings"]:
-                self._get_tuples_set(self.query, result_dict, output)
+                self._get_tuples_set(result_dict, output, vars_list)
         return output
             
     def run_construct_query(self) -> ConjunctiveGraph:
@@ -199,10 +202,7 @@ class Sparql:
         return cg        
     
     @classmethod
-    def _get_tuples_set(cls, query:str, result_dict:dict, output:set):
-        lock.acquire()
-        vars_list = prepareQuery(query).algebra["PV"]
-        lock.release()
+    def _get_tuples_set(cls, result_dict:dict, output:set, vars_list: list):
         results_list = list()
         for var in vars_list:
             if str(var) in result_dict:

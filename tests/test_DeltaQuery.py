@@ -15,7 +15,6 @@
 # SOFTWARE.
 
 import unittest
-from pprint import pprint
 from time_agnostic_library.agnostic_query import DeltaQuery
 
 CONFIG_PATH = "tests/config.json"

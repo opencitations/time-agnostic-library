@@ -279,7 +279,7 @@ class AgnosticQuery(object):
     def _find_entities_in_update_queries(self, triple:tuple, present_entities:set):
         def _process_triple(processed_triple, uris_in_triple: set, relevant_entities_found: set):
             processed_triple = [el["string"] if "string" in el else el for el in processed_triple]
-            relevant_entities = set(processed_triple).difference(uris_in_triple) if len(uris_in_triple.intersection(processed_triple)) == len(uris_in_triple) else None
+            relevant_entities = {processed_triple[0]} if len(uris_in_triple.intersection(processed_triple)) == len(uris_in_triple) else None
             if relevant_entities is not None:
                 relevant_entities_found.update(relevant_entities)
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
@@ -302,7 +302,7 @@ class AgnosticQuery(object):
                                     _process_triple(inner_triple, uris_in_triple, relevant_entities_found)
                         elif "triples" in request["quads"]:
                             for inner_triple in request["quads"]["triples"]:
-                                    _process_triple(inner_triple, uris_in_triple, relevant_entities_found)
+                                _process_triple(inner_triple, uris_in_triple, relevant_entities_found)
         if relevant_entities_found:
             print(f"[VersionQuery:INFO] Rebuilding relevant entities' history.")
             pbar = tqdm(total=len(relevant_entities_found))
@@ -564,11 +564,15 @@ class VersionQuery(AgnosticQuery):
             query_named_graph = split_by_where[0] + f"FROM <https://github.com/opencitations/time-agnostic-library/{timestamp}> WHERE" + split_by_where[1]
             self.sparql_select.setQuery(query_named_graph)
             self.sparql_select.setReturnFormat(JSON)
-            results = self.sparql_select.queryAndConvert()["results"]["bindings"]
+            sparql_results = self.sparql_select.queryAndConvert()
+            vars_list = sparql_results["head"]["vars"]
+            results = sparql_results["results"]["bindings"]
         else:
-            results = graph.query(self.query).bindings
+            query_results = graph.query(self.query)
+            vars_list = query_results.vars
+            results = query_results.bindings
         for result in results:
-            Sparql._get_tuples_set(self.query, result, output)
+            Sparql._get_tuples_set(result, output, vars_list)
         normalized_timestamp = convert_to_datetime(timestamp, stringify=True)
         return normalized_timestamp, output
         
