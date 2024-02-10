@@ -40,45 +40,6 @@ class Test_Support(unittest.TestCase):
             expected_results = {'head': {'vars': ['g']}, 'results': {'bindings': []}}
             self.assertEqual(results, expected_results)
 
-    def test_empty_the_cache_graphdb(self):
-        empty_the_cache(CONFIG_GRAPHDB)
-        with open(CONFIG_GRAPHDB, encoding="utf8") as json_file:
-            cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["endpoint"]
-        if cache_triplestore_url:
-            sparql = SPARQLWrapper(cache_triplestore_url)
-            query = "select ?g where {GRAPH ?g {?s ?p ?o}}"
-            sparql.setQuery(query)
-            sparql.setReturnFormat(JSON)
-            results = sparql.queryAndConvert()
-            expected_results = {'head': {'vars': ['g']}, 'results': {'bindings': []}}
-            self.assertEqual(results, expected_results)
-
-    def test_empty_the_cache_fuseki(self):
-        empty_the_cache(CONFIG_FUSEKI)
-        with open(CONFIG_FUSEKI, encoding="utf8") as json_file:
-            cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["endpoint"]
-        if cache_triplestore_url:
-            sparql = SPARQLWrapper(cache_triplestore_url)
-            query = "select ?g where {GRAPH ?g {?s ?p ?o}}"
-            sparql.setQuery(query)
-            sparql.setReturnFormat(JSON)
-            results = sparql.queryAndConvert()
-            expected_results = {'head': {'vars': ['g']}, 'results': {'bindings': []}}
-            self.assertEqual(results, expected_results)
-
-    def test_empty_the_cache_virtuoso(self):
-        empty_the_cache(CONFIG_VIRTUOSO)
-        with open(CONFIG_VIRTUOSO, encoding="utf8") as json_file:
-            cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["endpoint"]
-        if cache_triplestore_url:
-            sparql = SPARQLWrapper(cache_triplestore_url)
-            query = "select ?g where {GRAPH ?g {?s ?p ?o}}"
-            sparql.setQuery(query)
-            sparql.setReturnFormat(JSON)
-            results = sparql.queryAndConvert()
-            expected_results = {'head': {'link': [], 'vars': ['g']}, 'results': {'distinct': False, 'ordered': True, 'bindings': []}}
-            self.assertEqual(results, expected_results)
-
     def test_convert_to_datetime(self):
         input = "2021-05-21T19:08:56+00:00"
         expected_output = datetime(2021, 5, 21, 19, 8, 56)

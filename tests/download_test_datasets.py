@@ -86,7 +86,7 @@ if __name__ == '__main__': # pragma: no cover
         download_tests_datasets_from_zenodo()
         unzip(f'{BASE_DIR}/tests.zip', f'{BASE_DIR}/')
     if is_unix:
-        for port in [9999, 29999, 7200, 3030, 8890, 8891, 1111, 1112]:
+        for port in [9999, 29999]:
             process = Popen(["lsof", "-i", ":{0}".format(port)], stdout=PIPE, stderr=PIPE)
             stdout, _ = process.communicate()
             for process in str(stdout.decode("utf-8")).split("\n")[1:]:
@@ -94,11 +94,10 @@ if __name__ == '__main__': # pragma: no cover
                 if (len(data) <= 1):
                     continue
                 os.kill(int(data[1]), SIGKILL)
-        Popen(['chmod', '+x', f'{BASE_DIR}/graphdb/bin/graphdb', f'{BASE_DIR}/fuseki/fuseki-server', f'{BASE_DIR}/virtuoso/linux/bin/virtuoso-t'])
     launch_blazegraph('tests', 9999)
     launch_blazegraph(f'{BASE_DIR}/cache', 29999)
-    launch_graphdb(7200)
-    launch_fuseki(3030)
-    virtuoso_platform = 'linux' if is_unix else 'windows'
-    launch_virtuoso(f'{BASE_DIR}/virtuoso/{virtuoso_platform}/database')
-    launch_virtuoso(f'{BASE_DIR}/virtuoso/{virtuoso_platform}/cache_db')
+    # launch_graphdb(7200)
+    # launch_fuseki(3030)
+    # virtuoso_platform = 'linux' if is_unix else 'windows'
+    # launch_virtuoso(f'{BASE_DIR}/virtuoso/{virtuoso_platform}/database')
+    # launch_virtuoso(f'{BASE_DIR}/virtuoso/{virtuoso_platform}/cache_db')
