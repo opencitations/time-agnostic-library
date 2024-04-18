@@ -42,16 +42,18 @@ CONFIG_PATH = "./config.json"
 
 
 class AgnosticQuery(object):
-    def __init__(self, query:str, on_time:Tuple[Union[str, None]]=(None, None), other_snapshots:bool=False, config_path:str=CONFIG_PATH):
+    def __init__(self, query: str, on_time: Tuple[Union[str, None]] = (None, None), other_snapshots: bool = False, config_path: str = CONFIG_PATH, config_dict: dict = None):
         self.query = query
         self.other_snapshots = other_snapshots
         self.config_path = config_path
         self.other_snapshots_metadata = dict()
-        with open(config_path, encoding="utf8") as json_file:
-            config = json.load(json_file)
-        self.config = config
-        self.__init_cache(config)
-        self.__init_text_index(config)
+        if config_dict is not None:
+            self.config = config_dict
+        else:
+            with open(config_path, encoding="utf8") as json_file:
+                self.config = json.load(json_file)
+        self.__init_cache(self.config)
+        self.__init_text_index(self.config)
         if on_time:
             after_time = convert_to_datetime(on_time[0], stringify=True)
             before_time = convert_to_datetime(on_time[1], stringify=True)
@@ -554,8 +556,8 @@ class VersionQuery(AgnosticQuery):
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time:Tuple[Union[str, None]]="", other_snapshots=False, config_path:str=CONFIG_PATH):
-        super(VersionQuery, self).__init__(query, on_time, other_snapshots, config_path)    
+    def __init__(self, query:str, on_time:Tuple[Union[str, None]]="", other_snapshots=False, config_path:str=CONFIG_PATH, config_dict=None):
+        super(VersionQuery, self).__init__(query, on_time, other_snapshots, config_path, config_dict)    
 
     def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph) -> tuple:
         output = set()
@@ -606,8 +608,8 @@ class DeltaQuery(AgnosticQuery):
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time:Tuple[Union[str, None]]=(), changed_properties:Set[str]=set(), config_path:str = CONFIG_PATH):
-        super(DeltaQuery, self).__init__(query=query, on_time=on_time, config_path=config_path)    
+    def __init__(self, query:str, on_time:Tuple[Union[str, None]]=(), changed_properties:Set[str]=set(), config_path:str = CONFIG_PATH, config_dict=None):
+        super(DeltaQuery, self).__init__(query=query, on_time=on_time, config_path=config_path, config_dict=config_dict)    
         self.changed_properties = changed_properties
 
     def _rebuild_relevant_graphs(self) -> None:

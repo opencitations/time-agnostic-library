@@ -15,10 +15,9 @@
 # SOFTWARE.
 
 
-import json
 import multiprocessing
-from typing import Set, Tuple
-
+from typing import Set, Tuple, List
+import zipfile
 from rdflib import XSD, ConjunctiveGraph
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
@@ -100,10 +99,15 @@ class Sparql:
 
     def _get_tuples_from_files(self) -> Set[Tuple]:
         output = set()
-        storer = self.storer["file_paths"]
+        storer: List[str] = self.storer["file_paths"]
         for file_path in storer:
             file_cg = ConjunctiveGraph()
-            file_cg.parse(location=file_path, format="json-ld")
+            if file_path.endswith('.zip'):
+                with zipfile.ZipFile(file_path, 'r') as z:
+                    with z.open(z.namelist()[0]) as file:
+                        file_cg.parse(file=file, format="json-ld")
+            else:
+                file_cg.parse(location=file_path, format="json-ld")
             lock.acquire()
             query_results = file_cg.query(self.query)
             lock.release()
@@ -150,7 +154,12 @@ class Sparql:
         storer = self.storer["file_paths"]
         for file_path in storer:
             file_cg = ConjunctiveGraph()
-            file_cg.parse(location=file_path, format="json-ld")
+            if file_path.endswith('.zip'):
+                with zipfile.ZipFile(file_path, 'r') as z:
+                    with z.open(z.namelist()[0]) as file:
+                        file_cg.parse(file=file, format="json-ld")
+            else:
+                file_cg.parse(location=file_path, format="json-ld")
             results = file_cg.query(self.query)
             for result in results:
                 cg.add(result)
