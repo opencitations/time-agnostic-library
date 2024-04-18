@@ -477,19 +477,20 @@ files = [
 
 [[package]]
 name = "oc-ocdm"
-version = "7.3.0"
+version = "8.0.2"
 description = "Object mapping library for manipulating RDF graphs that are compliant with the OpenCitations datamodel."
 optional = false
-python-versions = ">=3.7.4,<4.0.0"
+python-versions = "<4.0,>=3.8"
 files = [
-    {file = "oc_ocdm-7.3.0-py3-none-any.whl", hash = "sha256:e41daaf6301fd3a1f1ef074c74a07b10ff3cd333e6adf7198c0d273da1ed654c"},
-    {file = "oc_ocdm-7.3.0.tar.gz", hash = "sha256:c03b38ce557ca3e4b271d134d0f682e6ba80ec57fc82c7956e3ccfe34d7e142f"},
+    {file = "oc_ocdm-8.0.2-py3-none-any.whl", hash = "sha256:9dcd4e3c3873677a5bb7ccab504424d7edec883e234f45c5be17ccc0721a12c5"},
+    {file = "oc_ocdm-8.0.2.tar.gz", hash = "sha256:e15dd1a5fd4c1da69130f5bef18abd88d0291f8cc3575d1ab1dce904d3337828"},
 ]
 
 [package.dependencies]
 filelock = ">=3.6.0,<4.0.0"
-pyshacl = ">=0.20.0,<0.21.0"
+pyshacl = "0.23.0"
 rdflib = ">=6.0.0,<7.0.0"
+setuptools = ">=68.2.2,<69.0.0"
 SPARQLWrapper = "2.0.0"
 
 [[package]]
@@ -652,13 +653,13 @@ diagrams = ["jinja2", "railroad-diagrams"]
 
 [[package]]
 name = "pyshacl"
-version = "0.20.0"
+version = "0.23.0"
 description = "Python SHACL Validator"
 optional = false
 python-versions = ">=3.7.0,<4.0.0"
 files = [
-    {file = "pyshacl-0.20.0-py3-none-any.whl", hash = "sha256:5de57ed490748f621301f69e47224fa5bd84b0fb5aab40126118dc8e90d4ede6"},
-    {file = "pyshacl-0.20.0.tar.gz", hash = "sha256:47f014c52cc69167b902c89b3940dd400f7f5d2169a62f97f837f3419b4a737d"},
+    {file = "pyshacl-0.23.0-py3-none-any.whl", hash = "sha256:5d77ab194d4333d6c2a3c409d096ac31e68f1ae0e22c3668b2a081e32256c738"},
+    {file = "pyshacl-0.23.0.tar.gz", hash = "sha256:43a80bbf403176f8f37a22fbbe8d95ba5395cf755e378af1db3126e709819d2c"},
 ]
 
 [package.dependencies]
@@ -666,14 +667,14 @@ html5lib = ">=1.1,<2"
 owlrl = ">=6.0.2,<7"
 packaging = ">=21.3"
 prettytable = ">=2.2.1,<3.0.0"
-rdflib = ">=6.2.0,<7"
+rdflib = ">=6.3.2,<7"
 
 [package.extras]
 dev-coverage = ["coverage (>6.1,!=6.1.1,<7)", "platformdirs", "pytest-cov (>=2.8.1,<3.0.0)"]
-dev-lint = ["black (==22.8.0)", "flake8 (>=5.0.4,<6.0.0)", "isort (>=5.10.1,<6.0.0)", "platformdirs"]
-dev-type-checking = ["mypy (>=0.800,<0.801)", "platformdirs", "types-setuptools"]
-js = ["pyduktape2 (>=0.4.1,<0.5.0)"]
-jsonld = ["rdflib-jsonld (>=0.4.0,<0.6)"]
+dev-lint = ["black (==23.3.0)", "platformdirs", "ruff (>=0.0.267,<0.0.268)"]
+dev-type-checking = ["mypy (>=0.800,<0.900)", "mypy (>=0.900,<0.1000)", "platformdirs", "types-setuptools"]
+http = ["sanic (>=22.12,<23)", "sanic-cors (==2.2.0)", "sanic-ext (>=23.3,<23.6)"]
+js = ["pyduktape2 (>=0.4.3,<0.5.0)"]
 
 [[package]]
 name = "python-dateutil"
@@ -741,17 +742,17 @@ networkx = ["networkx (>=2.0.0,<3.0.0)"]
 
 [[package]]
 name = "rdflib-ocdm"
-version = "0.3.6"
+version = "0.3.7"
 description = ""
 optional = false
-python-versions = ">=3.7.4,<4.0.0"
+python-versions = "<4.0,>=3.8"
 files = [
-    {file = "rdflib_ocdm-0.3.6-py3-none-any.whl", hash = "sha256:3b7f0a4e568b2b2add12bf2f9e7289703182b5a3eb3dbb728a4076bb7fa56af4"},
-    {file = "rdflib_ocdm-0.3.6.tar.gz", hash = "sha256:f57e1e9bd4a07fed06287e30def6fcf2b755e0c5fb83aa64de64d8888283720d"},
+    {file = "rdflib_ocdm-0.3.7-py3-none-any.whl", hash = "sha256:c75294b5608cd6e80ee3cd39fb95ad6c7c8510d0aaa6ba0f4f97919a3390e3b7"},
+    {file = "rdflib_ocdm-0.3.7.tar.gz", hash = "sha256:0fd63b9e4c3ada3a97c97e532b0fd30f092871507b33e4aeab8df09d02de9eb8"},
 ]
 
 [package.dependencies]
-oc-ocdm = ">=7.1.7,<8.0.0"
+oc-ocdm = ">=8.0.2,<9.0.0"
 rdflib = ">=6.2.0,<7.0.0"
 redis = ">=4.5.5,<5.0.0"
 sparqlwrapper = ">=2.0.0,<3.0.0"
@@ -1162,4 +1163,4 @@ testing = ["func-timeout", "jaraco.itertools", "pytest (>=6)", "pytest-black (>=
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "c6b9f08a950db6c42fa686c4bdf273169195e609ac98ab11be329739a87c6fb4"
+content-hash = "9e7fe9407b1df332fdce051ff4fbbddcff1a7534627dcbb8013b5ec9c2204052"
