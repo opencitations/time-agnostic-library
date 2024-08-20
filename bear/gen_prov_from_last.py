@@ -5,15 +5,16 @@ import glob
 import gzip
 import json
 import os
+import re
 import time
 import urllib.parse
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
-import re
+
 import psycopg2
 from psycopg2.extras import execute_values
-from rdflib import ConjunctiveGraph, Graph, URIRef, Literal
+from rdflib import ConjunctiveGraph, Graph, Literal, URIRef
 from rdflib_ocdm.counter_handler.redis_counter_handler import \
     RedisCounterHandler
 from rdflib_ocdm.prov.prov_entity import ProvEntity
