@@ -335,28 +335,36 @@ class AgnosticEntity:
     def _query_dataset(self) -> ConjunctiveGraph:
         # A SELECT hack can be used to return RDF quads in named graphs,
         # since the CONSTRUCT allows only to return triples in SPARQL 1.1.
-        # Here is an exemple of SELECT hack:
+        # Here is an example of SELECT hack using VALUES:
         #
         # SELECT ?s ?p ?o ?c
         # WHERE {
-        #     BIND (<{res}> AS ?s)
+        #     VALUES ?s {<resource_uri>}
         #     GRAPH ?c {?s ?p ?o}
         # }
         #
-        # Aftwerwards, the rdflib add method can be used to add quads to a Conjunctive Graph,
+        # Afterwards, the rdflib add method can be used to add quads to a Conjunctive Graph,
         # where the fourth element is the context.
         is_quadstore = self.config['dataset']['is_quadstore']
         if is_quadstore:
             graph_clause = "GRAPH ?c {?s ?p ?o}"
         else:
             graph_clause = "{?s ?p ?o}"
+
         if self.related_entities_history:
             query_dataset = f"""
                 SELECT DISTINCT ?s ?p ?o {('?c' if is_quadstore else '')}
                 WHERE {{
-                    {{BIND (<{self.res}> AS ?s)}}
+                    VALUES ?entity {{<{self.res}>}}
+                    {{
+                        ?s ?p ?o .
+                        FILTER(?s = ?entity)
+                    }}
                     UNION 
-                    {{BIND (<{self.res}> AS ?o)}}
+                    {{
+                        ?s ?p ?o .
+                        FILTER(?o = ?entity)
+                    }}
                     {graph_clause}
                 }}   
             """
@@ -364,7 +372,7 @@ class AgnosticEntity:
             query_dataset = f"""
                 SELECT DISTINCT ?s ?p ?o {('?c' if is_quadstore else '')}
                 WHERE {{
-                    BIND (<{self.res}> AS ?s) 
+                    VALUES ?s {{<{self.res}>}}
                     {graph_clause}
                 }}   
             """

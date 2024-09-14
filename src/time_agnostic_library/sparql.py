@@ -198,7 +198,7 @@ class Sparql:
                     for var in results["head"]["vars"]:
                         if quad[var]["type"] == "uri":
                             quad_to_add.append(URIRef(quad[var]["value"]))
-                        elif quad[var]["type"] == "literal":
+                        else:
                             if 'datatype' in quad[var]:
                                 quad_to_add.append(Literal(quad[var]["value"], datatype=quad[var]['datatype']))
                             else:
