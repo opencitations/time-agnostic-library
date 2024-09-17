@@ -346,36 +346,60 @@ class AgnosticEntity:
         # Afterwards, the rdflib add method can be used to add quads to a Conjunctive Graph,
         # where the fourth element is the context.
         is_quadstore = self.config['dataset']['is_quadstore']
-        if is_quadstore:
-            graph_clause = "GRAPH ?c {?s ?p ?o}"
-        else:
-            graph_clause = "{?s ?p ?o}"
 
         if self.related_entities_history:
-            query_dataset = f"""
-                SELECT DISTINCT ?s ?p ?o {('?c' if is_quadstore else '')}
-                WHERE {{
-                    VALUES ?entity {{<{self.res}>}}
-                    {{
-                        ?s ?p ?o .
-                        FILTER(?s = ?entity)
-                    }}
-                    UNION 
-                    {{
-                        ?s ?p ?o .
-                        FILTER(?o = ?entity)
-                    }}
-                    {graph_clause}
-                }}   
-            """
+            if is_quadstore:
+                query_dataset = f"""
+                    SELECT DISTINCT ?s ?p ?o ?g
+                    WHERE {{
+                        GRAPH ?g {{
+                            {{
+                                VALUES ?s {{<{self.res}>}}
+                                ?s ?p ?o
+                            }}
+                            UNION 
+                            {{
+                                VALUES ?o {{<{self.res}>}}
+                                ?s ?p ?o
+                            }}
+                        }}
+                    }}   
+                """
+            else:
+                query_dataset = f"""
+                    SELECT DISTINCT ?s ?p ?o
+                    WHERE {{
+                        {{
+                            VALUES ?s {{<{self.res}>}}
+                            ?s ?p ?o
+                        }}
+                        UNION 
+                        {{
+                            VALUES ?o {{<{self.res}>}}
+                            ?s ?p ?o
+                        }}
+                    }}   
+                """
         else:
-            query_dataset = f"""
-                SELECT DISTINCT ?s ?p ?o {('?c' if is_quadstore else '')}
-                WHERE {{
-                    VALUES ?s {{<{self.res}>}}
-                    {graph_clause}
-                }}   
-            """
+            if is_quadstore:
+                query_dataset = f"""
+                    SELECT DISTINCT ?s ?p ?o ?g
+                    WHERE {{
+                        GRAPH ?g {{
+                            VALUES ?s {{<{self.res}>}}
+                            ?s ?p ?o
+                        }}
+                    }}   
+                """
+            else:
+                query_dataset = f"""
+                    SELECT DISTINCT ?s ?p ?o
+                    WHERE {{
+                        VALUES ?s {{<{self.res}>}}
+                        ?s ?p ?o
+                    }}   
+                """
+
         return Sparql(query_dataset, config=self.config).run_construct_query()
 
     def _query_provenance(self, include_prov_metadata:bool=False) -> ConjunctiveGraph:
