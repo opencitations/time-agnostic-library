@@ -15,12 +15,13 @@
 # SOFTWARE.
 
 import copy
-import re
 from typing import Dict, List, Set, Tuple, Union
 
+from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.graph import ConjunctiveGraph, Graph
-from rdflib.plugins.sparql.processor import processUpdate
-from rdflib.term import URIRef
+from rdflib.namespace import NamespaceManager
+from rdflib.plugins.sparql import parser
+from rdflib.term import BNode, URIRef
 
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
@@ -301,36 +302,84 @@ class AgnosticEntity:
 
     @classmethod
     def _manage_update_queries(cls, graph: ConjunctiveGraph, update_query: str) -> None:
-        update_query = update_query.replace("INSERT", "%temp%").replace("DELETE", "INSERT").replace("%temp%", "DELETE")
-        triples_end_pattern = r">\s*\."
-        operations_pattern = r"((?:DELETE|INSERT)\s(?:DATA)\s?{\s?(?:GRAPH)\s?<[\w\W]+?>\s{)"
-        matches = re.split(triples_end_pattern, update_query)
-        # 90 is the maximum number of triples after which recursion error occurs
-        if len(matches) > 90:
-            split_by_operations = re.split(operations_pattern, update_query, flags=re.IGNORECASE)
-            # The operations are the odd elements of the list
-            operations = split_by_operations[1::2]
-            start = 0
-            for operation in operations:
-                operation_index = split_by_operations.index(operation, start)
-                start = operation_index + 1
-                triples = split_by_operations[operation_index + 1]
-                operation_and_query = operation + triples
-                matches_with_operation = re.split(triples_end_pattern, operation_and_query)
-                if len(matches_with_operation) > 90:
-                    # Remove operation and trailing "} }"
-                    matches_no_operation = [match.replace(operation, "") for match in matches_with_operation][:-1]
-                    while len(matches_no_operation) > 0:
-                        cut_update_query = operation + "> .".join(matches_no_operation[:90]) + "> .} }"
-                        try:
-                            processUpdate(graph, cut_update_query)
-                        except Exception:
-                            print(update_query)
-                        matches_no_operation = matches_no_operation[90:]
-                else:
-                    processUpdate(graph, operation_and_query)      
-        else:
-            processUpdate(graph, update_query)
+        def extract_namespaces(parsed_query):
+            namespace_manager = NamespaceManager(Graph())
+            if hasattr(parsed_query, 'prologue') and parsed_query.prologue:
+                for prefix_decl in parsed_query.prologue[0]:
+                    if hasattr(prefix_decl, 'prefix') and hasattr(prefix_decl, 'iri'):
+                        prefix = prefix_decl.prefix
+                        iri = prefix_decl.iri
+                        namespace_manager.bind(prefix, Namespace(iri))
+            return namespace_manager
+
+        def extract_quads_from_update(parsed_query, namespace_manager):
+            operations = []
+            
+            for update_request in parsed_query.request:
+                operation_type = update_request.name
+                if operation_type in ['DeleteData', 'InsertData']:
+                    quads = extract_quads(update_request, namespace_manager)
+                    operations.append((operation_type, quads))
+            
+            return operations
+
+        def extract_quads(operation, namespace_manager):
+            quads = []
+            if hasattr(operation.quads, 'quadsNotTriples'):
+                for quad_not_triple in operation.quads.quadsNotTriples:
+                    context = quad_not_triple.term
+                    for triple in quad_not_triple.triples:
+                        s, p, o = triple
+                        s = _process_node(s, namespace_manager)
+                        p = _process_node(p, namespace_manager)
+                        o = _process_node(o, namespace_manager)
+                        quads.append((s, p, o, context))
+            return quads
+
+        def _process_node(node, namespace_manager: NamespaceManager):
+            if isinstance(node, dict):
+                if 'prefix' in node and 'localname' in node:
+                    namespace = namespace_manager.store.namespace(node['prefix'])
+                    return URIRef(f"{namespace}{node['localname']}")
+                elif 'string' in node:
+                    if 'datatype' in node:
+                        return Literal(node['string'], datatype=node['datatype'])
+                    elif 'lang' in node:
+                        return Literal(node['string'], lang=node['lang'])
+                    else:
+                        return Literal(node['string'])
+            elif isinstance(node, BNode):
+                return node
+            return URIRef(node)
+
+        def match_literal(graph_literal, query_literal):
+            if isinstance(graph_literal, Literal) and isinstance(query_literal, Literal):
+                return (graph_literal.value == query_literal.value and
+                        (graph_literal.datatype == query_literal.datatype or query_literal.datatype is None))
+            return graph_literal == query_literal
+
+        try:
+            parsed_query = parser.parseUpdate(update_query)
+            namespace_manager = extract_namespaces(parsed_query)
+            operations = extract_quads_from_update(parsed_query, namespace_manager)
+            for operation_type, quads in operations:
+                if operation_type == 'DeleteData':
+                    for quad in quads:
+                        graph.add(quad)
+                elif operation_type == 'InsertData':
+                    for s, p, o, c in quads:
+                        quads_to_remove = []
+                        for graph_quad in graph.quads((s, p, None, c)):
+                            if match_literal(graph_quad[2], o):
+                                quads_to_remove.append(graph_quad)
+                            else:
+                                quads_to_remove.append((s, p, o, c))
+                        for quad in quads_to_remove:
+                            graph.remove(quad)
+        
+        except Exception as e:
+            print(f"Error processing update query: {e}")
+            print(f"Problematic query: {update_query}")
 
     def _query_dataset(self) -> ConjunctiveGraph:
         # A SELECT hack can be used to return RDF quads in named graphs,
