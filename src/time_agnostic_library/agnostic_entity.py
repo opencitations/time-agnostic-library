@@ -22,10 +22,10 @@ from rdflib.graph import ConjunctiveGraph, Graph
 from rdflib.namespace import NamespaceManager
 from rdflib.plugins.sparql import parser
 from rdflib.term import BNode, URIRef
+
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import convert_to_datetime
-
 
 CONFIG_PATH = "./config.json"
 
@@ -50,13 +50,14 @@ class AgnosticEntity:
     def get_history(self, include_prov_metadata: bool=False) -> Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]]]:
         """
         It materializes all versions of an entity. If **related_entities_history** is True, 
-        it also materializes all versions of all related entities, 
-        which have **res** as subject.
+        it also materializes all versions of all related entities recursively,
+        which have **res** as subject, and so on.
         If **include_prov_metadata** is True, 
         the provenance metadata of the returned entity/entities is also returned.
 
         The output is a tuple where the first element is a dictionary mapping timestamps to merged graphs,
         and the second element is a dictionary containing provenance metadata if requested.
+        
         The output has the following format: ::
 
             (
@@ -84,18 +85,47 @@ class AgnosticEntity:
         :returns:  Tuple[dict, Union[dict, None]] -- The output is always a two-element tuple. The first is a dictionary containing all the versions of a given resource. The second is a dictionary containing all the provenance metadata linked to that resource if **include_prov_metadata** is True, None if False.
         """
         if self.related_entities_history:
-            # Collect histories of main and related entities
-            entities_to_query = {self.res}
-            current_state = self._query_dataset()
-            related_entities = current_state.triples((URIRef(self.res), None, None))
-            for entity in related_entities:
-                if isinstance(entity[2], URIRef) and ProvEntity.PROV not in entity[1] and entity[1] != RDF.type:
-                    entities_to_query.add(str(entity[2]))
+            # Collect related entities recursively
+            processed_entities = set()
+            entities_to_query = self._collect_related_entities_recursively(self.res, processed_entities)
             return self._get_merged_histories(entities_to_query, include_prov_metadata)
         else:
+            # Original behavior
             entity_history = self._get_entity_current_state(include_prov_metadata)
             entity_history = self._get_old_graphs(entity_history)
             return tuple(entity_history)
+
+    def _collect_related_entities_recursively(self, entity_uri: str, processed_entities: Set[str], depth: int = None) -> Set[str]:
+        """
+        Recursively collects entities that are objects in triples where the given entity is the subject.
+
+        :param entity_uri: The URI of the entity to start from.
+        :param processed_entities: A set to keep track of already processed entities to avoid cycles.
+        :param depth: Maximum recursion depth, if None, unlimited.
+        :returns: A set of entity URIs.
+        """
+        if depth is not None and depth <= 0:
+            return set()
+
+        if entity_uri in processed_entities:
+            return set()
+
+        processed_entities.add(entity_uri)
+        entities_to_query = {entity_uri}
+
+        current_state = self._query_dataset()
+        related_entities = current_state.triples((URIRef(entity_uri), None, None))
+
+        for triple in related_entities:
+            predicate = triple[1]
+            obj = triple[2]
+            # Exclude provenance properties and rdf:type
+            if isinstance(obj, URIRef) and ProvEntity.PROV not in predicate and predicate != RDF.type:
+                obj_uri = str(obj)
+                if obj_uri not in processed_entities:
+                    # Recursively collect related entities
+                    entities_to_query.update(self._collect_related_entities_recursively(obj_uri, processed_entities, None if depth is None else depth - 1))
+        return entities_to_query
 
     def _get_merged_histories(self, entities: Set[str], include_prov_metadata: bool) -> Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]:
         """
