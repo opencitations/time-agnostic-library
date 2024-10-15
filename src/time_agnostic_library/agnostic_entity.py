@@ -17,15 +17,15 @@
 import copy
 from typing import Dict, List, Set, Tuple, Union
 
-from rdflib import BNode, Graph, Literal, Namespace, URIRef
+from rdflib import RDF, BNode, Graph, Literal, Namespace, URIRef
 from rdflib.graph import ConjunctiveGraph, Graph
 from rdflib.namespace import NamespaceManager
 from rdflib.plugins.sparql import parser
 from rdflib.term import BNode, URIRef
-
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import convert_to_datetime
+
 
 CONFIG_PATH = "./config.json"
 
@@ -47,13 +47,16 @@ class AgnosticEntity:
         self.related_entities_history = related_entities_history
         self.config = config
 
-    def get_history(self, include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]]]:
+    def get_history(self, include_prov_metadata: bool=False) -> Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]]]:
         """
         It materializes all versions of an entity. If **related_entities_history** is True, 
         it also materializes all versions of all related entities, 
-        which have **res** as object rather than subject. 
+        which have **res** as subject.
         If **include_prov_metadata** is True, 
         the provenance metadata of the returned entity/entities is also returned.
+
+        The output is a tuple where the first element is a dictionary mapping timestamps to merged graphs,
+        and the second element is a dictionary containing provenance metadata if requested.
         The output has the following format: ::
 
             (
@@ -81,17 +84,69 @@ class AgnosticEntity:
         :returns:  Tuple[dict, Union[dict, None]] -- The output is always a two-element tuple. The first is a dictionary containing all the versions of a given resource. The second is a dictionary containing all the provenance metadata linked to that resource if **include_prov_metadata** is True, None if False.
         """
         if self.related_entities_history:
+            # Collect histories of main and related entities
             entities_to_query = {self.res}
             current_state = self._query_dataset()
-            related_entities = current_state.triples(
-                (None, None, URIRef(self.res)))
+            related_entities = current_state.triples((URIRef(self.res), None, None))
             for entity in related_entities:
-                if ProvEntity.PROV not in entity[1]:
-                    entities_to_query.add(str(entity[0]))
-            return _get_entities_histories(entities_to_query, self.config, include_prov_metadata)
-        entity_history = self._get_entity_current_state(include_prov_metadata)
-        entity_history = self._get_old_graphs(entity_history)
-        return tuple(entity_history)
+                if isinstance(entity[2], URIRef) and ProvEntity.PROV not in entity[1] and entity[1] != RDF.type:
+                    entities_to_query.add(str(entity[2]))
+            return self._get_merged_histories(entities_to_query, include_prov_metadata)
+        else:
+            entity_history = self._get_entity_current_state(include_prov_metadata)
+            entity_history = self._get_old_graphs(entity_history)
+            return tuple(entity_history)
+
+    def _get_merged_histories(self, entities: Set[str], include_prov_metadata: bool) -> Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]:
+        """
+        Merges the histories of the main entity and related entities based on timestamps.
+        """
+        # Collect individual histories
+        histories: Dict[str, dict] = {}
+        metadata: Dict[str, dict] = {}
+        for entity in entities:
+            agnostic_entity = AgnosticEntity(entity, self.config)
+            entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
+            entity_history = agnostic_entity._get_old_graphs(entity_history)
+            histories[entity] = entity_history[0][entity]
+            if include_prov_metadata and entity_history[1]:
+                metadata[entity] = entity_history[1][entity]
+
+        # Get all timestamps from the main entity and sort them chronologically
+        main_entity_times = sorted(
+            histories[self.res].keys(), key=lambda x: convert_to_datetime(x)
+        )
+
+        # Merge graphs at each timestamp
+        merged_histories = {self.res: {}}
+
+        for timestamp in main_entity_times:
+            merged_graph = histories[self.res][timestamp]
+
+            # Merge related entities' graphs
+            for entity in entities:
+                if entity == self.res:
+                    continue
+                # Sort entity timestamps
+                entity_times = sorted(
+                    histories[entity].keys(), key=lambda x: convert_to_datetime(x)
+                )
+
+                # Find the latest snapshot before or at the current timestamp
+                relevant_time = None
+                for etime in entity_times:
+                    if convert_to_datetime(etime) <= convert_to_datetime(timestamp):
+                        relevant_time = etime
+                    else:
+                        break
+
+                if relevant_time:
+                    for quad in histories[entity][relevant_time].quads((None, None, None, None)):
+                        merged_graph.add(quad)
+
+            merged_histories[self.res][timestamp] = merged_graph
+
+        return merged_histories, metadata
 
     def get_state_at_time(
         self, 
@@ -484,18 +539,6 @@ class AgnosticEntity:
             """
         return Sparql(query_provenance, config=self.config).run_construct_query()
 
-def _get_entities_histories(res_set: Set[str], config: dict, include_prov_metadata:bool=False) -> Tuple[Dict[str, Dict[str, ConjunctiveGraph]], Dict]:
-    entities_histories = [dict(), dict()]
-    for res in res_set:
-        agnosticEntity = AgnosticEntity(res, config, related_entities_history=False)
-        history_and_metadata = agnosticEntity.get_history(include_prov_metadata=include_prov_metadata)
-        if history_and_metadata:
-            history = history_and_metadata[0]
-            entities_histories[0].update(history)
-        if include_prov_metadata:
-            metadata = history_and_metadata[1]
-            entities_histories[1].update(metadata)
-    return tuple(entities_histories)
 
 def _filter_timestamps_by_interval(interval:Tuple[str, str], iterator:list, time_index:int=None) -> set:
     if interval:
