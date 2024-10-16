@@ -85,81 +85,99 @@ class AgnosticEntity:
         :returns:  Tuple[dict, Union[dict, None]] -- The output is always a two-element tuple. The first is a dictionary containing all the versions of a given resource. The second is a dictionary containing all the provenance metadata linked to that resource if **include_prov_metadata** is True, None if False.
         """
         if self.related_entities_history:
-            # Collect related entities recursively
             processed_entities = set()
-            entities_to_query = self._collect_related_entities_recursively(self.res, processed_entities)
-            return self._get_merged_histories(entities_to_query, include_prov_metadata)
+            histories = {}
+            self._collect_related_entities_recursively(self.res, processed_entities, histories, include_prov_metadata)
+            return self._get_merged_histories(histories, include_prov_metadata)
         else:
-            # Original behavior
             entity_history = self._get_entity_current_state(include_prov_metadata)
             entity_history = self._get_old_graphs(entity_history)
             return tuple(entity_history)
 
-    def _collect_related_entities_recursively(self, entity_uri: str, processed_entities: Set[str], depth: int = None) -> Set[str]:
+    def _collect_related_entities_recursively(
+        self, 
+        entity_uri: str, 
+        processed_entities: Set[str], 
+        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]], 
+        include_prov_metadata: bool, 
+        depth: int = None
+    ) -> None:
         """
-        Recursively collects entities that are objects in triples where the given entity is the subject.
+        Recursively collects entities and their histories.
 
         :param entity_uri: The URI of the entity to start from.
         :param processed_entities: A set to keep track of already processed entities to avoid cycles.
+        :param histories: A dictionary to store the histories of entities.
+        :param include_prov_metadata: Whether to include provenance metadata.
         :param depth: Maximum recursion depth, if None, unlimited.
-        :returns: A set of entity URIs.
         """
         if depth is not None and depth <= 0:
-            return set()
+            return
 
         if entity_uri in processed_entities:
-            return set()
+            return
 
         processed_entities.add(entity_uri)
-        entities_to_query = {entity_uri}
 
-        current_state = self._query_dataset()
-        related_entities = current_state.triples((URIRef(entity_uri), None, None))
+        # Get the history of the entity and store it
+        agnostic_entity = AgnosticEntity(entity_uri, self.config, related_entities_history=False)
+        entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
+        entity_history = agnostic_entity._get_old_graphs(entity_history)
+        histories[entity_uri] = (entity_history[0], entity_history[1])  # Store both history and metadata
 
-        for triple in related_entities:
-            predicate = triple[1]
-            obj = triple[2]
-            # Exclude provenance properties and rdf:type
-            if isinstance(obj, URIRef) and ProvEntity.PROV not in predicate and predicate != RDF.type:
-                obj_uri = str(obj)
-                if obj_uri not in processed_entities:
-                    # Recursively collect related entities
-                    entities_to_query.update(self._collect_related_entities_recursively(obj_uri, processed_entities, None if depth is None else depth - 1))
-        return entities_to_query
+        # For each snapshot, collect related entities
+        entity_snapshots: Dict[str, ConjunctiveGraph] = entity_history[0][entity_uri]
+        for timestamp, graph in entity_snapshots.items():
+            related_entities = graph.triples((URIRef(entity_uri), None, None))
+            for triple in related_entities:
+                predicate = triple[1]
+                obj = triple[2]
+                if isinstance(obj, URIRef) and ProvEntity.PROV not in predicate and predicate != RDF.type:
+                    obj_uri = str(obj)
+                    self._collect_related_entities_recursively(
+                        obj_uri, processed_entities, histories, include_prov_metadata, 
+                        None if depth is None else depth - 1
+                    )
 
-    def _get_merged_histories(self, entities: Set[str], include_prov_metadata: bool) -> Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]:
+    def _get_merged_histories(
+        self, 
+        histories: Dict[str, Tuple[Dict[str, Dict[str, Graph]], Union[Dict[str, Dict[str, str]], None]]], 
+        include_prov_metadata: bool
+    ) -> Tuple[Dict[str, Graph], Dict[str, Dict[str, Dict[str, str]]]]:
         """
         Merges the histories of the main entity and related entities based on timestamps.
+
+        :param histories: A dictionary containing the histories and metadata of entities.
+        :param include_prov_metadata: Whether to include provenance metadata.
+        :return: A tuple of merged histories and metadata.
         """
-        # Collect individual histories
-        histories: Dict[str, dict] = {}
-        metadata: Dict[str, dict] = {}
-        for entity in entities:
-            agnostic_entity = AgnosticEntity(entity, self.config)
-            entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
-            entity_history = agnostic_entity._get_old_graphs(entity_history)
-            histories[entity] = entity_history[0][entity]
-            if include_prov_metadata and entity_history[1]:
-                metadata[entity] = entity_history[1][entity]
+        # Prepare the histories and metadata dictionaries
+        entity_histories = {}
+        metadata = {}
+
+        for entity_uri, (entity_history_dict, entity_metadata) in histories.items():
+            entity_histories[entity_uri] = entity_history_dict[entity_uri]
+            if include_prov_metadata and entity_metadata:
+                metadata[entity_uri] = entity_metadata[entity_uri]
 
         # Get all timestamps from the main entity and sort them chronologically
         main_entity_times = sorted(
-            histories[self.res].keys(), key=lambda x: convert_to_datetime(x)
+            entity_histories[self.res].keys(), key=lambda x: convert_to_datetime(x)
         )
 
         # Merge graphs at each timestamp
         merged_histories = {self.res: {}}
 
         for timestamp in main_entity_times:
-            merged_graph = histories[self.res][timestamp]
+            merged_graph = entity_histories[self.res][timestamp]
 
             # Merge related entities' graphs
-            for entity in entities:
-                if entity == self.res:
+            for entity_uri in entity_histories:
+                if entity_uri == self.res:
                     continue
                 # Sort entity timestamps
                 entity_times = sorted(
-                    histories[entity].keys(), key=lambda x: convert_to_datetime(x)
+                    entity_histories[entity_uri].keys(), key=lambda x: convert_to_datetime(x)
                 )
 
                 # Find the latest snapshot before or at the current timestamp
@@ -171,7 +189,7 @@ class AgnosticEntity:
                         break
 
                 if relevant_time:
-                    for quad in histories[entity][relevant_time].quads((None, None, None, None)):
+                    for quad in entity_histories[entity_uri][relevant_time].quads((None, None, None, None)):
                         merged_graph.add(quad)
 
             merged_histories[self.res][timestamp] = merged_graph
@@ -274,7 +292,7 @@ class AgnosticEntity:
             }
         if not relevant_results:
             return entity_graphs, entity_snapshots, other_snapshots_metadata
-        entity_cg = self._query_dataset()
+        entity_cg = self._query_dataset(self.res)
         for relevant_result in relevant_results:
             sum_update_queries = ""
             for result in results:
@@ -335,7 +353,7 @@ class AgnosticEntity:
         if len(current_state) == 0:
             entity_current_state.append(dict())
             return entity_current_state
-        for quad in self._query_dataset().quads():
+        for quad in self._query_dataset(self.res).quads():
             current_state.add(quad)
         triples_generated_at_time = list(current_state.triples(
             (None, ProvEntity.iri_generated_at_time, None)))
@@ -466,7 +484,7 @@ class AgnosticEntity:
             print(f"Error processing update query: {e}")
             print(f"Problematic query: {update_query}")
 
-    def _query_dataset(self) -> ConjunctiveGraph:
+    def _query_dataset(self, entity_uri: str) -> ConjunctiveGraph:
         # A SELECT hack can be used to return RDF quads in named graphs,
         # since the CONSTRUCT allows only to return triples in SPARQL 1.1.
         # Here is an example of SELECT hack using VALUES:
@@ -481,58 +499,24 @@ class AgnosticEntity:
         # where the fourth element is the context.
         is_quadstore = self.config['dataset']['is_quadstore']
 
-        if self.related_entities_history:
-            if is_quadstore:
-                query_dataset = f"""
-                    SELECT DISTINCT ?s ?p ?o ?g
-                    WHERE {{
-                        GRAPH ?g {{
-                            {{
-                                VALUES ?s {{<{self.res}>}}
-                                ?s ?p ?o
-                            }}
-                            UNION 
-                            {{
-                                VALUES ?o {{<{self.res}>}}
-                                ?s ?p ?o
-                            }}
-                        }}
-                    }}   
-                """
-            else:
-                query_dataset = f"""
-                    SELECT DISTINCT ?s ?p ?o
-                    WHERE {{
-                        {{
-                            VALUES ?s {{<{self.res}>}}
-                            ?s ?p ?o
-                        }}
-                        UNION 
-                        {{
-                            VALUES ?o {{<{self.res}>}}
-                            ?s ?p ?o
-                        }}
-                    }}   
-                """
-        else:
-            if is_quadstore:
-                query_dataset = f"""
-                    SELECT DISTINCT ?s ?p ?o ?g
-                    WHERE {{
-                        GRAPH ?g {{
-                            VALUES ?s {{<{self.res}>}}
-                            ?s ?p ?o
-                        }}
-                    }}   
-                """
-            else:
-                query_dataset = f"""
-                    SELECT DISTINCT ?s ?p ?o
-                    WHERE {{
-                        VALUES ?s {{<{self.res}>}}
+        if is_quadstore:
+            query_dataset = f"""
+                SELECT DISTINCT ?s ?p ?o ?g
+                WHERE {{
+                    GRAPH ?g {{
+                        VALUES ?s {{<{entity_uri}>}}
                         ?s ?p ?o
-                    }}   
-                """
+                    }}
+                }}   
+            """
+        else:
+            query_dataset = f"""
+                SELECT DISTINCT ?s ?p ?o
+                WHERE {{
+                    VALUES ?s {{<{entity_uri}>}}
+                    ?s ?p ?o
+                }}   
+            """
 
         return Sparql(query_dataset, config=self.config).run_construct_query()
 
