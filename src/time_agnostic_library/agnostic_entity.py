@@ -202,48 +202,174 @@ class AgnosticEntity:
         include_prov_metadata: bool = False, 
         ) -> Tuple[Graph, dict, Union[dict, None]]:
         """
-        Given a time interval, the function returns the resource's states within the interval, the returned snapshots metadata
-        and, optionally, the hooks to the previous and subsequent snapshots.
-        The time can be specified in any existing standard. 
-        Snapshot metadata includes generation time, the responsible agent and the primary source.
-        The output has the following format: ::
+        Given a time interval, the function returns the states of the resource and optionally its related entities within the interval,
+        the returned snapshots metadata, and optionally, the hooks to the previous and subsequent snapshots.
 
-            (
-                {
-                    TIME_1: ENTITY_GRAPH_AT_TIME_1, 
-                    TIME_2: ENTITY_GRAPH_AT_TIME_2
+        If related_entities_history is True, it also returns the states of related entities recursively.
+
+        The output has the following format:
+
+        (
+            {
+                ENTITY_URI_1: {
+                    TIME_1: GRAPH_AT_TIME_1, 
+                    TIME_2: GRAPH_AT_TIME_2
                 },
-                {
-                    SNAPSHOT_URI_AT_TIME_1: {
-                        'generatedAtTime': TIME_1, 
-                        'wasAttributedTo': ATTRIBUTION, 
-                        'hadPrimarySource': PRIMARY_SOURCE
-                    },
-                    SNAPSHOT_URI_AT_TIME_2: {
-                        'generatedAtTime': TIME_2, 
-                        'wasAttributedTo': ATTRIBUTION, 
-                        'hadPrimarySource': PRIMARY_SOURCE
-                    }
-                }, 
-                {
-                    OTHER_SNAPSHOT_URI_1: {
-                        'generatedAtTime': GENERATION_TIME, 
-                        'wasAttributedTo': ATTRIBUTION, 
-                        'hadPrimarySource': PRIMARY_SOURCE
-                    }, 
-                    OTHER_SNAPSHOT_URI_2: {
-                        'generatedAtTime': GENERATION_TIME, 
-                        'wasAttributedTo': ATTRIBUTION, 
-                        'hadPrimarySource': PRIMARY_SOURCE
-                    }
-                }
-            )
+                ENTITY_URI_2: {
+                    TIME_1: GRAPH_AT_TIME_1, 
+                    TIME_2: GRAPH_AT_TIME_2
+                },
+                ...
+            },
+            {
+                ENTITY_URI_1: {
+                    SNAPSHOT_URI_AT_TIME_1: METADATA,
+                    SNAPSHOT_URI_AT_TIME_2: METADATA
+                },
+                ENTITY_URI_2: {
+                    SNAPSHOT_URI_AT_TIME_1: METADATA,
+                    SNAPSHOT_URI_AT_TIME_2: METADATA
+                },
+                ...
+            },
+            {
+                ENTITY_URI_1: {
+                    OTHER_SNAPSHOT_URI_1: METADATA,
+                    OTHER_SNAPSHOT_URI_2: METADATA
+                },
+                ENTITY_URI_2: {
+                    OTHER_SNAPSHOT_URI_1: METADATA,
+                    OTHER_SNAPSHOT_URI_2: METADATA
+                },
+                ...
+            }
+        )
 
         :param time: A time interval, in the form (START, END). If one of the two values is None, only the other is considered. The time can be specified using any existing standard.
         :type time: Tuple[Union[str, None]].
         :param include_prov_metadata: If True, hooks are returned to the previous and subsequent snapshots.
         :type include_prov_metadata: bool, optional
-        :returns: Tuple[dict, dict, Union[dict, None]] -- The method always returns a tuple of three elements: the first is a dictionary that associates graphs and timestamps within the specified interval; the second contains the snapshots metadata of which the states has been returned. If the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary. The third dictionary is empty also if only one snapshot exists.
+        :returns: Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]], Union[Dict[str, Dict[str, Dict[str, str]]], None]] -- The method returns a tuple of three elements: the first is a dictionary mapping entity URIs to their graphs at timestamps within the specified interval; the second contains the snapshots metadata of the states that have been returned; if the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary.
+        """
+        if self.related_entities_history:
+            processed_entities = set()
+            histories = {}
+            self._collect_related_entities_states_at_time(self.res, processed_entities, histories, time, include_prov_metadata)
+            return self._get_merged_histories_at_time(histories, include_prov_metadata)
+        else:
+            return self._get_entity_state_at_time(time, include_prov_metadata)
+
+    def _collect_related_entities_states_at_time(
+        self, 
+        entity_uri: str, 
+        processed_entities: Set[str], 
+        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
+        time: Tuple[Union[str, None]], 
+        include_prov_metadata: bool, 
+        depth: int = None
+    ) -> None:
+        if depth is not None and depth <= 0:
+            return
+
+        if entity_uri in processed_entities:
+            return
+
+        processed_entities.add(entity_uri)
+
+        # Get the state of the entity at the given time
+        agnostic_entity = AgnosticEntity(entity_uri, self.config, related_entities_history=False)
+        entity_graphs, entity_snapshots, other_snapshots_metadata = agnostic_entity._get_entity_state_at_time(time, include_prov_metadata)
+        histories[entity_uri] = (entity_graphs, entity_snapshots, other_snapshots_metadata)
+
+        # For each graph in entity_graphs, collect related entities
+        for timestamp, graph in entity_graphs.items():
+            related_entities = graph.triples((URIRef(entity_uri), None, None))
+            for triple in related_entities:
+                predicate = triple[1]
+                obj = triple[2]
+                if isinstance(obj, URIRef) and ProvEntity.PROV not in predicate and predicate != RDF.type:
+                    obj_uri = str(obj)
+                    self._collect_related_entities_states_at_time(
+                        obj_uri, processed_entities, histories, time, include_prov_metadata, 
+                        None if depth is None else depth -1
+                    )
+
+    def _get_merged_histories_at_time(
+        self, 
+        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
+        include_prov_metadata: bool
+    ) -> Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]:
+        """
+        Merges the states of the main entity and related entities at the given times.
+
+        :param histories: A dictionary containing the states and metadata of entities.
+        :param include_prov_metadata: Whether to include provenance metadata.
+        :return: A tuple of merged histories and metadata.
+        """
+        # Prepare the histories and metadata dictionaries
+        entity_histories = {}
+        entity_snapshots_metadata = {}
+        other_snapshots_metadata = {} if include_prov_metadata else None
+
+        for entity_uri, (entity_graphs, entity_snapshots, other_snapshots) in histories.items():
+            entity_histories[entity_uri] = entity_graphs
+            entity_snapshots_metadata[entity_uri] = entity_snapshots
+            if include_prov_metadata and other_snapshots:
+                other_snapshots_metadata[entity_uri] = other_snapshots
+
+        # Get all timestamps from the main entity and sort them chronologically
+        main_entity_times = sorted(
+            set(entity_histories[self.res].keys()), key=lambda x: convert_to_datetime(x)
+        )
+
+        # Merge graphs at each timestamp
+        merged_histories = {self.res: {}}
+
+        for timestamp in main_entity_times:
+            merged_graph = entity_histories[self.res][timestamp]
+
+            # Merge related entities' graphs
+            for entity_uri, graphs_at_times in entity_histories.items():
+                if entity_uri == self.res:
+                    continue
+                # Get the graph of the related entity at the same timestamp
+                if timestamp in graphs_at_times:
+                    related_graph = graphs_at_times[timestamp]
+                else:
+                    # Find the latest snapshot before the current timestamp
+                    related_times = sorted(
+                        graphs_at_times.keys(), key=lambda x: convert_to_datetime(x)
+                    )
+                    relevant_time = None
+                    for rt in related_times:
+                        if convert_to_datetime(rt) <= convert_to_datetime(timestamp):
+                            relevant_time = rt
+                        else:
+                            break
+                    if relevant_time:
+                        related_graph = graphs_at_times[relevant_time]
+                    else:
+                        continue  # No relevant snapshot for this related entity at this time
+                # Merge the related entity's graph into the merged graph
+                for quad in related_graph.quads((None, None, None, None)):
+                    merged_graph.add(quad)
+
+            merged_histories[self.res][timestamp] = merged_graph
+
+        # Return the merged histories and metadata
+        return merged_histories, entity_snapshots_metadata, other_snapshots_metadata
+
+    def _get_entity_state_at_time(
+        self, 
+        time: Tuple[Union[str, None]], 
+        include_prov_metadata: bool
+    ) -> Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, str]], None]]:
+        """
+        Get the state of the entity at the given time(s).
+
+        :param time: A time interval.
+        :param include_prov_metadata: Whether to include provenance metadata.
+        :return: A tuple containing the entity graphs at times, snapshots metadata, and other snapshots metadata.
         """
         is_quadstore = self.config["provenance"]["is_quadstore"]
         graph_statement = f"GRAPH <{self.res}/prov/>" if is_quadstore else ""
@@ -272,15 +398,14 @@ class AgnosticEntity:
         """
         results = list(Sparql(query_snapshots, config=self.config).run_select_query())
         if not results:
-            return None, None, None
+            return {}, {}, {}
         results.sort(key=lambda x: convert_to_datetime(x[1]), reverse=True)
         relevant_results = _filter_timestamps_by_interval(time, results, time_index=1)
-        other_snapshots_metadata = None
-        entity_snapshots = dict()
-        entity_graphs = dict()
+        other_snapshots_metadata = {}
+        entity_snapshots = {}
+        entity_graphs = {}
         if include_prov_metadata:
             other_snapshots = [snapshot for snapshot in results if snapshot[0] not in {relevant_result[0] for relevant_result in relevant_results}]
-            other_snapshots_metadata = dict()
             for other_snapshot in other_snapshots:
                 other_snapshots_metadata[other_snapshot[0]] = {
                     "generatedAtTime": other_snapshot[1],
@@ -289,7 +414,7 @@ class AgnosticEntity:
                     "hasUpdateQuery": other_snapshot[3],
                     "hadPrimarySource": other_snapshot[4],
                     "description": other_snapshot[5]
-            }
+                }
         if not relevant_results:
             return entity_graphs, entity_snapshots, other_snapshots_metadata
         entity_cg = self._query_dataset(self.res)
@@ -484,7 +609,7 @@ class AgnosticEntity:
             print(f"Error processing update query: {e}")
             print(f"Problematic query: {update_query}")
 
-    def _query_dataset(self, entity_uri: str) -> ConjunctiveGraph:
+    def _query_dataset(self, entity_uri: str = None) -> ConjunctiveGraph:
         # A SELECT hack can be used to return RDF quads in named graphs,
         # since the CONSTRUCT allows only to return triples in SPARQL 1.1.
         # Here is an example of SELECT hack using VALUES:
@@ -497,6 +622,9 @@ class AgnosticEntity:
         #
         # Afterwards, the rdflib add method can be used to add quads to a Conjunctive Graph,
         # where the fourth element is the context.
+        
+        entity_uri = self.res if entity_uri is None else entity_uri
+
         is_quadstore = self.config['dataset']['is_quadstore']
 
         if is_quadstore:
