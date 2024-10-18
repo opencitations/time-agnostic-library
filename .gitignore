@@ -8,6 +8,7 @@
 /tests/fuseki/
 /tests/virtuoso/
 /tests/cache/
+tests/tests.zip
 setup.py
 execution_example.py
 

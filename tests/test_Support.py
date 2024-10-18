@@ -15,11 +15,12 @@
 # SOFTWARE.
 
 
-from datetime import datetime
-from SPARQLWrapper import SPARQLWrapper, JSON
-from time_agnostic_library.support import empty_the_cache, convert_to_datetime
-import unittest, json
+import json
+import unittest
+from datetime import datetime, timezone
 
+from SPARQLWrapper import JSON, SPARQLWrapper
+from time_agnostic_library.support import convert_to_datetime, empty_the_cache
 
 CONFIG_PATH = "tests/config.json"
 CONFIG_GRAPHDB = "tests/config_graphdb.json"
@@ -42,9 +43,8 @@ class Test_Support(unittest.TestCase):
 
     def test_convert_to_datetime(self):
         input = "2021-05-21T19:08:56+00:00"
-        expected_output = datetime(2021, 5, 21, 19, 8, 56)
+        expected_output = datetime(2021, 5, 21, 19, 8, 56, tzinfo=timezone.utc)
         self.assertEqual(convert_to_datetime(input), expected_output)
-
 
 
 if __name__ == '__main__': # pragma: no cover

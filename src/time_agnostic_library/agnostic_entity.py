@@ -452,7 +452,7 @@ class AgnosticEntity:
             self.res: dict()
         }
         for triple in triples_generated_at_time:
-            time = convert_to_datetime(triple[2]).strftime("%Y-%m-%dT%H:%M:%S")
+            time = convert_to_datetime(triple[2], stringify=True)
             prov_metadata[self.res][str(triple[0])] = {
                 "generatedAtTime": time,
                 "invalidatedAtTime": None,
@@ -524,8 +524,8 @@ class AgnosticEntity:
             cg_no_pro = entity_current_state[0][self.res].pop(time)
             for prov_property in ProvEntity.get_prov_properties():
                 cg_no_pro.remove((None, prov_property, None))
-            time_no_tz = convert_to_datetime(time)
-            entity_current_state[0][self.res][time_no_tz.strftime("%Y-%m-%dT%H:%M:%S")] = cg_no_pro
+            time_str = convert_to_datetime(time, stringify=True)
+            entity_current_state[0][self.res][time_str] = cg_no_pro
         return entity_current_state
 
     @classmethod
