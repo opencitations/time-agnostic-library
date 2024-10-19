@@ -116,7 +116,7 @@ class AgnosticEntity:
 
         if entity_uri in processed_entities:
             return
-
+        
         processed_entities.add(entity_uri)
 
         # Get the history of the entity and store it
@@ -470,18 +470,28 @@ class AgnosticEntity:
                         prov_metadata[entity][str(triple[0])][abbr] = str(triple[2])
         return prov_metadata
 
-    def _get_entity_current_state(self, include_prov_metadata:bool=False) -> list:
+    def _get_entity_current_state(self, include_prov_metadata: bool = False) -> list:
         entity_current_state = [{self.res: dict()}]
         current_state = ConjunctiveGraph()
+        # Add provenance data
         for quad in self._query_provenance(include_prov_metadata).quads():
             current_state.add(quad)
         if len(current_state) == 0:
             entity_current_state.append(dict())
             return entity_current_state
+        # Add dataset data for the main entity
         for quad in self._query_dataset(self.res).quads():
             current_state.add(quad)
-        triples_generated_at_time = list(current_state.triples(
-            (None, ProvEntity.iri_generated_at_time, None)))
+        if self.related_entities_history:
+            # Collect related entities recursively and add their data to current_state
+            processed_entities = set()
+            self._collect_related_entities_current_state(
+                self.res, processed_entities, current_state
+            )
+        # Find the most recent timestamp
+        triples_generated_at_time = list(
+            current_state.triples((None, ProvEntity.iri_generated_at_time, None))
+        )
         most_recent_time = None
         for triple in triples_generated_at_time:
             snapshot_time = triple[2]
@@ -492,13 +502,55 @@ class AgnosticEntity:
             elif not most_recent_time:
                 most_recent_time = snapshot_time
             entity_current_state[0][self.res][snapshot_time] = None
+        # Set the current state graph at the most recent time
         entity_current_state[0][self.res][most_recent_time] = current_state
         if include_prov_metadata:
-            prov_metadata = self._include_prov_metadata(triples_generated_at_time, current_state)
+            prov_metadata = self._include_prov_metadata(
+                triples_generated_at_time, current_state
+            )
             entity_current_state.append(prov_metadata)
         else:
             entity_current_state.append(None)
         return entity_current_state
+
+    def _collect_related_entities_current_state(
+        self,
+        entity_uri: str,
+        processed_entities: Set[str],
+        current_state: ConjunctiveGraph,
+        depth: int = None
+    ) -> None:
+        if depth is not None and depth <= 0:
+            return
+
+        if entity_uri in processed_entities:
+            return
+
+        processed_entities.add(entity_uri)
+
+        # Get dataset data for the related entity
+        entity_graph = self._query_dataset(entity_uri)
+        for quad in entity_graph.quads():
+            current_state.add(quad)
+
+        # Find related entities in the graph
+        related_entities = entity_graph.triples((URIRef(entity_uri), None, None))
+        for triple in related_entities:
+            predicate = triple[1]
+            obj = triple[2]
+            if (
+                isinstance(obj, URIRef)
+                and ProvEntity.PROV not in predicate
+                and predicate != RDF.type
+            ):
+                obj_uri = str(obj)
+                # Recursively collect data for related entities
+                self._collect_related_entities_current_state(
+                    obj_uri,
+                    processed_entities,
+                    current_state,
+                    None if depth is None else depth - 1,
+                )
 
     def _get_old_graphs(self, entity_current_state:List[Dict[str, Dict[str, ConjunctiveGraph]]]) -> list:
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
