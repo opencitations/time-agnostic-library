@@ -120,7 +120,7 @@ class AgnosticEntity:
         processed_entities.add(entity_uri)
 
         # Get the history of the entity and store it
-        agnostic_entity = AgnosticEntity(entity_uri, self.config, related_entities_history=False)
+        agnostic_entity = AgnosticEntity(entity_uri, self.config, related_entities_history=self.related_entities_history)
         entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
         entity_history = agnostic_entity._get_old_graphs(entity_history)
         histories[entity_uri] = (entity_history[0], entity_history[1])  # Store both history and metadata
