@@ -136,7 +136,7 @@ def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     for quad in cg.quads():
         normalized_quad = tuple(Literal(str(el), datatype=None) if isinstance(el, Literal) else el for el in quad)
         normalized_cg.add(normalized_quad)
-    nt_list = re.split('\s?\.?\n+', normalized_cg.serialize(format='nt'))
+    nt_list = re.split(r'\s?\.?\n+', normalized_cg.serialize(format='nt'))
     nt_list = filter(None, nt_list)
     sorted_nt_list = sorted(nt_list)
     return sorted_nt_list
