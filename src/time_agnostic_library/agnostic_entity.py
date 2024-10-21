@@ -120,7 +120,7 @@ class AgnosticEntity:
         processed_entities.add(entity_uri)
 
         # Get the history of the entity and store it
-        agnostic_entity = AgnosticEntity(entity_uri, self.config, related_entities_history=self.related_entities_history)
+        agnostic_entity = AgnosticEntity(entity_uri, self.config, related_entities_history=False)
         entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
         entity_history = agnostic_entity._get_old_graphs(entity_history)
         histories[entity_uri] = (entity_history[0], entity_history[1])  # Store both history and metadata
@@ -153,8 +153,8 @@ class AgnosticEntity:
         """
         # Prepare the histories and metadata dictionaries
         entity_histories = {}
-        metadata = {}
 
+        metadata = {}
         for entity_uri, (entity_history_dict, entity_metadata) in histories.items():
             entity_histories[entity_uri] = entity_history_dict[entity_uri]
             if include_prov_metadata and entity_metadata:
@@ -187,9 +187,8 @@ class AgnosticEntity:
                         relevant_time = etime
                     else:
                         break
-
                 if relevant_time:
-                    for quad in entity_histories[entity_uri][relevant_time].quads((None, None, None, None)):
+                    for quad in entity_histories[entity_uri][relevant_time].quads():
                         merged_graph.add(quad)
 
             merged_histories[self.res][timestamp] = merged_graph
