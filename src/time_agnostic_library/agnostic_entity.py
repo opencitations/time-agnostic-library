@@ -124,7 +124,6 @@ class AgnosticEntity:
         entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
         entity_history = agnostic_entity._get_old_graphs(entity_history)
         histories[entity_uri] = (entity_history[0], entity_history[1])  # Store both history and metadata
-
         # For each snapshot, collect related entities
         entity_snapshots: Dict[str, ConjunctiveGraph] = entity_history[0][entity_uri]
         for timestamp, graph in entity_snapshots.items():
@@ -169,7 +168,7 @@ class AgnosticEntity:
         merged_histories = {self.res: {}}
 
         for timestamp in main_entity_times:
-            merged_graph = entity_histories[self.res][timestamp]
+            merged_graph = copy.deepcopy(entity_histories[self.res][timestamp])
 
             # Merge related entities' graphs
             for entity_uri in entity_histories:
@@ -325,7 +324,7 @@ class AgnosticEntity:
         merged_histories = {self.res: {}}
 
         for timestamp in main_entity_times:
-            merged_graph = entity_histories[self.res][timestamp]
+            merged_graph = copy.deepcopy(entity_histories[self.res][timestamp])
 
             # Merge related entities' graphs
             for entity_uri, graphs_at_times in entity_histories.items():
