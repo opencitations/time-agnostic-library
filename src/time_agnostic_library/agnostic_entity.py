@@ -462,8 +462,8 @@ class AgnosticEntity:
         for entity, metadata in dict(prov_metadata).items():
             for se, _ in metadata.items():
                 for prov_property, abbr in prov_properties.items():
-                    triples_with_property = current_state.triples(
-                    (URIRef(se), prov_property, None))
+                    triples_with_property = list(current_state.triples(
+                    (URIRef(se), prov_property, None)))
                     for triple in triples_with_property:
                         prov_metadata[entity][str(triple[0])][abbr] = str(triple[2])
         return prov_metadata
@@ -560,7 +560,10 @@ class AgnosticEntity:
             if index > 0:
                 next_snapshot = ordered_data[index-1][0]
                 previous_graph: ConjunctiveGraph = copy.deepcopy(entity_current_state[0][self.res][next_snapshot])
-                snapshot_uri = list(previous_graph.subjects(object=next_snapshot))[0]
+                snapshot_uri = previous_graph.value(
+                    predicate=ProvEntity.iri_generated_at_time,
+                    object=Literal(next_snapshot)
+                )
                 snapshot_update_query: str = previous_graph.value(
                     subject=snapshot_uri,
                     predicate=ProvEntity.iri_has_update_query,
@@ -706,7 +709,8 @@ class AgnosticEntity:
                               <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent;
                               <{ProvEntity.iri_had_primary_source}> ?source;
                               <{ProvEntity.iri_description}> ?description;
-                              <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                              <{ProvEntity.iri_has_update_query}> ?updateQuery;
+                              <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime.
                 }} 
                 WHERE {{
                     ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
@@ -714,7 +718,8 @@ class AgnosticEntity:
                               <{ProvEntity.iri_generated_at_time}> ?t;
                               <{ProvEntity.iri_description}> ?description.
                     OPTIONAL {{ ?snapshot <{ProvEntity.iri_had_primary_source}> ?source. }}   
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}  
+                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
+                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime. }}  
                 }}
             """
         else:

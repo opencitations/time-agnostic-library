@@ -48,6 +48,8 @@ CONFIG = {
 }
 
 class Test_AgnosticEntity(unittest.TestCase):
+    maxDiff = None
+
     def test_get_history(self):
         input = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         entity_history = AgnosticEntity(input, config=CONFIG).get_history()
@@ -113,19 +115,21 @@ class Test_AgnosticEntity(unittest.TestCase):
                     'hasUpdateQuery': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'}, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
                     'generatedAtTime': '2021-05-07T09:59:15+00:00', 
-                    'invalidatedAtTime': None, 
+                    'invalidatedAtTime': '2021-05-31T18:19:47+00:00', 
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': None, 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.", 
                     'hasUpdateQuery': None}, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
                     'generatedAtTime': '2021-05-31T18:19:47+00:00', 
-                    'invalidatedAtTime': None, 
+                    'invalidatedAtTime': '2021-06-01T18:46:41+00:00', 
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': None, 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.", 
                     'hasUpdateQuery': 'INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }'}}}
-        assert (output_0 == expected_output_0) and (output_1 == expected_output_1)
+
+        self.assertEqual(output_0, expected_output_0)
+        self.assertEqual(output_1, expected_output_1)
     
     def test_get_history_and_related_entities(self):
         input = "https://github.com/arcangelo7/time_agnostic/ra/4"
@@ -189,7 +193,7 @@ class Test_AgnosticEntity(unittest.TestCase):
             'https://github.com/arcangelo7/time_agnostic/ra/4': {
                 'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1': {
                     'generatedAtTime': '2021-05-07T09:59:15+00:00', 
-                    'invalidatedAtTime': None, 
+                    'invalidatedAtTime': '2021-06-01T18:46:41+00:00', 
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': None, 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been created.", 
@@ -204,7 +208,7 @@ class Test_AgnosticEntity(unittest.TestCase):
             'https://github.com/arcangelo7/time_agnostic/id/14': {
                 'https://github.com/arcangelo7/time_agnostic/id/14/prov/se/1': {
                     'generatedAtTime': '2021-05-07T09:59:15+00:00', 
-                    'invalidatedAtTime': None, 
+                    'invalidatedAtTime': '2021-06-01T18:46:41+00:00', 
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': None, 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been created.", 
@@ -220,7 +224,8 @@ class Test_AgnosticEntity(unittest.TestCase):
                 }
             }
         }
-        assert (output_0 == expected_output_0) and (output_1 == expected_output_1)
+        self.assertEqual(output_0, expected_output_0)
+        self.assertEqual(output_1, expected_output_1)
 
     def test_get_state_at_time_and_related_entities_with_metadata(self):
         input = "https://github.com/arcangelo7/time_agnostic/ra/4"
