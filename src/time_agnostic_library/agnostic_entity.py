@@ -364,11 +364,13 @@ class AgnosticEntity:
     ) -> Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, str]], None]]:
         """
         Get the state of the entity at the given time(s).
-
+        
         :param time: A time interval.
         :param include_prov_metadata: Whether to include provenance metadata.
         :return: A tuple containing the entity graphs at times, snapshots metadata, and other snapshots metadata.
         """
+        # Initialize other_snapshots_metadata
+        other_snapshots_metadata = {}
         is_quadstore = self.config["provenance"]["is_quadstore"]
         graph_statement = f"GRAPH <{self.res}/prov/>" if is_quadstore else ""
         query_snapshots = f"""
@@ -396,12 +398,9 @@ class AgnosticEntity:
         """
         results = list(Sparql(query_snapshots, config=self.config).run_select_query())
         if not results:
-            return {}, {}, {}
+            return {}, {}, other_snapshots_metadata
         results.sort(key=lambda x: convert_to_datetime(x[1]), reverse=True)
         relevant_results = _filter_timestamps_by_interval(time, results, time_index=1)
-        other_snapshots_metadata = {}
-        entity_snapshots = {}
-        entity_graphs = {}
         if include_prov_metadata:
             other_snapshots = [snapshot for snapshot in results if snapshot[0] not in {relevant_result[0] for relevant_result in relevant_results}]
             for other_snapshot in other_snapshots:
@@ -413,6 +412,23 @@ class AgnosticEntity:
                     "hadPrimarySource": other_snapshot[4],
                     "description": other_snapshot[5]
                 }
+        if not relevant_results:
+            # Find the latest snapshot before the interval
+            interval_start = convert_to_datetime(time[0]) if time[0] else None
+            if interval_start:
+                earlier_snapshots = [r for r in results if convert_to_datetime(r[1]) <= interval_start]
+                if earlier_snapshots:
+                    # Get the latest snapshot before the interval
+                    latest_snapshot = max(earlier_snapshots, key=lambda x: convert_to_datetime(x[1]))
+                    relevant_results = [latest_snapshot]
+                else:
+                    # No snapshots before the interval; the entity did not exist yet
+                    return {}, {}, other_snapshots_metadata
+            else:
+                # No start time provided, so we can't find earlier snapshots
+                return {}, {}, other_snapshots_metadata
+        entity_snapshots = {}
+        entity_graphs = {}
         if not relevant_results:
             return entity_graphs, entity_snapshots, other_snapshots_metadata
         entity_cg = self._query_dataset(self.res)

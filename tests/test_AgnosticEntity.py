@@ -303,29 +303,31 @@ class Test_AgnosticEntity(unittest.TestCase):
         self.assertEqual(output_2, expected_output_2)
 
     def test_get_state_at_time_no_hooks(self):
-            input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-            input_2 = ("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00")
-            output = AgnosticEntity(input_1, config=CONFIG).get_state_at_time(input_2, include_prov_metadata=False)
-            output_0 = dict()
-            for timestamp, cg in output[0].items():
-                output_0[timestamp] = _to_nt_sorted_list(cg)
-            output = (output_0, output[1], output[2])
-            expected_output = (
-                {'2021-05-31T18:19:47+00:00': [
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>']}, 
-                {
-                    'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                        'generatedAtTime': '2021-05-31T18:19:47+00:00', 
-                        'invalidatedAtTime': '2021-06-01T18:46:41+00:00', 
-                        'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                        'hasUpdateQuery': 'INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }', 
-                        'hadPrimarySource': None, 
-                        'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified."}}
-            , {})
-            self.assertEqual(output, expected_output)
+        input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
+        input_2 = ("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00")
+        output = AgnosticEntity(input_1, config=CONFIG).get_state_at_time(input_2, include_prov_metadata=False)
+        output_0 = dict()
+        for timestamp, cg in output[0].items():
+            output_0[timestamp] = _to_nt_sorted_list(cg)
+        output = (output_0, output[1], output[2])
+        expected_output = (
+            {'2021-05-31T18:19:47+00:00': [
+                '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
+                '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
+                '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>', 
+                '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>']}, 
+            {
+                'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
+                    'generatedAtTime': '2021-05-31T18:19:47+00:00', 
+                    'invalidatedAtTime': '2021-06-01T18:46:41+00:00', 
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
+                    'hasUpdateQuery': 'INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }', 
+                    'hadPrimarySource': None, 
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified."}}
+        , {})
+        import json
+        print(json.dumps(output, indent=4))
+        self.assertEqual(output, expected_output)
 
     def test_get_state_at_interval_no_hooks(self):
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
