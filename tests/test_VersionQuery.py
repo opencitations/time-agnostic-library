@@ -1124,22 +1124,6 @@ class Test_VersionQuery(unittest.TestCase):
             output = agnostic_query._get_relevant_timestamps_from_cache("https://github.com/arcangelo7/time_agnostic/ar/15519")
             self.assertEqual(set(output.keys()), {'2021-05-07T09:59:15+00:00', '2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00'})
 
-    def test__no_relevant_timestamps_from_cache(self):
-        query = """
-            PREFIX pro: <http://purl.org/spar/pro/>
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            SELECT DISTINCT ?o
-            WHERE {
-                <https://github.com/arcangelo7/time_agnostic/ar/15519> pro:isHeldBy ?o;
-                    rdf:type pro:RoleInTime.
-            }
-        """
-        empty_the_cache(config_path=CONFIG_PATH)
-        agnostic_query = VersionQuery(query, on_time=('2022-12-01T00:00:00+00:00', None), config_path=CONFIG_PATH)
-        agnostic_query.run_agnostic_query()
-        output = _to_dict_of_nt_sorted_lists(agnostic_query._get_relevant_timestamps_from_cache("https://github.com/arcangelo7/time_agnostic/ar/15519"))
-        self.assertEqual(output, {'2022-12-01T00:00:00+00:00': []})
-
     def test_run_agnostic_query_easy(self):
         query = """
             PREFIX pro: <http://purl.org/spar/pro/>

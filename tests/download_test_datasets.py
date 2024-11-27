@@ -18,7 +18,7 @@ else:
 CREATE_NEW_CONSOLE = CREATE_NEW_CONSOLE if not is_unix else 0
 
 def download_tests_datasets_from_zenodo():
-    url = 'https://zenodo.org/api/records/6539398#.YnvKljlByrk'
+    url = 'https://zenodo.org/api/records/14230701'
     r = requests.get(url)
     if r.ok:
         js = json.loads(r.text)
@@ -43,50 +43,12 @@ def launch_blazegraph(ts_dir:str, port:int):
         creationflags=CREATE_NEW_CONSOLE
     )
 
-def launch_graphdb(port:int=7200):
-    '''
-    Launch GraphDB triplestore at a given port.
-    '''
-    graphdb_bin = 'graphdb' if is_unix else 'graphdb.cmd'
-    path_to_graphdb = f'{BASE_DIR}/graphdb/bin/{graphdb_bin}'
-    Popen(
-        [path_to_graphdb, f'-Dgraphdb.connector.port={port}'],
-        creationflags=CREATE_NEW_CONSOLE
-    )
-
-def launch_fuseki(port:int=3030):
-    '''
-    Launch Fuseki triplestore at a given port.
-    '''
-    fuseki_bin = 'fuseki-server' if is_unix else 'fuseki-server.bat'
-    path_to_fuseki = f'{BASE_DIR}/fuseki/{fuseki_bin}'
-    os.environ['FUSEKI_BASE'] = f'{BASE_DIR}/fuseki'
-    os.environ['FUSEKI_HOME'] = f'{BASE_DIR}/fuseki'
-    Popen(
-        [path_to_fuseki, f'--port={str(port)}'],
-        creationflags=CREATE_NEW_CONSOLE
-    )
-
-def launch_virtuoso(ts_dir:str):
-    '''
-    Launch Virtuoso triplestore.
-    '''
-
-    if os.path.exists(f'{ts_dir}/virtuoso.lck'):
-        os.remove(f'{ts_dir}/virtuoso.lck')
-    virtuoso_platform = 'linux' if is_unix else 'windows'
-    virtuoso_bin = 'virtuoso-t' if is_unix else 'virtuoso-t.exe'
-    Popen(
-        [f'{BASE_DIR}/virtuoso/{virtuoso_platform}/bin/{virtuoso_bin}', '-f', '-c', f'{ts_dir}/virtuoso.ini'],
-        creationflags=CREATE_NEW_CONSOLE
-    )
-
 if __name__ == '__main__': # pragma: no cover
     if not os.path.isfile(f'{BASE_DIR}/blazegraph.jnl'):
         download_tests_datasets_from_zenodo()
         unzip(f'{BASE_DIR}/tests.zip', f'{BASE_DIR}/')
     if is_unix:
-        for port in [9999, 29999]:
+        for port in [9999]:
             process = Popen(["lsof", "-i", ":{0}".format(port)], stdout=PIPE, stderr=PIPE)
             stdout, _ = process.communicate()
             for process in str(stdout.decode("utf-8")).split("\n")[1:]:
@@ -95,9 +57,3 @@ if __name__ == '__main__': # pragma: no cover
                     continue
                 os.kill(int(data[1]), SIGKILL)
     launch_blazegraph('tests', 9999)
-    launch_blazegraph(f'{BASE_DIR}/cache', 29999)
-    # launch_graphdb(7200)
-    # launch_fuseki(3030)
-    # virtuoso_platform = 'linux' if is_unix else 'windows'
-    # launch_virtuoso(f'{BASE_DIR}/virtuoso/{virtuoso_platform}/database')
-    # launch_virtuoso(f'{BASE_DIR}/virtuoso/{virtuoso_platform}/cache_db')

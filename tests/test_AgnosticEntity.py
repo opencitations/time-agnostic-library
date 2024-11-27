@@ -46,6 +46,8 @@ CONFIG = {
 }
 
 class Test_AgnosticEntity(unittest.TestCase):
+    maxDiff = None
+    
     def test_get_history(self):
         input = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         entity_history = AgnosticEntity(input, config=CONFIG).get_history()

@@ -14,7 +14,7 @@
     "virtuoso_full_text_search": "no",
     "graphdb_connector_name": "",
     "cache_triplestore_url": {
-        "endpoint": "http://127.0.0.1:29999/blazegraph/sparql",
-        "update_endpoint": "http://127.0.0.1:29999/blazegraph/sparql"
+        "endpoint": "",
+        "update_endpoint": ""
     }
 }
