@@ -396,30 +396,34 @@ class AgnosticEntity:
                 }}
             }}
         """
-        results = list(Sparql(query_snapshots, config=self.config).run_select_query())
-        if not results:
+        results = Sparql(query_snapshots, config=self.config).run_select_query()
+        bindings = results['results']['bindings']
+        if not bindings:
             return {}, {}, other_snapshots_metadata
-        results.sort(key=lambda x: convert_to_datetime(x[1]), reverse=True)
-        relevant_results = _filter_timestamps_by_interval(time, results, time_index=1)
+        # Sort results by 'time' variable
+        sorted_results = sorted(bindings, key=lambda x: convert_to_datetime(x['time']['value']), reverse=True)
+        relevant_results = _filter_timestamps_by_interval(time, sorted_results, time_index='time')
         if include_prov_metadata:
-            other_snapshots = [snapshot for snapshot in results if snapshot[0] not in {relevant_result[0] for relevant_result in relevant_results}]
+            relevant_snapshot_uris = {relevant_result['snapshot']['value'] for relevant_result in relevant_results}
+            other_snapshots = [snapshot for snapshot in bindings if snapshot['snapshot']['value'] not in relevant_snapshot_uris]
             for other_snapshot in other_snapshots:
-                other_snapshots_metadata[other_snapshot[0]] = {
-                    "generatedAtTime": other_snapshot[1],
-                    "invalidatedAtTime": other_snapshot[6],
-                    "wasAttributedTo": other_snapshot[2],
-                    "hasUpdateQuery": other_snapshot[3],
-                    "hadPrimarySource": other_snapshot[4],
-                    "description": other_snapshot[5]
+                snapshot_uri = other_snapshot['snapshot']['value']
+                other_snapshots_metadata[snapshot_uri] = {
+                    "generatedAtTime": other_snapshot['time']['value'],
+                    "invalidatedAtTime": other_snapshot.get('invalidatedAtTime', {}).get('value'),
+                    "wasAttributedTo": other_snapshot['responsibleAgent']['value'],
+                    "hasUpdateQuery": other_snapshot.get('updateQuery', {}).get('value'),
+                    "hadPrimarySource": other_snapshot.get('primarySource', {}).get('value'),
+                    "description": other_snapshot.get('description', {}).get('value')
                 }
         if not relevant_results:
             # Find the latest snapshot before the interval
             interval_start = convert_to_datetime(time[0]) if time[0] else None
             if interval_start:
-                earlier_snapshots = [r for r in results if convert_to_datetime(r[1]) <= interval_start]
+                earlier_snapshots = [r for r in bindings if convert_to_datetime(r['time']['value']) <= interval_start]
                 if earlier_snapshots:
                     # Get the latest snapshot before the interval
-                    latest_snapshot = max(earlier_snapshots, key=lambda x: convert_to_datetime(x[1]))
+                    latest_snapshot = max(earlier_snapshots, key=lambda x: convert_to_datetime(x['time']['value']))
                     relevant_results = [latest_snapshot]
                 else:
                     # No snapshots before the interval; the entity did not exist yet
@@ -434,21 +438,25 @@ class AgnosticEntity:
         entity_cg = self._query_dataset(self.res)
         for relevant_result in relevant_results:
             sum_update_queries = ""
-            for result in results:
-                if result[3]:
-                    if convert_to_datetime(result[1]) > convert_to_datetime(relevant_result[1]):
-                        sum_update_queries += (result[3]) +  ";"
+            relevant_result_time = relevant_result['time']['value']
+            for result in bindings:
+                result_time = result['time']['value']
+                if 'updateQuery' in result and 'value' in result['updateQuery']:
+                    if convert_to_datetime(result_time) > convert_to_datetime(relevant_result_time):
+                        sum_update_queries += result['updateQuery']['value'] + ";"
             entity_present_graph = copy.deepcopy(entity_cg)
             if sum_update_queries:
                 self._manage_update_queries(entity_present_graph, sum_update_queries)
-            entity_graphs[convert_to_datetime(relevant_result[1], stringify=True)] = entity_present_graph
-            entity_snapshots[relevant_result[0]] = {
-                "generatedAtTime": relevant_result[1],
-                "invalidatedAtTime": relevant_result[6],
-                "wasAttributedTo": relevant_result[2],
-                "hasUpdateQuery": relevant_result[3],
-                "hadPrimarySource": relevant_result[4],
-                "description": relevant_result[5]
+            timestamp_key = convert_to_datetime(relevant_result_time, stringify=True)
+            entity_graphs[timestamp_key] = entity_present_graph
+            snapshot_uri = relevant_result['snapshot']['value']
+            entity_snapshots[snapshot_uri] = {
+                "generatedAtTime": relevant_result_time,
+                "invalidatedAtTime": relevant_result.get('invalidatedAtTime', {}).get('value'),
+                "wasAttributedTo": relevant_result['responsibleAgent']['value'],
+                "hasUpdateQuery": relevant_result.get('updateQuery', {}).get('value'),
+                "hadPrimarySource": relevant_result.get('primarySource', {}).get('value'),
+                "description": relevant_result.get('description', {}).get('value')
             }
         return entity_graphs, entity_snapshots, other_snapshots_metadata
     
@@ -752,24 +760,32 @@ class AgnosticEntity:
             """
         return Sparql(query_provenance, config=self.config).run_construct_query()
 
-
-def _filter_timestamps_by_interval(interval:Tuple[str, str], iterator:list, time_index:int=None) -> set:
+def _filter_timestamps_by_interval(interval: Tuple[str, str], iterator: list, time_index: str = None) -> list:
     if interval:
-        after_time = convert_to_datetime(interval[0])
-        before_time = convert_to_datetime(interval[1])
-        relevant_timestamps = set()
+        after_time = convert_to_datetime(interval[0]) if interval[0] else None
+        before_time = convert_to_datetime(interval[1]) if interval[1] else None
+        relevant_timestamps = []
         for timestamp in iterator:
-            time = convert_to_datetime(timestamp[time_index]) if time_index is not None else convert_to_datetime(timestamp)
+            if time_index is not None and time_index in timestamp:
+                time_binding = timestamp[time_index]
+                if 'value' in time_binding:
+                    time_str = time_binding['value']
+                    time = convert_to_datetime(time_str)
+                else:
+                    continue  # Skip if 'value' is missing
+            else:
+                continue  # Skip if time_index is not in timestamp
             if after_time and before_time:
-                if time >= after_time and time <= before_time:
-                # if time <= before_time:
-                    relevant_timestamps.add(timestamp)
-            if after_time and not before_time:
+                if after_time <= time <= before_time:
+                    relevant_timestamps.append(timestamp)
+            elif after_time and not before_time:
                 if time >= after_time:
-                    relevant_timestamps.add(timestamp)
-            if before_time and not after_time:
+                    relevant_timestamps.append(timestamp)
+            elif before_time and not after_time:
                 if time <= before_time:
-                    relevant_timestamps.add(timestamp)
+                    relevant_timestamps.append(timestamp)
+            else:
+                relevant_timestamps.append(timestamp)
     else:
-        relevant_timestamps = set(timestamp for timestamp in iterator)
+        relevant_timestamps = iterator.copy()
     return relevant_timestamps

@@ -288,14 +288,16 @@ class AgnosticQuery(object):
         relevant_entities_found = present_entities
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config).run_select_query()
-        if results:
-            for result in results:
-                if result[0]:
+        bindings = results['results']['bindings']
+        if bindings:
+            for result in bindings:
+                update_query = result.get('updateQuery')
+                if update_query and update_query.get('value'):
                     try:
-                        update = parseUpdate(result[0])
+                        update = parseUpdate(update_query['value'])
                     except Exception as e:
                         print(e)
-                        print(result[0])
+                        print(update_query['value'])
                         raise
                     for request in update["request"]:
                         if "quadsNotTriples" in request["quads"]:
@@ -641,10 +643,12 @@ class DeltaQuery(AgnosticQuery):
         relevant_entities_found = set()
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config).run_select_query()
-        if results:
-            for result in results:
-                if result[0]:
-                    update = parseUpdate(result[0])
+        bindings = results['results']['bindings']
+        if bindings:
+            for result in bindings:
+                update_query = result.get('updateQuery')
+                if update_query and update_query.get('value'):
+                    update = parseUpdate(update_query['value'])
                     for request in update["request"]:
                         for quadsNotTriples in request["quads"]["quadsNotTriples"]:
                             for triple in quadsNotTriples["triples"]:
@@ -676,7 +680,7 @@ class DeltaQuery(AgnosticQuery):
         query_to_identify = self.get_full_text_search(uris_in_triple)
         return query_to_identify
     
-    def __identify_changed_entities(self, identified_entity:URIRef):
+    def __identify_changed_entities(self, identified_entity: URIRef):
         output = dict()
         query = f"""
             SELECT DISTINCT ?time ?updateQuery ?description
@@ -690,39 +694,47 @@ class DeltaQuery(AgnosticQuery):
             }}
         """
         query_existence = f"""
-            SELECT *
-            WHERE {{
+            ASK WHERE {{
                 <{identified_entity}> ?p ?o.
             }}
         """
+        # Run the query and get the bindings
         results = Sparql(query, self.config).run_select_query()
-        if results:
-            relevant_results = list(_filter_timestamps_by_interval(self.on_time, results, 0))
+        bindings = results['results']['bindings']
+        if bindings:
+            # Filter timestamps by interval
+            relevant_results = _filter_timestamps_by_interval(self.on_time, bindings, time_index='time')
             if relevant_results:
-                identified_entity = str(identified_entity)
-                output[identified_entity] = {
+                identified_entity_str = str(identified_entity)
+                output[identified_entity_str] = {
                     "created": None,
-                    "modified": dict(), 
+                    "modified": dict(),
                     "deleted": None
                 }
-                results = sorted(list(results), key=lambda x:convert_to_datetime(x[0]))
-                creation_date = convert_to_datetime(results[0][0], stringify=True)
-                exists = Sparql(query_existence, self.config).run_select_query()
+                # Sort the results by time
+                results_sorted = sorted(bindings, key=lambda x: convert_to_datetime(x['time']['value']))
+                creation_date = convert_to_datetime(results_sorted[0]['time']['value'], stringify=True)
+                # Check if the entity exists
+                exists = Sparql(query_existence, self.config).run_ask_query()
                 if not exists:
-                    output[identified_entity]["deleted"] = convert_to_datetime(results[-1][0], stringify=True)
-                for result_tuple in relevant_results:
-                    time = convert_to_datetime(result_tuple[0], stringify=True)
+                    # Entity has been deleted
+                    deletion_time = convert_to_datetime(results_sorted[-1]['time']['value'], stringify=True)
+                    output[identified_entity_str]["deleted"] = deletion_time
+                for result_binding in relevant_results:
+                    time = convert_to_datetime(result_binding['time']['value'], stringify=True)
                     if time != creation_date:
-                        if result_tuple[1] and self.changed_properties:
+                        update_query = result_binding.get('updateQuery', {}).get('value')
+                        description = result_binding.get('description', {}).get('value')
+                        if update_query and self.changed_properties:
                             for changed_property in self.changed_properties:
-                                if changed_property in result_tuple[1]:
-                                    output[identified_entity]["modified"][time] = result_tuple[1]
-                        elif result_tuple[1] and not self.changed_properties:
-                            output[identified_entity]["modified"][time] = result_tuple[1]
-                        elif not result_tuple[1] and not self.changed_properties:
-                            output[identified_entity]["modified"][time] = result_tuple[2]
+                                if changed_property in update_query:
+                                    output[identified_entity_str]["modified"][time] = update_query
+                        elif update_query and not self.changed_properties:
+                            output[identified_entity_str]["modified"][time] = update_query
+                        elif not update_query and not self.changed_properties:
+                            output[identified_entity_str]["modified"][time] = description
                     else:
-                        output[identified_entity]["created"] = creation_date
+                        output[identified_entity_str]["created"] = creation_date
         return output
         
     def run_agnostic_query(self) -> Tuple[Dict[str, Dict[str, str]], dict]:

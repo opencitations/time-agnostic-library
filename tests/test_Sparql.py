@@ -51,14 +51,15 @@ class Test_Sparql(unittest.TestCase):
         """
         output = Sparql(input, CONFIG).run_select_query()
         expected_output = {
-            ('http://purl.org/spar/pro/isHeldBy', 'https://github.com/arcangelo7/time_agnostic/ra/4'), 
-            ('http://purl.org/spar/pro/withRole', 'http://purl.org/spar/pro/author'), 
-            ('http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://purl.org/spar/pro/RoleInTime'), 
-            ('https://w3id.org/oc/ontology/hasNext', 'https://github.com/arcangelo7/time_agnostic/ar/15520')
-        }
+            'head': {'vars': ['p', 'o']}, 
+            'results': {'bindings': [
+                {'p': {'type': 'uri', 'value': 'http://purl.org/spar/pro/isHeldBy'}, 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/4'}}, 
+                {'p': {'type': 'uri', 'value': 'http://purl.org/spar/pro/withRole'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/pro/author'}}, 
+                {'p': {'type': 'uri', 'value': 'https://w3id.org/oc/ontology/hasNext'}, 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15520'}}, 
+                {'p': {'type': 'uri', 'value': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/pro/RoleInTime'}}]}}
         self.assertEqual(output, expected_output)
     
-    def test__get_tuples_from_file(self):
+    def test__get_results_from_files(self):
         input_1 = f"""
             SELECT ?p ?o
             WHERE {{
@@ -67,15 +68,17 @@ class Test_Sparql(unittest.TestCase):
                     a <{ProvEntity.iri_entity}>.
             }}
         """
-        output = Sparql(input_1, CONFIG)._get_tuples_from_files()
+        output = {'head': {'vars': []}, 'results': {'bindings': []}}
+        output = Sparql(input_1, CONFIG)._get_results_from_files(output)
         expected_output = {
-            ('http://www.w3.org/ns/prov#generatedAtTime', '2021-05-07T09:59:15+00:00'), 
-            ('http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/ns/prov#Entity'), 
-            ('http://purl.org/dc/terms/description', "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been created."), 
-            ('http://www.w3.org/ns/prov#specializationOf', 'https://github.com/arcangelo7/time_agnostic/id/14'), 
-            ('http://www.w3.org/ns/prov#wasAttributedTo', 'https://orcid.org/0000-0002-8420-0696'), 
-            ('http://www.w3.org/ns/prov#invalidatedAtTime', '2021-06-01T18:46:41+00:00')
-        }
+            'head': {'vars': ['p', 'o']}, 
+            'results': {'bindings': [
+                {'p': {'type': 'uri', 'value': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'}, 'o': {'type': 'uri', 'value': 'http://www.w3.org/ns/prov#Entity'}}, 
+                {'p': {'type': 'uri', 'value': 'http://purl.org/dc/terms/description'}, 'o': {'type': 'literal', 'value': "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been created."}}, 
+                {'p': {'type': 'uri', 'value': 'http://www.w3.org/ns/prov#generatedAtTime'}, 'o': {'type': 'literal', 'value': '2021-05-07T09:59:15+00:00'}}, 
+                {'p': {'type': 'uri', 'value': 'http://www.w3.org/ns/prov#invalidatedAtTime'}, 'o': {'type': 'literal', 'value': '2021-06-01T18:46:41+00:00'}}, 
+                {'p': {'type': 'uri', 'value': 'http://www.w3.org/ns/prov#specializationOf'}, 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/14'}}, 
+                {'p': {'type': 'uri', 'value': 'http://www.w3.org/ns/prov#wasAttributedTo'}, 'o': {'type': 'uri', 'value': 'https://orcid.org/0000-0002-8420-0696'}}]}}
         self.assertEqual(output, expected_output)
     
     def test__get_tuples_from_triplestores(self):
@@ -86,12 +89,19 @@ class Test_Sparql(unittest.TestCase):
                 ?s ?p ?o
             }
         """
-        output = Sparql(input_1, CONFIG)._get_tuples_from_triplestores()
+        output = {'head': {'vars': []}, 'results': {'bindings': []}}
+        output = Sparql(input_1, CONFIG)._get_results_from_triplestores(output)
         expected_output = {
             ('http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://purl.org/spar/datacite/Identifier'), 
             ('http://purl.org/spar/datacite/usesIdentifierScheme', 'http://purl.org/spar/datacite/orcid'), 
             ('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue', 'http://orcid.org/0000-0002-3259-2309')
         }
+        expected_output = {
+            'head': {'vars': ['p', 'o']}, 
+            'results': {'bindings': [
+                {'p': {'type': 'uri', 'value': 'http://purl.org/spar/datacite/usesIdentifierScheme'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/datacite/orcid'}}, 
+                {'p': {'type': 'uri', 'value': 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'}, 'o': {'type': 'literal', 'value': 'http://orcid.org/0000-0002-3259-2309'}}, 
+                {'p': {'type': 'uri', 'value': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/datacite/Identifier'}}]}}
         self.assertEqual(output, expected_output)
     
     def test_run_construct_query(self):

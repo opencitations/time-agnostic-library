@@ -89,16 +89,14 @@ class Sparql:
 
         :returns:  Set[Tuple] -- A set of tuples, in which the positional value of the elements in the tuples is equivalent to the variables indicated in the query.
         """
-        output = set()
+        output = {'head': {'vars': []}, 'results': {'bindings': []}}
         if self.storer["file_paths"]:
-            output.update(self._get_tuples_from_files())
+            output = self._get_results_from_files(output)
         if self.storer["triplestore_urls"]:
-            output.update(self._get_tuples_from_triplestores())
-        output = set(self._cut_by_limit(list(output)))
+            output = self._get_results_from_triplestores(output)
         return output
 
-    def _get_tuples_from_files(self) -> Set[Tuple]:
-        output = set()
+    def _get_results_from_files(self, output: dict) -> dict:
         storer: List[str] = self.storer["file_paths"]
         for file_path in storer:
             file_cg = ConjunctiveGraph()
@@ -111,14 +109,18 @@ class Sparql:
             lock.acquire()
             query_results = file_cg.query(self.query)
             lock.release()
-            vars_list = query_results.vars
-            results = query_results.bindings
-            for result in results:
-                self._get_tuples_set(result, output, vars_list)
+            vars_list = [str(var) for var in query_results.vars]
+            output['head']['vars'] = vars_list
+            for result in query_results:
+                binding = {}
+                for var in vars_list:
+                    value = result.get(var)
+                    if value is not None:
+                        binding[var] = self._format_result_value(value)
+                output['results']['bindings'].append(binding)
         return output
     
-    def _get_tuples_from_triplestores(self) -> Set[Tuple]:
-        output = set()
+    def _get_results_from_triplestores(self, output: dict) -> dict:
         storer = self.storer["triplestore_urls"]
         for url in storer:
             sparql = SPARQLWrapper(url)
@@ -126,11 +128,24 @@ class Sparql:
             sparql.setQuery(self.query)
             sparql.setReturnFormat(JSON)
             results = sparql.queryAndConvert()
-            vars_list = results["head"]["vars"]
-            for result_dict in results["results"]["bindings"]:
-                self._get_tuples_set(result_dict, output, vars_list)
+            if not output['head']['vars']:
+                output['head']['vars'] = results['head']['vars']
+            output['results']['bindings'].extend(results['results']['bindings'])
         return output
-            
+
+    def _format_result_value(self, value):
+        if isinstance(value, URIRef):
+            return {'type': 'uri', 'value': str(value)}
+        elif isinstance(value, Literal):
+            result = {'type': 'literal', 'value': str(value)}
+            if value.datatype:
+                result['datatype'] = str(value.datatype)
+            if value.language:
+                result['xml:lang'] = value.language
+            return result
+        else:
+            return {'type': 'literal', 'value': str(value)}
+
     def run_construct_query(self) -> ConjunctiveGraph:
         """
         Given a CONSTRUCT query, it returns the results in a ConjunctiveGraph. 
@@ -148,7 +163,18 @@ class Sparql:
                 cg.add(quad)
         cg = self._cut_by_limit(cg)
         return cg
-    
+
+    def run_ask_query(self) -> bool:
+        storer = self.storer["triplestore_urls"]
+        for url in storer:
+            sparql = SPARQLWrapper(url)
+            sparql.setMethod(POST)
+            sparql.setQuery(self.query)
+            sparql.setReturnFormat(JSON)
+            results = sparql.queryAndConvert()
+            return results.get('boolean', False)
+        return False
+
     def _get_graph_from_files(self) -> ConjunctiveGraph:
         cg = ConjunctiveGraph()
         storer = self.storer["file_paths"]
