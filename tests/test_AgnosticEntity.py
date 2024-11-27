@@ -26,7 +26,7 @@ from time_agnostic_library.support import (_to_conjunctive_graph,
 
 CONFIG = {
     "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/blazegraph/sparql"],
+        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
         "file_paths": [],
         "is_quadstore": True
     },
