@@ -19,15 +19,14 @@ import unittest
 from time_agnostic_library.agnostic_query import VersionQuery
 from time_agnostic_library.support import (_to_conjunctive_graph,
                                            _to_dict_of_conjunctive_graphs,
-                                           _to_dict_of_nt_sorted_lists,
-                                           empty_the_cache)
+                                           _to_dict_of_nt_sorted_lists)
 import rdflib
 import json
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
 import os
 
 CONFIG_PATH = os.path.join('tests', 'config.json')
-CONFIG_BLAZEGRAPH = os.path.join('tests', 'config_blazegraph.json')
+CONFIG_VIRTUOSO = os.path.join('tests', 'config_virtuoso.json')
 
 class Test_VersionQuery(unittest.TestCase):
     maxDiff = None
@@ -995,7 +994,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
-        query_to_identify = VersionQuery(query, config_path=CONFIG_BLAZEGRAPH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
+        query_to_identify = VersionQuery(query, config_path='tests/config_blazegraph.json')._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify_bds = """
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
             SELECT DISTINCT ?updateQuery
@@ -1207,8 +1206,13 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_BLAZEGRAPH)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_VIRTUOSO)
         output = agnostic_query.run_agnostic_query()
+        ({
+            '2021-06-01T18:46:41+00:00': 
+                {(None, 'https://github.com/arcangelo7/time_agnostic/id/14')}, 
+            '2021-05-07T09:59:15+00:00': 
+                {(None, 'https://github.com/arcangelo7/time_agnostic/id/14')}}, set())
         expected_output = ({
             '2021-05-07T09:59:15+00:00': {
                 ('https://github.com/arcangelo7/time_agnostic/ar/15519', 'https://github.com/arcangelo7/time_agnostic/id/14')
@@ -1236,7 +1240,7 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_BLAZEGRAPH)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_VIRTUOSO)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-07T09:59:15+00:00': {

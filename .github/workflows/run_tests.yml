@@ -38,7 +38,11 @@ jobs:
       run: |
         pip3 install poetry
         poetry install
-        poetry run python3 tests/download_test_datasets.py
+    - name: Start Virtuoso
+      run: |
+        cd virtuoso-opensource/bin
+        ./virtuoso-t &
+        cd ../..
         python3 -c 'import time; time.sleep(10)'
     - name: Check the overage
       run: |

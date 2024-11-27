@@ -53,10 +53,11 @@ class Test_Sparql(unittest.TestCase):
         expected_output = {
             'head': {'vars': ['p', 'o']}, 
             'results': {'bindings': [
+                {'p': {'type': 'uri', 'value': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/pro/RoleInTime'}},
                 {'p': {'type': 'uri', 'value': 'http://purl.org/spar/pro/isHeldBy'}, 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/4'}}, 
                 {'p': {'type': 'uri', 'value': 'http://purl.org/spar/pro/withRole'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/pro/author'}}, 
-                {'p': {'type': 'uri', 'value': 'https://w3id.org/oc/ontology/hasNext'}, 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15520'}}, 
-                {'p': {'type': 'uri', 'value': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/pro/RoleInTime'}}]}}
+                {'p': {'type': 'uri', 'value': 'https://w3id.org/oc/ontology/hasNext'}, 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15520'}}
+            ]}}
         self.assertEqual(output, expected_output)
     
     def test__get_results_from_files(self):
@@ -99,9 +100,10 @@ class Test_Sparql(unittest.TestCase):
         expected_output = {
             'head': {'vars': ['p', 'o']}, 
             'results': {'bindings': [
+                {'p': {'type': 'uri', 'value': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/datacite/Identifier'}},
                 {'p': {'type': 'uri', 'value': 'http://purl.org/spar/datacite/usesIdentifierScheme'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/datacite/orcid'}}, 
-                {'p': {'type': 'uri', 'value': 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'}, 'o': {'type': 'literal', 'value': 'http://orcid.org/0000-0002-3259-2309'}}, 
-                {'p': {'type': 'uri', 'value': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'}, 'o': {'type': 'uri', 'value': 'http://purl.org/spar/datacite/Identifier'}}]}}
+                {'p': {'type': 'uri', 'value': 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'}, 'o': {'type': 'literal', 'value': 'http://orcid.org/0000-0002-3259-2309'}}
+            ]}}
         self.assertEqual(output, expected_output)
     
     def test_run_construct_query(self):
