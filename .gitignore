@@ -1,7 +1,6 @@
 # Custom
 /.vscode
 *.jnl
-*.jar
 /tests/rules.log
 /tests/info_dir/
 /tests/graphdb/
