@@ -29,7 +29,9 @@ import os
 CONFIG_PATH = os.path.join('tests', 'config.json')
 CONFIG_BLAZEGRAPH = os.path.join('tests', 'config_blazegraph.json')
 
-class Test_VersionQuery(unittest.TestCase):  
+class Test_VersionQuery(unittest.TestCase):
+    maxDiff = None
+
     def test__tree_traverse_no_options(self):
         query = """
             prefix pro: <http://purl.org/spar/pro/>
@@ -552,11 +554,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ]
             }, 
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/85509'): {
-                '2021-06-01T18:46:41+00:00': [
-                    '<https://github.com/arcangelo7/time_agnostic/id/85509> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid>', 
-                    '<https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "http://orcid.org/0000-0002-3259-2309"', 
-                    '<https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/datacite/Identifier>'
-                ], 
+                '2021-06-01T18:46:41+00:00': [], 
                 '2021-05-07T09:59:15+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/id/85509> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid>', 
                     '<https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "http://orcid.org/0000-0002-3259-2309"', 

@@ -85,53 +85,14 @@ class AgnosticEntity:
         :returns:  Tuple[dict, Union[dict, None]] -- The output is always a two-element tuple. The first is a dictionary containing all the versions of a given resource. The second is a dictionary containing all the provenance metadata linked to that resource if **include_prov_metadata** is True, None if False.
         """
         if self.related_entities_history:
-            entities = self._collect_related_entities()
-            histories = self._get_entities_histories(entities, include_prov_metadata)
+            processed_entities = set()
+            histories = {}
+            self._collect_related_entities_recursively(self.res, processed_entities, histories, include_prov_metadata)
             return self._get_merged_histories(histories, include_prov_metadata)
         else:
             entity_history = self._get_entity_current_state(include_prov_metadata)
             entity_history = self._get_old_graphs(entity_history)
             return tuple(entity_history)
-
-    def _collect_related_entities(self) -> Set[str]:
-        processed_entities = set()
-        entities_to_process = set([self.res])
-        while entities_to_process:
-            current_batch = entities_to_process
-            entities_to_process = set()
-            related_entities = self._get_related_entities_batch(current_batch)
-            for entity in related_entities:
-                if entity not in processed_entities:
-                    entities_to_process.add(entity)
-            processed_entities.update(current_batch)
-        return processed_entities
-
-    def _get_related_entities_batch(self, entities: Set[str]) -> Set[str]:
-        entities_list = ' '.join(f'<{e}>' for e in entities)
-        query = f"""
-        SELECT DISTINCT ?relatedEntity WHERE {{
-            VALUES ?entity {{ {entities_list} }}
-            ?entity ?p ?relatedEntity .
-            FILTER(isURI(?relatedEntity))
-            FILTER(?p != rdf:type && !STRSTARTS(STR(?p), "<{ProvEntity.PROV}>"))
-        }}
-        """
-        results = Sparql(query, config=self.config).run_select_query()
-        related_entities = set()
-        for binding in results['results']['bindings']:
-            related_entity = binding['relatedEntity']['value']
-            related_entities.add(related_entity)
-        return related_entities
-
-    def _get_entities_histories(self, entities: Set[str], include_prov_metadata: bool) -> Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]]:
-        histories = {}
-        provenance_data = self._query_provenance_batch(entities, include_prov_metadata)
-        dataset_data = self._query_dataset_batch(entities)
-        for entity in entities:
-            entity_history = self._get_entity_current_state_batch(entity, provenance_data, dataset_data, include_prov_metadata)
-            entity_history = self._get_old_graphs(entity_history)
-            histories[entity] = tuple(entity_history)
-        return histories
 
     def _collect_related_entities_recursively(
         self, 
@@ -182,12 +143,18 @@ class AgnosticEntity:
         histories: Dict[str, Tuple[Dict[str, Dict[str, Graph]], Union[Dict[str, Dict[str, str]], None]]], 
         include_prov_metadata: bool
     ) -> Tuple[Dict[str, Graph], Dict[str, Dict[str, Dict[str, str]]]]:
+        """
+        Merges the histories of the main entity and related entities based on timestamps.
+
+        :param histories: A dictionary containing the histories and metadata of entities.
+        :param include_prov_metadata: Whether to include provenance metadata.
+        :return: A tuple of merged histories and metadata.
+        """
         # Prepare the histories and metadata dictionaries
         entity_histories = {}
+
         metadata = {}
-        for entity_uri, (entity_history_tuple) in histories.items():
-            entity_history_dict = entity_history_tuple[0]
-            entity_metadata = entity_history_tuple[1]
+        for entity_uri, (entity_history_dict, entity_metadata) in histories.items():
             entity_histories[entity_uri] = entity_history_dict[entity_uri]
             if include_prov_metadata and entity_metadata:
                 metadata[entity_uri] = entity_metadata[entity_uri]
@@ -568,83 +535,6 @@ class AgnosticEntity:
             entity_current_state.append(None)
         return entity_current_state
 
-    def _get_entity_current_state_batch(self, entity: str, provenance_data: ConjunctiveGraph, dataset_data: ConjunctiveGraph, include_prov_metadata: bool = False) -> list:
-        entity_current_state = [{entity: dict()}]
-        current_state = ConjunctiveGraph()
-        # Add provenance data
-        for quad in provenance_data.quads((None, None, None, None)):
-            current_state.add(quad)
-        if len(current_state) == 0:
-            entity_current_state.append(dict())
-            return entity_current_state
-        # Add dataset data for the entity
-        for quad in dataset_data.quads((URIRef(entity), None, None, None)):
-            current_state.add(quad)
-        # Find the most recent timestamp
-        triples_generated_at_time = list(
-            current_state.triples((None, ProvEntity.iri_generated_at_time, None))
-        )
-        most_recent_time = None
-        for triple in triples_generated_at_time:
-            snapshot_entity = current_state.value(triple[0], ProvEntity.iri_specialization_of)
-            if str(snapshot_entity) != entity:
-                continue
-            snapshot_time = triple[2]
-            snapshot_date_time = convert_to_datetime(snapshot_time)
-            if most_recent_time:
-                if snapshot_date_time > convert_to_datetime(most_recent_time):
-                    most_recent_time = snapshot_time
-            elif not most_recent_time:
-                most_recent_time = snapshot_time
-            entity_current_state[0][entity][snapshot_time] = None
-        if not most_recent_time:
-            entity_current_state.append(None)
-            return entity_current_state
-        # Set the current state graph at the most recent time
-        entity_current_state[0][entity][most_recent_time] = current_state
-        if include_prov_metadata:
-            prov_metadata = self._include_prov_metadata_batch(
-                triples_generated_at_time, current_state, entity
-            )
-            entity_current_state.append(prov_metadata)
-        else:
-            entity_current_state.append(None)
-        return entity_current_state
-
-    def _include_prov_metadata_batch(self, triples_generated_at_time: list, current_state: ConjunctiveGraph, entity: str) -> dict:
-        if list(current_state.triples((URIRef(entity), URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), ProvEntity.iri_entity))): 
-            return dict()
-        prov_properties = {
-            ProvEntity.iri_invalidated_at_time: "invalidatedAtTime",
-            ProvEntity.iri_was_attributed_to: "wasAttributedTo", 
-            ProvEntity.iri_had_primary_source: "hadPrimarySource", 
-            ProvEntity.iri_description: "description",
-            ProvEntity.iri_has_update_query: "hasUpdateQuery"
-        }
-        prov_metadata = {
-            entity: dict()
-        }
-        for triple in triples_generated_at_time:
-            snapshot_entity = current_state.value(triple[0], ProvEntity.iri_specialization_of)
-            if str(snapshot_entity) != entity:
-                continue
-            time = convert_to_datetime(triple[2], stringify=True)
-            prov_metadata[entity][str(triple[0])] = {
-                "generatedAtTime": time,
-                "invalidatedAtTime": None,
-                "wasAttributedTo": None,
-                "hadPrimarySource": None,
-                "description": None,
-                "hasUpdateQuery": None
-            }
-        for se, _ in prov_metadata[entity].items():
-            for prov_property, abbr in prov_properties.items():
-                triples_with_property = list(current_state.triples(
-                (URIRef(se), prov_property, None)))
-                for triple in triples_with_property:
-                    prov_metadata[entity][str(triple[0])][abbr] = str(triple[2])
-        return prov_metadata
-
     def _collect_related_entities_current_state(
         self,
         entity_uri: str,
@@ -684,17 +574,16 @@ class AgnosticEntity:
                     None if depth is None else depth - 1,
                 )
 
-    def _get_old_graphs(self, entity_current_state: List[Dict[str, Dict[str, ConjunctiveGraph]]]) -> list:
-        entity = list(entity_current_state[0].keys())[0]
+    def _get_old_graphs(self, entity_current_state:List[Dict[str, Dict[str, ConjunctiveGraph]]]) -> list:
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
-            entity_current_state[0][entity].items(),
+            entity_current_state[0][self.res].items(),
             key=lambda x: convert_to_datetime(x[0]),
             reverse=True
         )
         for index, date_graph in enumerate(ordered_data):
             if index > 0:
                 next_snapshot = ordered_data[index-1][0]
-                previous_graph: ConjunctiveGraph = copy.deepcopy(entity_current_state[0][entity][next_snapshot])
+                previous_graph: ConjunctiveGraph = copy.deepcopy(entity_current_state[0][self.res][next_snapshot])
                 snapshot_uri = previous_graph.value(
                     predicate=ProvEntity.iri_generated_at_time,
                     object=Literal(next_snapshot)
@@ -704,16 +593,16 @@ class AgnosticEntity:
                     predicate=ProvEntity.iri_has_update_query,
                     object=None)
                 if snapshot_update_query is None:
-                    entity_current_state[0][entity][date_graph[0]] = previous_graph
+                    entity_current_state[0][self.res][date_graph[0]] = previous_graph
                 else:
                     self._manage_update_queries(previous_graph, snapshot_update_query)
-                    entity_current_state[0][entity][date_graph[0]] = previous_graph
-        for time in list(entity_current_state[0][entity]):
-            cg_no_pro = entity_current_state[0][entity].pop(time)
+                    entity_current_state[0][self.res][date_graph[0]] = previous_graph
+        for time in list(entity_current_state[0][self.res]):
+            cg_no_pro = entity_current_state[0][self.res].pop(time)
             for prov_property in ProvEntity.get_prov_properties():
                 cg_no_pro.remove((None, prov_property, None))
             time_str = convert_to_datetime(time, stringify=True)
-            entity_current_state[0][entity][time_str] = cg_no_pro
+            entity_current_state[0][self.res][time_str] = cg_no_pro
         return entity_current_state
 
     @classmethod
@@ -836,29 +725,6 @@ class AgnosticEntity:
 
         return Sparql(query_dataset, config=self.config).run_construct_query()
 
-    def _query_dataset_batch(self, entities: Set[str]) -> ConjunctiveGraph:
-        entities_list = ' '.join(f'<{e}>' for e in entities)
-        is_quadstore = self.config['dataset']['is_quadstore']
-        if is_quadstore:
-            query_dataset = f"""
-                SELECT DISTINCT ?s ?p ?o ?g
-                WHERE {{
-                    VALUES ?s {{ {entities_list} }}
-                    GRAPH ?g {{
-                        ?s ?p ?o
-                    }}
-                }}   
-            """
-        else:
-            query_dataset = f"""
-                SELECT DISTINCT ?s ?p ?o
-                WHERE {{
-                    VALUES ?s {{ {entities_list} }}
-                    ?s ?p ?o
-                }}   
-            """
-        return Sparql(query_dataset, config=self.config).run_construct_query()
-
     def _query_provenance(self, include_prov_metadata:bool=False) -> ConjunctiveGraph:
         if include_prov_metadata:
             query_provenance = f"""
@@ -888,46 +754,6 @@ class AgnosticEntity:
                 }} 
                 WHERE {{
                     ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
-                              <{ProvEntity.iri_generated_at_time}> ?t.
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}   
-                }}
-            """
-        return Sparql(query_provenance, config=self.config).run_construct_query()
-
-    def _query_provenance_batch(self, entities: Set[str], include_prov_metadata: bool) -> ConjunctiveGraph:
-        entities_list = ' '.join(f'<{e}>' for e in entities)
-        if include_prov_metadata:
-            query_provenance = f"""
-                CONSTRUCT {{
-                    ?snapshot <{ProvEntity.iri_generated_at_time}> ?t; 
-                              <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent;
-                              <{ProvEntity.iri_had_primary_source}> ?source;
-                              <{ProvEntity.iri_description}> ?description;
-                              <{ProvEntity.iri_has_update_query}> ?updateQuery;
-                              <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime;
-                              <{ProvEntity.iri_specialization_of}> ?entity.
-                }} 
-                WHERE {{
-                    VALUES ?entity {{ {entities_list} }}
-                    ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
-                              <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent;
-                              <{ProvEntity.iri_generated_at_time}> ?t.
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_description}> ?description. }}
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_had_primary_source}> ?source. }}   
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime. }}  
-                }}
-            """
-        else:
-            query_provenance = f"""
-                CONSTRUCT {{
-                    ?snapshot <{ProvEntity.iri_generated_at_time}> ?t;      
-                              <{ProvEntity.iri_has_update_query}> ?updateQuery;
-                              <{ProvEntity.iri_specialization_of}> ?entity.
-                }} 
-                WHERE {{
-                    VALUES ?entity {{ {entities_list} }}
-                    ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
                               <{ProvEntity.iri_generated_at_time}> ?t.
                     OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}   
                 }}
