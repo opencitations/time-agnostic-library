@@ -443,7 +443,9 @@ class AgnosticEntity:
                 result_time = result['time']['value']
                 if 'updateQuery' in result and 'value' in result['updateQuery']:
                     if convert_to_datetime(result_time) > convert_to_datetime(relevant_result_time):
-                        sum_update_queries += result['updateQuery']['value'] + ";"
+                        if sum_update_queries:
+                            sum_update_queries += ";"
+                        sum_update_queries += result['updateQuery']['value']
             entity_present_graph = copy.deepcopy(entity_cg)
             if sum_update_queries:
                 self._manage_update_queries(entity_present_graph, sum_update_queries)
