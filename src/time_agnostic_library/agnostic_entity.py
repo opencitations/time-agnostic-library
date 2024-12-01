@@ -15,6 +15,7 @@
 # SOFTWARE.
 
 import copy
+import threading
 from typing import Dict, List, Set, Tuple, Union
 
 from rdflib import RDF, BNode, Graph, Literal, Namespace, URIRef
@@ -22,7 +23,6 @@ from rdflib.graph import ConjunctiveGraph, Graph
 from rdflib.namespace import NamespaceManager
 from rdflib.plugins.sparql import parser
 from rdflib.term import BNode, URIRef
-
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import convert_to_datetime
@@ -42,6 +42,8 @@ class AgnosticEntity:
     :type config_path: str, optional
     """
 
+    _parser_lock = threading.Lock()
+    
     def __init__(self, res:str, config:dict, related_entities_history:bool=False):
         self.res = res
         self.related_entities_history = related_entities_history
@@ -666,7 +668,8 @@ class AgnosticEntity:
             return graph_literal == query_literal
 
         try:
-            parsed_query = parser.parseUpdate(update_query)
+            with cls._parser_lock:
+                parsed_query = parser.parseUpdate(update_query)
             namespace_manager = extract_namespaces(parsed_query)
             operations = extract_quads_from_update(parsed_query, namespace_manager)
             for operation_type, quads in operations:
