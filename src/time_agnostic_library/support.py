@@ -48,9 +48,10 @@ def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
         sparql.query()
 
 def generate_config_file(
-        config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), provenance_urls:list=list(), provenance_dirs:list=list(), 
-        blazegraph_full_text_search:bool=False, fuseki_full_text_search:bool=False, virtuoso_full_text_search:bool=False, graphdb_connector_name:str='', 
-        cache_endpoint:str='', cache_update_endpoint:str='') -> None:
+        config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), dataset_is_quadstore:bool=True,
+        provenance_urls:list=list(), provenance_dirs:list=list(), provenance_is_quadstore:bool=True,
+        blazegraph_full_text_search:bool=False, fuseki_full_text_search:bool=False, virtuoso_full_text_search:bool=False, 
+        graphdb_connector_name:str='', cache_endpoint:str='', cache_update_endpoint:str='') -> dict:
     '''
     Given the configuration parameters, a file compliant with the syntax of the time-agnostic-library configuration files is generated.
     :param config_path: The output configuration file path
@@ -59,35 +60,41 @@ def generate_config_file(
     :type dataset_urls: list
     :param dataset_dirs: A list of directories containing data
     :type dataset_dirs: list
+    :param dataset_is_quadstore: Indicates if the dataset store is a quadstore
+    :type dataset_is_quadstore: bool
     :param provenance_urls: A list of triplestore URLs containing provenance metadata
     :type provenance_urls: list
     :param provenance_dirs: A list of directories containing provenance metadata
     :type provenance_dirs: list
-    :param blazegraph_full_text_search: True if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure
+    :param provenance_is_quadstore: Indicates if the provenance store is a quadstore
+    :type provenance_is_quadstore: bool
+    :param blazegraph_full_text_search: True if Blazegraph was used as a triplestore, and a textual index was built to speed up queries
     :type blazegraph_full_text_search: bool
-    :param fuseki_full_text_search: True if Fuseki was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://jena.apache.org/documentation/query/text-query.html
+    :param fuseki_full_text_search: True if Fuseki was used as a triplestore, and a textual index was built to speed up queries
     :type fuseki_full_text_search: bool
-    :param virtuoso_full_text_search: True if Virtuoso was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://docs.openlinksw.com/virtuoso/rdfsparqlrulefulltext/
+    :param virtuoso_full_text_search: True if Virtuoso was used as a triplestore, and a textual index was built to speed up queries
     :type virtuoso_full_text_search: bool
-    :param graphdb_connector_name: The name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see [https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html](https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html)
+    :param graphdb_connector_name: The name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built
     :type graphdb_connector_name: str
     :param cache_endpoint: A triplestore URL to use as a cache to make queries on provenance faster
     :type cache_endpoint: str
-    :param cache_update_endpoint: If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for writing in this parameter
+    :param cache_update_endpoint: If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for writing
     :type cache_update_endpoint: str
     '''
     config = {
         'dataset': {
             'triplestore_urls': dataset_urls,
-            'file_paths': dataset_dirs
+            'file_paths': dataset_dirs,
+            'is_quadstore': dataset_is_quadstore
         },
         'provenance': {
             'triplestore_urls': provenance_urls,
-            'file_paths': provenance_dirs
+            'file_paths': provenance_dirs,
+            'is_quadstore': provenance_is_quadstore
         },
-        'blazegraph_full_text_search': blazegraph_full_text_search,
-        'fuseki_full_text_search': fuseki_full_text_search,
-        'virtuoso_full_text_search': virtuoso_full_text_search,
+        'blazegraph_full_text_search': str(blazegraph_full_text_search).lower(),
+        'fuseki_full_text_search': str(fuseki_full_text_search).lower(),
+        'virtuoso_full_text_search': str(virtuoso_full_text_search).lower(),
         'graphdb_connector_name': graphdb_connector_name,
         'cache_triplestore_url': {
             'endpoint': cache_endpoint,
@@ -96,6 +103,7 @@ def generate_config_file(
     }
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(config, f)
+    return config
 
 def convert_to_datetime(time_string: str, stringify: bool = False) -> datetime:
     if time_string and time_string != 'None':
