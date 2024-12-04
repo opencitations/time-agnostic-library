@@ -24,7 +24,7 @@ from time_agnostic_library.support import (convert_to_datetime,
                                            empty_the_cache,
                                            generate_config_file)
 
-CONFIG_PATH = "tests/config.json"
+CONFIG_PATH = "tests/config_support_test.json"
 CONFIG_GRAPHDB = "tests/config_graphdb.json"
 CONFIG_FUSEKI= "tests/config_fuseki.json"
 CONFIG_VIRTUOSO= "tests/config_virtuoso.json"
