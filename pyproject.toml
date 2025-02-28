@@ -29,10 +29,9 @@ tqdm = "^4.62.3"
 validators = "^0.20.0"
 psycopg2 = "^2.9.6"
 setuptools = "^68.2.2"
-rdflib-ocdm = "^0.4.0"
 lxml = "^5.1.0"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 chardet = "^4.0.0"
 sphinx-autodoc-defaultargs = "^0.1.2"
 sphinx-material = "^0.0.35"
@@ -41,11 +40,8 @@ requests = "^2.27.1"
 psutil = "^5.9.0"
 coverage = "^6.4.4"
 coverage-badge = "^1.1.0"
-
-[tool.poetry.group.dev.dependencies]
 tqdm = "^4.65.0"
 pebble = "^5.0.3"
-rdflib-ocdm = "^0.4.0"
 autopep8 = "^2.0.4"
 
 [build-system]
