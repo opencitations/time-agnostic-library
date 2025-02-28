@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/opencitations/time-agnostic-library/compare/v1.0.0...v1.0.1) (2025-02-28)
+
+
+### Bug Fixes
+
+* [release] ([7d7c30d](https://github.com/opencitations/time-agnostic-library/commit/7d7c30d435f69eae771d2516c3a6e298c25aec68))
+
 # 1.0.0 (2025-02-28)
 
 
