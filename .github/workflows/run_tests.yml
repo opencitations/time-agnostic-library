@@ -16,11 +16,14 @@
 
 
 name: Run tests
+
 on:
   push:
-    branches: [ main ]
+    branches:
+      - "**" # All branches, including those with /
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
 jobs:
   CheckCoverage:
     runs-on: ubuntu-latest
@@ -28,50 +31,79 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        
+    - name: Setup Poetry
+      uses: snok/install-poetry@v1
+      with:
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+        
     - name: Install dependencies
       run: |
-        pip3 install poetry
-        poetry install
+        poetry install --with dev
+        
     - name: Start Virtuoso
       run: |
         cd virtuoso-opensource/bin
         ./virtuoso-t &
         cd ../..
         python3 -c 'import time; time.sleep(10)'
-    - name: Check the overage
+        
+    - name: Run tests with coverage
       run: |
         poetry run coverage run --rcfile=tests/coverage/.coveragerc
-    - name: Generate the badge
+        poetry run coverage xml
+        echo "=== Coverage Report ==="
+        poetry run coverage report
+        echo "COVERAGE=$(poetry run coverage report | grep TOTAL | awk '{print $4}')" >> $GITHUB_ENV
+        
+    - name: Generate HTML coverage report
       run: |
-        mv .coverage tests/coverage/
-        cd tests/coverage/
-        rm coverage.svg
-        poetry run coverage-badge -o coverage.svg
-    - uses: actions/upload-artifact@v4
+        poetry run coverage html -d htmlcov
+        
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
       with:
-          name: coverage-artifact
-          path: tests/coverage/
-  PublishBadge:
-    runs-on: ubuntu-latest
-    needs: CheckCoverage
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/download-artifact@v4
-      with:
-        name: coverage-artifact
-        path: tests/coverage/
-    - name: Publish the badge on the GitHub repo
+        name: coverage-report-${{ matrix.python-version }}-${{ github.ref_name }}
+        path: htmlcov/
+        retention-days: 14
+        
+    - name: Generate coverage badge
+      if: matrix.python-version == '3.10'
       run: |
-        git pull
-        git add tests/coverage/.coverage
-        git add tests/coverage/coverage.svg
-        git config --global user.name 'arcangelo7'
-        git config --global user.email 'arcangelomas@gmail.com'
-        git commit -m 'Coverage updated'
-        git push
+        # Extract coverage percentage as a number
+        COVERAGE_NUM=$(echo ${{ env.COVERAGE }} | sed 's/%//')
+        
+        # Determine color based on coverage
+        if (( $(echo "$COVERAGE_NUM >= 90" | bc -l) )); then
+          COLOR="brightgreen"
+        elif (( $(echo "$COVERAGE_NUM >= 80" | bc -l) )); then
+          COLOR="green"
+        elif (( $(echo "$COVERAGE_NUM >= 70" | bc -l) )); then
+          COLOR="yellowgreen"
+        elif (( $(echo "$COVERAGE_NUM >= 60" | bc -l) )); then
+          COLOR="yellow"
+        else
+          COLOR="red"
+        fi
+        
+        echo "BADGE_COLOR=$COLOR" >> $GITHUB_ENV
+      
+    - name: Create badge
+      if: matrix.python-version == '3.10'
+      uses: RubbaBoy/BYOB@v1.3.0
+      with:
+        name: opencitations-time-agnostic-library-coverage-${{ github.ref_name }}
+        label: "Coverage"
+        status: "${{ env.COVERAGE }}"
+        color: ${{ env.BADGE_COLOR }}
+        github_token: ${{ secrets.GIST_PAT }}
+        repository: arcangelo7/badges
+        actor: arcangelo7

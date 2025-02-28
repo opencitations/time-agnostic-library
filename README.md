@@ -1,6 +1,6 @@
 [<img src="https://img.shields.io/badge/powered%20by-OpenCitations-%239931FC?labelColor=2D22DE" />](http://opencitations.net)
 [![run_tests](https://github.com/opencitations/time-agnostic-library/actions/workflows/run_tests.yml/badge.svg)](https://github.com/opencitations/time-agnostic-library/actions/workflows/run_tests.yml)
-![Coverage](https://raw.githubusercontent.com/opencitations/time-agnostic-library/main/tests/coverage/coverage.svg)
+![Coverage](https://byob.yarr.is/arcangelo7/badges/opencitations-time-agnostic-library-coverage-main)
 ![PyPI](https://img.shields.io/pypi/pyversions/time-agnostic-library)
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/opencitations/time-agnostic-library)
 
@@ -410,4 +410,15 @@ In order to run the benchmark, do the following steps:
 
 In the event that the execution should stop due to unforeseen causes, it will resume from where it was interrupted.
 
+## Contributing
 
+We welcome contributions to the time-agnostic-library! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute, including:
+
+- Setting up the development environment
+- Testing procedures
+- The release process
+- Commit message format
+
+## Changelog
+
+All notable changes to this project are documented in the [CHANGELOG.md](CHANGELOG.md) file. The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and uses the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
