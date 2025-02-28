@@ -1,3 +1,13 @@
+# 1.0.0 (2025-02-28)
+
+
+### Bug Fixes
+
+* Added workflow for automatic releases and removed dependency on rdflib-ocdm. ([8d01a82](https://github.com/opencitations/time-agnostic-library/commit/8d01a82d57c754fd5c6ceb81bbbab6aea1e909c8))
+* **ci:** I have updated the version of the action "upload artifact" to version 4 because version 3 was deprecated. ([65fdcef](https://github.com/opencitations/time-agnostic-library/commit/65fdcef36f2d0692e8beb35a6ed3d982c1322e4b))
+* **ci:** remove Python 3.8 support due to Poetry incompatibility ([54a2754](https://github.com/opencitations/time-agnostic-library/commit/54a2754cb22819597ac9a616b239f3b13a368136))
+* **ci:** use BYOB for coverage badge generation ([c47da23](https://github.com/opencitations/time-agnostic-library/commit/c47da2338913cd73a36e5500f6e4955477de3d67))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
