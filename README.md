@@ -5,7 +5,7 @@
 [![PyPI version](https://badge.fury.io/py/time-agnostic-library.svg)](https://badge.fury.io/py/time-agnostic-library)
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/opencitations/time-agnostic-library)
 
-# time-agnostic-library
+# time-agnostic-library 
 
 **time-agnostic-library** is a Python &ge;3.7 library that allows performing time-travel queries on RDF datasets compliant with the [OCDM v2.0.1](https://figshare.com/articles/Metadata_for_the_OpenCitations_Corpus/3443876) provenance specification.
 
