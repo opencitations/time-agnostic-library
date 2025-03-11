@@ -48,20 +48,14 @@ class Test_Sparql(unittest.TestCase):
             }
         """
         output = Sparql(input, CONFIG).run_select_query()
+        # Sort bindings by p and o values for consistent comparison
+        output["results"]["bindings"].sort(
+            key=lambda x: (x["p"]["value"], x["o"]["value"])
+        )
         expected_output = {
             "head": {"vars": ["p", "o"]},
             "results": {
                 "bindings": [
-                    {
-                        "p": {
-                            "type": "uri",
-                            "value": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
-                        },
-                        "o": {
-                            "type": "uri",
-                            "value": "http://purl.org/spar/pro/RoleInTime",
-                        },
-                    },
                     {
                         "p": {
                             "type": "uri",
@@ -85,6 +79,16 @@ class Test_Sparql(unittest.TestCase):
                     {
                         "p": {
                             "type": "uri",
+                            "value": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+                        },
+                        "o": {
+                            "type": "uri",
+                            "value": "http://purl.org/spar/pro/RoleInTime",
+                        },
+                    },
+                    {
+                        "p": {
+                            "type": "uri",
                             "value": "https://w3id.org/oc/ontology/hasNext",
                         },
                         "o": {
@@ -95,6 +99,10 @@ class Test_Sparql(unittest.TestCase):
                 ]
             },
         }
+        # Sort expected bindings in the same way
+        expected_output["results"]["bindings"].sort(
+            key=lambda x: (x["p"]["value"], x["o"]["value"])
+        )
         self.assertEqual(output, expected_output)
 
     def test__get_results_from_files(self):
@@ -108,20 +116,14 @@ class Test_Sparql(unittest.TestCase):
         """
         output = {"head": {"vars": []}, "results": {"bindings": []}}
         output = Sparql(input_1, CONFIG)._get_results_from_files(output)
+        # Sort bindings by p and o values for consistent comparison
+        output["results"]["bindings"].sort(
+            key=lambda x: (x["p"]["value"], x["o"]["value"])
+        )
         expected_output = {
             "head": {"vars": ["p", "o"]},
             "results": {
                 "bindings": [
-                    {
-                        "p": {
-                            "type": "uri",
-                            "value": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
-                        },
-                        "o": {
-                            "type": "uri",
-                            "value": "http://www.w3.org/ns/prov#Entity",
-                        },
-                    },
                     {
                         "p": {
                             "type": "uri",
@@ -130,6 +132,16 @@ class Test_Sparql(unittest.TestCase):
                         "o": {
                             "type": "literal",
                             "value": "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been created.",
+                        },
+                    },
+                    {
+                        "p": {
+                            "type": "uri",
+                            "value": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+                        },
+                        "o": {
+                            "type": "uri",
+                            "value": "http://www.w3.org/ns/prov#Entity",
                         },
                     },
                     {
@@ -169,6 +181,10 @@ class Test_Sparql(unittest.TestCase):
                 ]
             },
         }
+        # Sort expected bindings in the same way
+        expected_output["results"]["bindings"].sort(
+            key=lambda x: (x["p"]["value"], x["o"]["value"])
+        )
         self.assertEqual(output, expected_output)
 
     def test__get_tuples_from_triplestores(self):
@@ -181,7 +197,6 @@ class Test_Sparql(unittest.TestCase):
         """
         output = {"head": {"vars": []}, "results": {"bindings": []}}
         output = Sparql(input_1, CONFIG)._get_results_from_triplestores(output)
-        self.maxDiff = None
         # Sort bindings by p and o values for consistent comparison
         output["results"]["bindings"].sort(
             key=lambda x: (x["p"]["value"], x["o"]["value"])
