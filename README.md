@@ -339,47 +339,68 @@ The configuration file is mainly used to indicate to the library where to search
 
 ### First steps
   1. Install Poetry:
-``` bash
-    pip install poetry
+```bash
+# Linux, macOS, Windows (WSL)
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Windows (Powershell)
+(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
 ```
   2. Clone this repository:
-``` bash
-    git clone https://github.com/opencitations/time-agnostic-library
-    cd ./time-agnostic-library
+```bash
+git clone https://github.com/opencitations/time-agnostic-library
+cd ./time-agnostic-library
 ```
   3. Install all the dependencies:
-``` bash
-    poetry install
+```bash
+poetry install
 ```
   4. Build the package (_output dir:_ `dist`):
-``` bash
-    poetry build
+```bash
+poetry build
 ```
   5. Globally install the package:
-``` bash
-    pip install ./dist/time-agnostic-library-<VERSION>.tar.gz
+```bash
+pip install ./dist/time-agnostic-library-<VERSION>.tar.gz
 ```
   6. If everything went the right way, than you should be able to use `time_agnostic_library` in your Python modules as follows:
-``` python
-    from time_agnostic_library.agnostic_entity import AgnosticEntity
-    from time_agnostic_library.agnostic_query import AgnosticQuery
-    # ...
+```python
+from time_agnostic_library.agnostic_entity import AgnosticEntity
+from time_agnostic_library.agnostic_query import AgnosticQuery
+# ...
 ```
 
 ### How to run the tests
 
- 1. Make sure that Java is installed on your computer.
- 2. Simply launch the following command from the root folder:
+1. Make sure that Docker is installed and running on your computer.
+2. Start the test database:
+```bash
+# On Linux/macOS
+chmod +x ./tests/start-test-database.sh
+./tests/start-test-database.sh
 
-``` bash
-  poetry run test
+# On Windows (PowerShell)
+./tests/start-test-database.ps1
+```
+3. Run the tests:
+```bash
+poetry run test
+```
+4. After the tests, stop the database:
+```bash
+# On Linux/macOS
+chmod +x ./tests/stop-test-database.sh
+./tests/stop-test-database.sh
+
+# On Windows (PowerShell)
+./tests/stop-test-database.ps1
 ```
 
 ### How to build the documentation
 
   1. Move inside the `docs` folder:
-``` bash
-  cd docs
+```bash
+cd docs
 ```
   2. Use the Makefile provided to build the docs:
       + _on Windows_
