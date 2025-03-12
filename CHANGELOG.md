@@ -1,3 +1,10 @@
+## [4.6.15](https://github.com/opencitations/time-agnostic-library/compare/4.6.14...4.6.15) (2025-03-12)
+
+
+### Bug Fixes
+
+* [release] removed unnecessary dependencies ([5d5313a](https://github.com/opencitations/time-agnostic-library/commit/5d5313afa68401df080124bc7ca96d6ea25a68c9))
+
 ## [4.6.14](https://github.com/opencitations/time-agnostic-library/compare/4.6.13...4.6.14) (2025-02-28)
 
 
