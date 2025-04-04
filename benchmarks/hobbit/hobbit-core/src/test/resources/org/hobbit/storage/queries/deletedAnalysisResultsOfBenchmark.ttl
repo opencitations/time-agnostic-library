@@ -1,0 +1,171 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix qb: <http://purl.org/linked-data/cube#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix hobbit: <http://w3id.org/hobbit/vocab#> .
+@prefix exp: <http://w3id.org/hobbit/experiments#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix sys: <http://w3id.org/system#> .
+@prefix bench: <http://w3id.org/bench#> .
+@prefix example: <http://example.org/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+# --- Benchmark ---
+
+bench:lance a	hobbit:Benchmark;
+    rdfs:label "Lance Benchmark"@en;
+    rdfs:comment	"LANCE is a benchmark for the assessment of Instance Matching techniques and systems for Linked Data data that are accompanied by a schema."@en;
+    hobbit:imageName	"LanceDockerImage";
+    hobbit:version "V1.1";
+    hobbit:measuresKPI bench:precision ;
+    hobbit:measuresKPI bench:recall ;
+    hobbit:measuresKPI bench:fmeasure ;
+    hobbit:hasAPI	bench:lanceApi;
+    hobbit:hasParameter bench:lanceLoadFactor;
+    hobbit:hasParameter bench:lanceDataFormat .
+
+bench:test2 a	hobbit:Benchmark;
+      rdfs:label "Test Benchmark 2"@en;
+      rdfs:comment	"Comment for benchmark 2."@en;
+      hobbit:imageName	"TestDockerImage";
+      hobbit:version "V2";
+      hobbit:measuresKPI bench:precision ;
+      hobbit:measuresKPI bench:recall ;
+      hobbit:measuresKPI bench:fmeasure ;
+      hobbit:hasAPI	bench:lanceApi;
+    hobbit:hasParameter bench:lanceDataFormat .
+
+bench:precision a hobbit:KPI;
+    rdfs:label "Precision"@en;
+  rdfs:comment	"Precision = TP / (TP + FP)"@en;
+  rdfs:range	xsd:float .
+
+bench:recall a hobbit:KPI;
+    rdfs:label "Recall"@en;
+  rdfs:comment	"Recall = TP / (TP + FN)"@en;
+  rdfs:range	xsd:float .
+
+bench:fmeasure a hobbit:KPI;
+    rdfs:label "F-measure"@en;
+  rdfs:comment	"F-measure is the harmonic mean of precision and recall."@en;
+  rdfs:range	xsd:float .
+
+bench:lanceApi a hobbit:API .
+
+bench:lanceLoadFactor a hobbit:ConfigurableParameter;
+  rdfs:label	"Lance load factor"@en;
+  rdfs:comment	"......."@en;
+  rdfs:range xsd:float .
+
+bench:lanceDataFormat  a	hobbit:ConfigurableParameter;
+  rdfs:label	"Lance dataset format"@en;
+  rdfs:comment	"......."@en;
+            rdfs:range bench:DataFormat;
+  hobbit:defaultValue bench:Turtle .
+
+bench:DataFormat  a owl:Class .
+bench:RDF_XML a bench:DataFormat .
+bench:N3  a bench:DataFormat .
+bench:Turtle a bench:DataFormat .
+
+# --- System ---
+
+sys:limesV1 a  hobbit:SystemInstance ;
+  rdfs:label	"Limes"@en;
+  rdfs:comment	"Limes is an Instance Matching System..."@en;
+  hobbit:imageName "LimesImageName" ;
+  hobbit:implementsAPI bench:lanceApi ;
+  hobbit:instanceOf sys:limes ;
+  sys:threshold "0.7"^^xsd:float .
+
+sys:limes a hobbit:System ;
+hobbit:hasParameter sys:threshold .
+
+sys:unrelatedSystem a hobbit:SystemInstance .
+
+sys:threshold a hobbit:FeatureParameter;
+  rdfs:label	"Limes Parameter"@en;
+  rdfs:comment	"Threshold parameter for Limes system."@en;
+            rdfs:range	xsd:float .
+
+# --- Experiment ---
+
+exp:LinkingExp10 a hobbit:Experiment ;
+  hobbit:involvesSystemInstance sys:limesV1;
+  hobbit:involvesBenchmark bench:lance;
+  hobbit:startTime "2016-11-30T22:57:00Z"^^xsd:dateTime ;
+  hobbit:endTime "2016-11-30T23:01:00Z"^^xsd:dateTime ;
+  hobbit:hobbitPlatformVersion "V1.3" ;
+  bench:lanceDataFormat bench:RDF_XML;
+  bench:precision "0.5"^^xsd:float ;
+  bench:recall "0.5"^^xsd:float ;
+  bench:fmeasure "0.5"^^xsd:float .
+
+exp:LinkingExp11 a hobbit:Experiment ;
+  hobbit:involvesSystemInstance sys:limesV2;
+  hobbit:involvesBenchmark bench:test2;
+  hobbit:startTime "2016-11-30T22:57:00Z"^^xsd:dateTime ;
+  hobbit:endTime "2016-11-30T23:01:00Z"^^xsd:dateTime ;
+  hobbit:hobbitPlatformVersion "V1.3" ;
+  bench:lanceDataFormat bench:RDF_XML;
+  bench:precision "0.5"^^xsd:float ;
+  bench:recall "0.5"^^xsd:float ;
+  bench:fmeasure "0.5"^^xsd:float .
+
+exp:LinkingExp12 a hobbit:Experiment ;
+  hobbit:involvesSystemInstance sys:limesV3;
+  hobbit:involvesBenchmark bench:test3;
+  hobbit:startTime "2016-11-30T22:57:00Z"^^xsd:dateTime ;
+  hobbit:endTime "2016-11-30T23:01:00Z"^^xsd:dateTime ;
+  hobbit:hobbitPlatformVersion "V1.3" ;
+  bench:lanceDataFormat bench:RDF_XML;
+  bench:precision "0.5"^^xsd:float ;
+  bench:recall "0.5"^^xsd:float ;
+  bench:fmeasure "0.5"^^xsd:float .
+
+# --- Challenge Task ---
+
+<http://w3id.org/hobbit/challenges#OAEILinkingChallenge> a hobbit:ChallengeTask ;
+    rdfs:label	"Linking"@en ;
+    rdfs:comment	"Linking Challenge for OAEI 2017"@en ;
+    hobbit:involvesSystemInstance sys:limesV1;
+    hobbit:involvesBenchmark bench:lance;
+    hobbit:isTaskOf <http://w3id.org/hobbit/challenges#OAEIChallenge> .
+
+<http://w3id.org/hobbit/challenges#OAEIChallenge> a hobbit:Challenge ;
+    rdfs:label	"OAEI Challenge"@en ;
+    rdfs:comment	"Challenge for OAEI 2017"@en ;
+    hobbit:executionDate "2017-02-25"^^xsd:date  ;
+    hobbit:publicationDate "2017-02-10"^^xsd:date  ;
+    hobbit:organizer "FORTH".
+
+# --- Analysis Results ---
+
+hobbit:PearsonAlgorithm a hobbit:AnalysisAlgorithm ;
+  rdf:type hobbit:AnalysisAlgorithm ;
+  rdfs:label "Pearson correlation"@en ;
+  rdfs:comment "Pearson correlation coefficient is a measure of the linear correlation between two variables X and Y."@en .
+
+example:UnrelatedAlgorithm a hobbit:AnalysisAlgorithm ;
+  rdf:type hobbit:AnalysisAlgorithm ;
+  rdfs:label "Unrelated algorithm"@en ;
+  rdfs:comment "Some other algorithm."@en .
+
+example:AnalysisResultset2 a hobbit:AnalysisResultset ;
+  hobbit:involvesBenchmark bench:unrelatedBenchmark ;
+  hobbit:involvesSystemInstance sys:unrelatedSystem ;
+  dcterms:created "2018-12-30T00:00:00Z"^^xsd:dateTime .
+
+example:AnalysisResult21 a hobbit:AnalysisResult ;
+  dcterms:isPartOf example:AnalysisResultset2 ;
+  hobbit:algorithm hobbit:PearsonAlgorithm ;
+  hobbit:involvesParameter sys:threshold ;
+  hobbit:involvesKPI bench:precision ;
+  rdf:value "0.99"^^xsd:double .
+
+example:AnalysisResult22 a hobbit:AnalysisResult ;
+  dcterms:isPartOf example:AnalysisResultset2 ;
+  hobbit:algorithm hobbit:PearsonAlgorithm ;
+  hobbit:involvesParameter sys:threshold ;
+  hobbit:involvesKPI bench:recall ;
+  rdf:value "0.98"^^xsd:double .

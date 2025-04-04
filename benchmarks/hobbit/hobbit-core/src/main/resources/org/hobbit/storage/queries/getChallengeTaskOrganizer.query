@@ -1,0 +1,19 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+CONSTRUCT {
+	%CHALLENGE_TASK_URI% a hobbit:ChallengeTask .
+	%CHALLENGE_TASK_URI% hobbit:isTaskOf ?challenge .
+    ?challenge a hobbit:Challenge .
+    ?challenge hobbit:organizer ?organizer .
+}
+WHERE {
+    {
+        GRAPH %GRAPH_URI% {
+            %CHALLENGE_TASK_URI% a hobbit:ChallengeTask .
+            %CHALLENGE_TASK_URI% hobbit:isTaskOf ?challenge .
+            ?challenge a hobbit:Challenge .
+            ?challenge hobbit:organizer ?organizer .
+        }
+    }
+}

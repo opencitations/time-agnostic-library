@@ -1,0 +1,213 @@
+<http://www.bbc.co.uk/ontologies/curriculum/> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Ontology> .
+<http://www.bbc.co.uk/ontologies/curriculum/> <http://purl.org/dc/elements/1.1/date> "$Date: 2012/10/09 10:26:23 $" .
+<http://www.bbc.co.uk/ontologies/curriculum/> <http://www.w3.org/2002/07/owl#versionInfo> "Revision: 0.9" .
+<http://www.bbc.co.uk/ontologies/curriculum/> <http://www.w3.org/2000/01/rdf-schema#label> "curriculum ontology" .
+<http://www.bbc.co.uk/ontologies/curriculum/> <http://www.w3.org/2000/01/rdf-schema#comment> "This ontology aims to provide data model and vocabularies for describing the national curricula within the UK" .
+<http://www.bbc.co.uk/ontologies/curriculum/Age> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/Age> <http://www.w3.org/2000/01/rdf-schema#label> "age" .
+<http://www.bbc.co.uk/ontologies/curriculum/Age> <http://www.w3.org/2000/01/rdf-schema#comment> "Age or age range is a way to specify the stages of education." .
+<http://www.bbc.co.uk/ontologies/curriculum/Age> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/Age> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/Age> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/Year> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/Year> <http://www.w3.org/2000/01/rdf-schema#label> "year" .
+<http://www.bbc.co.uk/ontologies/curriculum/Year> <http://www.w3.org/2000/01/rdf-schema#comment> "Year is a way to specify the stages of education." .
+<http://www.bbc.co.uk/ontologies/curriculum/Year> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/Year> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/Year> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/KeyStage> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/KeyStage> <http://www.w3.org/2000/01/rdf-schema#label> "key stage" .
+<http://www.bbc.co.uk/ontologies/curriculum/KeyStage> <http://www.w3.org/2000/01/rdf-schema#comment> "Key Stage is a way to specify the stage of the state education system in England, Wales, Northern Ireland." .
+<http://www.bbc.co.uk/ontologies/curriculum/KeyStage> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/KeyStage> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/KeyStage> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/Phase> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/Phase> <http://www.w3.org/2000/01/rdf-schema#label> "phase" .
+<http://www.bbc.co.uk/ontologies/curriculum/Phase> <http://www.w3.org/2000/01/rdf-schema#comment> "This concept is borrowed from the controlled terms for describing phase of education, which are published by the data.gov.uk. The phases of education include Primary, Secondary and 16-Plus." .
+<http://www.bbc.co.uk/ontologies/curriculum/Phase> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/Phase> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/Phase> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/Level> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/Level> <http://www.w3.org/2000/01/rdf-schema#label> "level" .
+<http://www.bbc.co.uk/ontologies/curriculum/Level> <http://www.w3.org/2000/01/rdf-schema#comment> "Levels refers to the stages of education. Typically, there are four different ways to specify the levels: age range, year, key stage and phase." .
+<http://www.bbc.co.uk/ontologies/curriculum/Level> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/Level> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/FieldOfStudy> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/FieldOfStudy> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/tagging/TagConcept> .
+<http://www.bbc.co.uk/ontologies/curriculum/FieldOfStudy> <http://www.w3.org/2000/01/rdf-schema#label> "field of study" .
+<http://www.bbc.co.uk/ontologies/curriculum/FieldOfStudy> <http://www.w3.org/2000/01/rdf-schema#comment> "Fields of study refers to the disciplines of a curriculum, e.g. Science, Maths, Science, etc." .
+<http://www.bbc.co.uk/ontologies/curriculum/FieldOfStudy> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/FieldOfStudy> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> <http://www.w3.org/2000/01/rdf-schema#label> "programme of study" .
+<http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> <http://www.w3.org/2000/01/rdf-schema#comment> "A programme of study is the combination of a nation, an educational level such as Key Stage 3 and the subject being studied, Science, Maths etc." .
+<http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/Topic> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/Topic> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/tagging/TagConcept> .
+<http://www.bbc.co.uk/ontologies/curriculum/Topic> <http://www.w3.org/2000/01/rdf-schema#label> "topic" .
+<http://www.bbc.co.uk/ontologies/curriculum/Topic> <http://www.w3.org/2000/01/rdf-schema#comment> "Topic can highlight the content of the learning resources in a way more specific than the Field of Study. For example, energy is a topic of physics." .
+<http://www.bbc.co.uk/ontologies/curriculum/Topic> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/Topic> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudy> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudy> <http://www.w3.org/2000/01/rdf-schema#label> "topic of study" .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudy> <http://www.w3.org/2000/01/rdf-schema#comment> "Topic of study is topic within the context of a programme of study. It aims to provide a formal learning context to an asset or a collection of assets. " .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudy> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudy> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudyList> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudyList> <http://www.w3.org/2000/01/rdf-schema#label> "topic of study list" .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudyList> <http://www.w3.org/2000/01/rdf-schema#comment> "A ordered list of topics of study" .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudyList> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://purl.org/ontology/olo/core#OrderedList> .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudyList> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudyList> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/Nation> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/Nation> <http://www.w3.org/2000/01/rdf-schema#label> "nation" .
+<http://www.bbc.co.uk/ontologies/curriculum/Nation> <http://www.w3.org/2000/01/rdf-schema#comment> "Nation is the concept to describe the four parts of the UK, i.e. England, Wales, Scotland and Northern Ireland." .
+<http://www.bbc.co.uk/ontologies/curriculum/Nation> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/Nation> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/ExamBoard> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/ExamBoard> <http://www.w3.org/2000/01/rdf-schema#label> "exam board" .
+<http://www.bbc.co.uk/ontologies/curriculum/ExamBoard> <http://www.w3.org/2000/01/rdf-schema#comment> "Exam board is the organization holds some exams." .
+<http://www.bbc.co.uk/ontologies/curriculum/ExamBoard> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/ExamBoard> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/PaperTier> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/PaperTier> <http://www.w3.org/2000/01/rdf-schema#label> "paper tier" .
+<http://www.bbc.co.uk/ontologies/curriculum/PaperTier> <http://www.w3.org/2000/01/rdf-schema#comment> "Paper tier reflects the difficulty of a exam. It can be standard or higher." .
+<http://www.bbc.co.uk/ontologies/curriculum/PaperTier> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/PaperTier> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/Language> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/curriculum/Language> <http://www.w3.org/2000/01/rdf-schema#label> "language" .
+<http://www.bbc.co.uk/ontologies/curriculum/Language> <http://www.w3.org/2000/01/rdf-schema#comment> "Examples of language are English, Welsh, Scottish Gaelic and Irish Gaelic." .
+<http://www.bbc.co.uk/ontologies/curriculum/Language> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/Language> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/subLevelOf> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/subLevelOf> <http://www.w3.org/2000/01/rdf-schema#label> "sub-level of" .
+<http://www.bbc.co.uk/ontologies/curriculum/subLevelOf> <http://www.w3.org/2000/01/rdf-schema#comment> "Capture the hierarchy of level." .
+<http://www.bbc.co.uk/ontologies/curriculum/subLevelOf> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/subLevelOf> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/subLevelOf> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/subLevelOf> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/lowerAgeBoundary> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/lowerAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#label> "lower age bound" .
+<http://www.bbc.co.uk/ontologies/curriculum/lowerAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#comment> "The lower bound of the age range of a educational level." .
+<http://www.bbc.co.uk/ontologies/curriculum/lowerAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/lowerAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.bbc.co.uk/ontologies/curriculum/lowerAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/lowerAgeBoundary> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/upperAgeBoundary> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/upperAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#label> "upper age bound" .
+<http://www.bbc.co.uk/ontologies/curriculum/upperAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#comment> "The upper bound of the age range of a educational level." .
+<http://www.bbc.co.uk/ontologies/curriculum/upperAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/upperAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#integer> .
+<http://www.bbc.co.uk/ontologies/curriculum/upperAgeBoundary> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/upperAgeBoundary> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/subFieldOf> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/subFieldOf> <http://www.w3.org/2000/01/rdf-schema#label> "sub-field of" .
+<http://www.bbc.co.uk/ontologies/curriculum/subFieldOf> <http://www.w3.org/2000/01/rdf-schema#comment> "Capture the hierarchy of fields of study." .
+<http://www.bbc.co.uk/ontologies/curriculum/subFieldOf> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/FieldOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/subFieldOf> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/FieldOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/subFieldOf> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/subFieldOf> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/subProgrammeOf> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/subProgrammeOf> <http://www.w3.org/2000/01/rdf-schema#label> "sub-programme of" .
+<http://www.bbc.co.uk/ontologies/curriculum/subProgrammeOf> <http://www.w3.org/2000/01/rdf-schema#comment> "Capture the hierarchy of programmes of study." .
+<http://www.bbc.co.uk/ontologies/curriculum/subProgrammeOf> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/subProgrammeOf> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/subProgrammeOf> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/subProgrammeOf> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtAtLevel> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtAtLevel> <http://www.w3.org/2000/01/rdf-schema#label> "taught at level" .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtAtLevel> <http://www.w3.org/2000/01/rdf-schema#comment> "Specify the level of a programme of study." .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtAtLevel> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtAtLevel> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtAtLevel> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtAtLevel> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInField> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInField> <http://www.w3.org/2000/01/rdf-schema#label> "taught in field" .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInField> <http://www.w3.org/2000/01/rdf-schema#comment> "Specify the field of a programme of study." .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInField> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInField> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/FieldOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInField> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInField> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInNation> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInNation> <http://www.w3.org/2000/01/rdf-schema#label> "taught in nation" .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInNation> <http://www.w3.org/2000/01/rdf-schema#comment> "Specify the nation of a level." .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInNation> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/Level> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInNation> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/Nation> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInNation> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/taughtInNation> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/publishedAt> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/publishedAt> <http://www.w3.org/2000/01/rdf-schema#label> "published at" .
+<http://www.bbc.co.uk/ontologies/curriculum/publishedAt> <http://www.w3.org/2000/01/rdf-schema#comment> "The date when a programme of study is published" .
+<http://www.bbc.co.uk/ontologies/curriculum/publishedAt> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#dateTime> .
+<http://www.bbc.co.uk/ontologies/curriculum/publishedAt> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/publishedAt> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/subTopicOf> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/subTopicOf> <http://www.w3.org/2000/01/rdf-schema#label> "sub-topic of" .
+<http://www.bbc.co.uk/ontologies/curriculum/subTopicOf> <http://www.w3.org/2000/01/rdf-schema#comment> "Capture the hierarchy of topics." .
+<http://www.bbc.co.uk/ontologies/curriculum/subTopicOf> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/Topic> .
+<http://www.bbc.co.uk/ontologies/curriculum/subTopicOf> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/Topic> .
+<http://www.bbc.co.uk/ontologies/curriculum/subTopicOf> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/subTopicOf> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/providesContextTo> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/providesContextTo> <http://www.w3.org/2000/01/rdf-schema#label> "provides context to" .
+<http://www.bbc.co.uk/ontologies/curriculum/providesContextTo> <http://www.w3.org/2000/01/rdf-schema#comment> "Link topics of study to BBC assets." .
+<http://www.bbc.co.uk/ontologies/curriculum/providesContextTo> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/providesContextTo> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/providesContextTo> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/about> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/about> <http://www.w3.org/2000/01/rdf-schema#label> "about" .
+<http://www.bbc.co.uk/ontologies/curriculum/about> <http://www.w3.org/2000/01/rdf-schema#comment> "Link topic of study views to topics." .
+<http://www.bbc.co.uk/ontologies/curriculum/about> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/about> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/Topic> .
+<http://www.bbc.co.uk/ontologies/curriculum/about> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/about> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/appropriateFor> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/appropriateFor> <http://www.w3.org/2000/01/rdf-schema#label> "appropriate for" .
+<http://www.bbc.co.uk/ontologies/curriculum/appropriateFor> <http://www.w3.org/2000/01/rdf-schema#comment> "Link topic of study to a programme of study." .
+<http://www.bbc.co.uk/ontologies/curriculum/appropriateFor> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/appropriateFor> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/ProgrammeOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/appropriateFor> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/appropriateFor> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/topics> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/topics> <http://www.w3.org/2000/01/rdf-schema#label> "topics" .
+<http://www.bbc.co.uk/ontologies/curriculum/topics> <http://www.w3.org/2000/01/rdf-schema#comment> "Link a topic of study or a programme of study to an ordered list of topics of study." .
+<http://www.bbc.co.uk/ontologies/curriculum/topics> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudyList> .
+<http://www.bbc.co.uk/ontologies/curriculum/topics> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/topics> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/language> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/language> <http://www.w3.org/2000/01/rdf-schema#label> "language" .
+<http://www.bbc.co.uk/ontologies/curriculum/language> <http://www.w3.org/2000/01/rdf-schema#comment> "The property of an asset being in a specific language." .
+<http://www.bbc.co.uk/ontologies/curriculum/language> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/Language> .
+<http://www.bbc.co.uk/ontologies/curriculum/language> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/language> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/examBoard> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/examBoard> <http://www.w3.org/2000/01/rdf-schema#label> "exam board" .
+<http://www.bbc.co.uk/ontologies/curriculum/examBoard> <http://www.w3.org/2000/01/rdf-schema#comment> "Specify an asset is useful for preparing exams provided by an exam board." .
+<http://www.bbc.co.uk/ontologies/curriculum/examBoard> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/ExamBoard> .
+<http://www.bbc.co.uk/ontologies/curriculum/examBoard> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/examBoard> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/paperTier> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/paperTier> <http://www.w3.org/2000/01/rdf-schema#label> "paper tier" .
+<http://www.bbc.co.uk/ontologies/curriculum/paperTier> <http://www.w3.org/2000/01/rdf-schema#comment> "Specify the difficulty level of an asset" .
+<http://www.bbc.co.uk/ontologies/curriculum/paperTier> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/PaperTier> .
+<http://www.bbc.co.uk/ontologies/curriculum/paperTier> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/paperTier> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/nation> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/nation> <http://www.w3.org/2000/01/rdf-schema#label> "nation" .
+<http://www.bbc.co.uk/ontologies/curriculum/nation> <http://www.w3.org/2000/01/rdf-schema#comment> "Specify an asset could be useful for a certain nation" .
+<http://www.bbc.co.uk/ontologies/curriculum/nation> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/Nation> .
+<http://www.bbc.co.uk/ontologies/curriculum/nation> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/nation> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/includesTopicOfStudy> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/includesTopicOfStudy> <http://www.w3.org/2000/01/rdf-schema#label> "includes topic of study" .
+<http://www.bbc.co.uk/ontologies/curriculum/includesTopicOfStudy> <http://www.w3.org/2000/01/rdf-schema#comment> "a short cut from a programme of study or a topic of study to the member of its topic of study list" .
+<http://www.bbc.co.uk/ontologies/curriculum/includesTopicOfStudy> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/curriculum/TopicOfStudy> .
+<http://www.bbc.co.uk/ontologies/curriculum/includesTopicOfStudy> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/includesTopicOfStudy> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .
+<http://www.bbc.co.uk/ontologies/curriculum/depictionPID> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/curriculum/depictionPID> <http://www.w3.org/2000/01/rdf-schema#label> "depiction PID" .
+<http://www.bbc.co.uk/ontologies/curriculum/depictionPID> <http://www.w3.org/2000/01/rdf-schema#comment> "The PID of the depiction (image)." .
+<http://www.bbc.co.uk/ontologies/curriculum/depictionPID> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/curriculum/depictionPID> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/curriculum/> .
+<http://www.bbc.co.uk/ontologies/curriculum/depictionPID> <http://www.w3.org/2003/06/sw-vocab-status/ns#term_status> "stable" .

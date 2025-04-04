@@ -1,0 +1,25 @@
+PREFIX cc: <https://creativecommons.org/ns#>
+PREFIX dcat: <http://www.w3.org/ns/dcat#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xhv: <http://www.w3.org/1999/xhtml/vocab#>
+
+CONSTRUCT {
+    ?dataset a dcat:Dataset .
+    ?dataset cc:license ?license .
+	?dataset cc:attributionName ?aName .
+	?dataset cc:attributionURL ?aURL .
+    ?license a cc:License .
+    ?license rdfs:label ?lLabel .
+    ?license xhv:icon ?lIcon .
+}
+WHERE {
+    GRAPH %GRAPH_URI% {
+        ?dataset a dcat:Dataset .
+        ?dataset cc:license ?license .
+        ?dataset cc:attributionName ?aName .
+        ?dataset cc:attributionURL ?aURL .
+        ?license a cc:License .
+        ?license rdfs:label ?lLabel .
+        OPTIONAL { ?license xhv:icon ?lIcon . }
+    }
+}

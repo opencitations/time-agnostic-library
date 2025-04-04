@@ -1,0 +1,22 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+
+WITH %GRAPH_URI%
+DELETE {
+    ?api		?apiProp	?apiObject .
+}
+WHERE {
+    {?apiBenchmark	hobbit:hasAPI	?api} UNION {?apiSysIns	hobbit:implementsAPI	?api} UNION {?api	a	hobbit:API} .
+    ?api		?apiProp	?apiObject .
+    FILTER NOT EXISTS {
+        ?experiment	a	hobbit:Experiment .
+        ?experiment	hobbit:involvesBenchmark	?apiBenchmark .
+        ?apiBenchmark	hobbit:hasAPI	?api .
+    }
+    FILTER NOT EXISTS {
+        ?experiment	a	hobbit:Experiment .
+        ?experiment	hobbit:involvesSystemInstance	?apiSysIns .
+        ?apiSysIns	hobbit:implementsAPI	?api .
+    }
+}

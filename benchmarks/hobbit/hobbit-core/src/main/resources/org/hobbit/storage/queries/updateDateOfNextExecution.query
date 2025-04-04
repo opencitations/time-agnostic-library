@@ -1,0 +1,10 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+WITH %GRAPH_URI%
+DELETE { %CHALLENGE_URI% hobbit:dateOfNextExecution ?value . }
+INSERT { %CHALLENGE_URI% hobbit:dateOfNextExecution %VALUE_LITERAL% . }
+WHERE {
+    %CHALLENGE_URI% a hobbit:Challenge .
+    OPTIONAL { %CHALLENGE_URI% hobbit:dateOfNextExecution ?value . }
+}

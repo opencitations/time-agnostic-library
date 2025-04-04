@@ -1,0 +1,10 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT (count(distinct ?experiment) as ?count)
+WHERE {
+  GRAPH %GRAPH_URI% {
+    ?experiment a hobbit:Experiment .
+    ?experiment hobbit:isPartOf %CHALLENGE_TASK_URI% .
+    }
+}

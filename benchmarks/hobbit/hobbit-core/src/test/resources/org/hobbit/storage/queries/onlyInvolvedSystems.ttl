@@ -1,0 +1,20 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix qb: <http://purl.org/linked-data/cube#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix hobbit: <http://w3id.org/hobbit/vocab#> .
+@prefix exp: <http://w3id.org/hobbit/experiments#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix sys: <http://w3id.org/system#> .
+@prefix bench: <http://w3id.org/bench#> .
+
+# --- Challenge Task 1 ---
+
+<http://example.org/MyChallengeTask1>
+  hobbit:involvesSystemInstance <http://example.org/SystemA>;
+  hobbit:involvesSystemInstance <http://example.org/SystemB> .
+
+# --- Challenge Task 2 ---
+
+<http://example.org/MyChallengeTask2>
+  hobbit:involvesSystemInstance <http://example.org/SystemC> .

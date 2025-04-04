@@ -1,6 +1,6 @@
-[submodule "benchmarks/hobbit-versioning-benchmark"]
-	path = benchmarks/hobbit-versioning-benchmark
+[submodule "benchmarks/hobbit/hobbit-versioning-benchmark"]
+	path = benchmarks/hobbit/hobbit-versioning-benchmark
 	url = https://github.com/hobbit-project/versioning-benchmark.git
-[submodule "benchmarks/hobbit-core"]
-	path = benchmarks/hobbit-core
+[submodule "benchmarks/hobbit/hobbit-core"]
+	path = benchmarks/hobbit/hobbit-core
 	url = https://github.com/hobbit-project/core.git

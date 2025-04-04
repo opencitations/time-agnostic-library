@@ -1,0 +1,10 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+
+WITH %GRAPH_URI%
+DELETE {
+    %EXPERIMENT_URI% ?p ?o .
+}
+WHERE {
+    %EXPERIMENT_URI% a hobbit:Experiment .
+    %EXPERIMENT_URI% ?p ?o .
+}

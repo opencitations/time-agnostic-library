@@ -1,0 +1,9 @@
+FROM java
+
+ADD target/spvb-2.2.1.jar /versioning/versioning.jar
+
+COPY required_files/* /versioning/
+
+WORKDIR /versioning
+
+CMD java -Xmx8G -cp versioning.jar org.hobbit.core.run.ComponentStarter org.hobbit.benchmark.versioning.components.VersioningEvaluationModule

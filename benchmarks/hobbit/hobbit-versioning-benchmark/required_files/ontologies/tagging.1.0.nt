@@ -1,0 +1,21 @@
+<http://www.bbc.co.uk/ontologies/tagging/> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Ontology> .
+<http://www.bbc.co.uk/ontologies/tagging/> <http://www.w3.org/2000/01/rdf-schema#comment> "This ontology is used to represent the class of tag concepts. All things subclassed (typed by a subclass of it) or typed by the class TagConcept will appear in tagging clients."^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/tagging/> <http://www.w3.org/2000/01/rdf-schema#label> "Tagging"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/tagging/> <http://www.w3.org/2002/07/owl#imports> <http://www.bbc.co.uk/ontologies/bbc/> .
+<http://www.bbc.co.uk/ontologies/tagging/> <http://www.w3.org/2002/07/owl#versionInfo> "1.0"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/tagging/TagConcept> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/tagging/TagConcept> <http://www.w3.org/2000/01/rdf-schema#comment> "This represents the concepts (things) that are exposed in the taggins applications. This is a subclass of bbc:Thing, which means that not all bbc:Things are TagConcepts but if they need to be then they must be explicitly linked to the class TagConcept"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/tagging/TagConcept> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/tagging/> .
+<http://www.bbc.co.uk/ontologies/tagging/TagConcept> <http://www.w3.org/2000/01/rdf-schema#label> "TagConcept"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/tagging/TagConcept> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/bbc/Thing> .
+<http://www.bbc.co.uk/ontologies/tagging/TagSet> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/tagging/TagSet> <http://www.w3.org/2000/01/rdf-schema#comment> "Set of tags used for a domain specific tagging purpose"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/tagging/TagSet> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/tagging/> .
+<http://www.bbc.co.uk/ontologies/tagging/TagSet> <http://www.w3.org/2000/01/rdf-schema#label> "TagConcept"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/tagging/TagSet> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.w3.org/2002/07/owl#Thing> .
+<http://www.bbc.co.uk/ontologies/tagging/tagSet> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/tagging/tagSet> <http://www.w3.org/2000/01/rdf-schema#comment> "Indicates that a tag belongs to a tagset"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/tagging/tagSet> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/tagging/TagConcept> .
+<http://www.bbc.co.uk/ontologies/tagging/tagSet> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/tagging/> .
+<http://www.bbc.co.uk/ontologies/tagging/tagSet> <http://www.w3.org/2000/01/rdf-schema#label> "tagSet"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/tagging/tagSet> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/tagging/TagSet> .

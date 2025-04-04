@@ -1,0 +1,101 @@
+<http://www.bbc.co.uk/ontologies/coreconcepts/> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Ontology> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/> <http://www.w3.org/2000/01/rdf-schema#comment> "The generic BBC ontology for people, places,events, organisations, themes which represent things that make sense across the BBC. This model is meant to be generic enough, and allow clients (domain experts) link their own concepts e.g., athletes or politicians using rdfs:sublClassOf the particular concept. Please note that not all the domain specific concepts (e.g.,Curriculum Stage or Sport Competition) are linked to this model simply because they make sense in the particular domain concept."^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/> <http://www.w3.org/2002/07/owl#imports> <http://www.bbc.co.uk/ontologies/bbc/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/> <http://www.w3.org/2002/07/owl#versionInfo> "0.5"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Event> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Event> <http://www.w3.org/2000/01/rdf-schema#comment> "The class of events in the BBC. This is a generic class to represent events (music events, historic events, sports events, politics events, e.t.c.)"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Event> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Event> <http://www.w3.org/2000/01/rdf-schema#label> "Place"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Event> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Organisation> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Organisation> <http://www.w3.org/2000/01/rdf-schema#comment> "The class of organisations in the BBC. E.g., Businesses"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Organisation> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Organisation> <http://www.w3.org/2000/01/rdf-schema#label> "Organisation"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Organisation> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Person> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Person> <http://www.w3.org/2000/01/rdf-schema#comment> "The class of people in the BBC. Subclasses of this can be all types of people such as politicians, athletes, historic figures, contributors in programmes e.t.c."^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Person> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Person> <http://www.w3.org/2000/01/rdf-schema#label> "Person"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Person> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Place> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Place> <http://www.w3.org/2000/01/rdf-schema#comment> "The class of places in the BBC."^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Place> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Place> <http://www.w3.org/2000/01/rdf-schema#label> "Place"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Place> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Theme> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Theme> <http://www.w3.org/2000/01/rdf-schema#comment> "This concept is used to represent intangible things or abstract concepts.  For example, Financial Crisis, Midwifery, Happiness"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Theme> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Theme> <http://www.w3.org/2000/01/rdf-schema#label> "Theme"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Theme> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Thing> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Thing> <http://www.w3.org/2000/01/rdf-schema#comment> "The superclass of all things the BBC creates or talks about"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Thing> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Thing> <http://www.w3.org/2000/01/rdf-schema#label> "Thing"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/Thing> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.w3.org/2002/07/owl#Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/disambiguationHint> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/disambiguationHint> <http://www.w3.org/2000/01/rdf-schema#comment> "This property assiciates a thing with a string that is ued as a hint to disambiguate between concepts (e.g., two people with the name \"Michael Jackson\") and is used for tagging or data management applications. This is used only for internal purposes and is not meant to be exposed to the audiences. In addition, this is non null when the ambiguity has been identified between two or more concepts and if a concept is unambiguous it's not necessary to have a value."^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/disambiguationHint> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/disambiguationHint> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/disambiguationHint> <http://www.w3.org/2000/01/rdf-schema#label> "disambiguationHint"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/disambiguationHint> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/facebook> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/facebook> <http://www.w3.org/2000/01/rdf-schema#comment> "Links a thing to its facebook account, this is a subproperty of primaryTopicOf"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/facebook> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/facebook> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/facebook> <http://www.w3.org/2000/01/rdf-schema#label> "facebook"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/facebook> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/bbc/WebDocument> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/facebook> <http://www.w3.org/2000/01/rdf-schema#subPropertyOf> <http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/officialHomepage> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/officialHomepage> <http://www.w3.org/2000/01/rdf-schema#comment> "Links a thing to its official homepage(s) on the web."^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/officialHomepage> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/officialHomepage> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/officialHomepage> <http://www.w3.org/2000/01/rdf-schema#label> "officialHomepage"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/officialHomepage> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/bbc/WebDocument> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/officialHomepage> <http://www.w3.org/2000/01/rdf-schema#subPropertyOf> <http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/preferredLabel> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/preferredLabel> <http://www.w3.org/2000/01/rdf-schema#comment> "The BBC editorially preferred label for a thing"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/preferredLabel> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/preferredLabel> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/preferredLabel> <http://www.w3.org/2000/01/rdf-schema#label> "preferredLabel"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/preferredLabel> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopic> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopic> <http://www.w3.org/2000/01/rdf-schema#comment> "Represents the fact that a thing (usually concept, e.g., Tom Daley) is the primary topic of a web document"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopic> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/bbc/WebDocument> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopic> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopic> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopic> <http://www.w3.org/2002/07/owl#inverseOf> <http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> <http://www.w3.org/2000/01/rdf-schema#comment> "Represents the fact that a thing (usually concept, e.g., Tom Daley) is the primary topic of a web document"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/bbc/WebDocument> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> <http://www.w3.org/2002/07/owl#inverseOf> <http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopic> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/sameAs> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/sameAs> <http://www.w3.org/2000/01/rdf-schema#comment> "Indicates that something is the same as something else, but in a way that is slightly weaker than owl:sameAs. It's purpose is to connect separate identities of the same thing, whilst keeping separation between the original statements of each."^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/sameAs> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/sameAs> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/sameAs> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2002/07/owl#Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/shortLabel> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/shortLabel> <http://www.w3.org/2000/01/rdf-schema#comment> "A short label for a thing"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/shortLabel> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/shortLabel> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/shortLabel> <http://www.w3.org/2000/01/rdf-schema#label> "shortLabel"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/shortLabel> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/slug> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/slug> <http://www.w3.org/2000/01/rdf-schema#comment> "Human readable keywords that may be used in a programmatic fashion e.g., manchester-city"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/slug> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/slug> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/slug> <http://www.w3.org/2000/01/rdf-schema#label> "slug"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/slug> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/twitter> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/twitter> <http://www.w3.org/2000/01/rdf-schema#comment> "Links a thing to its twitter account, this is a subproperty of primaryTopicOf"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/twitter> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/twitter> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/coreconcepts/> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/twitter> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/bbc/WebDocument> .
+<http://www.bbc.co.uk/ontologies/coreconcepts/twitter> <http://www.w3.org/2000/01/rdf-schema#subPropertyOf> <http://www.bbc.co.uk/ontologies/coreconcepts/primaryTopicOf> .
+<http://dbpedia.org/ontology/Company> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://dbpedia.org/ontology/parentCompany> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#TransitiveProperty> .
+<http://dbpedia.org/ontology/Person> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://xmlns.com/foaf/0.1/Person> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://dbpedia.org/ontology/Event> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .
+<http://www.geonames.org/ontology#Feature> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/coreconcepts/Thing> .

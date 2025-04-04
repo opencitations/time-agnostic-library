@@ -1,0 +1,31 @@
+<http://www.bbc.co.uk/ontologies/person/> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Ontology> .
+<http://www.bbc.co.uk/ontologies/person/> <http://www.w3.org/2000/01/rdf-schema#comment> "The generic BBC ontology for people"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/> <http://www.w3.org/2002/07/owl#imports> <http://www.bbc.co.uk/ontologies/bbc/> .
+<http://www.bbc.co.uk/ontologies/person/> <http://www.w3.org/2002/07/owl#versionInfo> "0.2"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/Person> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/person/Person> <http://www.w3.org/2000/01/rdf-schema#comment> "The class of people in the BBC"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/Person> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/person/> .
+<http://www.bbc.co.uk/ontologies/person/Person> <http://www.w3.org/2000/01/rdf-schema#label> "Person"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/Person> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <http://www.bbc.co.uk/ontologies/bbc/Thing> .
+<http://www.bbc.co.uk/ontologies/person/Role> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Class> .
+<http://www.bbc.co.uk/ontologies/person/Role> <http://www.w3.org/2000/01/rdf-schema#comment> "A generic class of Roles that people hold (or have held)"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/Role> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/person/> .
+<http://www.bbc.co.uk/ontologies/person/Role> <http://www.w3.org/2000/01/rdf-schema#label> "Role"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/firstName> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/person/firstName> <http://www.w3.org/2000/01/rdf-schema#comment> "The first name of a person"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/firstName> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/person/Person> .
+<http://www.bbc.co.uk/ontologies/person/firstName> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/person/> .
+<http://www.bbc.co.uk/ontologies/person/firstName> <http://www.w3.org/2000/01/rdf-schema#label> "firstName"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/firstName> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/lastName> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#DatatypeProperty> .
+<http://www.bbc.co.uk/ontologies/person/lastName> <http://www.w3.org/2000/01/rdf-schema#comment> "The last name of a person"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/lastName> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/person/Person> .
+<http://www.bbc.co.uk/ontologies/person/lastName> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/person/> .
+<http://www.bbc.co.uk/ontologies/person/lastName> <http://www.w3.org/2000/01/rdf-schema#label> "lastName"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/lastName> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/role> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#ObjectProperty> .
+<http://www.bbc.co.uk/ontologies/person/role> <http://www.w3.org/2000/01/rdf-schema#comment> "Connects the Person with a role. This is a generic property"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/role> <http://www.w3.org/2000/01/rdf-schema#domain> <http://www.bbc.co.uk/ontologies/person/Person> .
+<http://www.bbc.co.uk/ontologies/person/role> <http://www.w3.org/2000/01/rdf-schema#isDefinedBy> <http://www.bbc.co.uk/ontologies/person/> .
+<http://www.bbc.co.uk/ontologies/person/role> <http://www.w3.org/2000/01/rdf-schema#label> "role"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://www.bbc.co.uk/ontologies/person/role> <http://www.w3.org/2000/01/rdf-schema#range> <http://www.bbc.co.uk/ontologies/person/Role> .

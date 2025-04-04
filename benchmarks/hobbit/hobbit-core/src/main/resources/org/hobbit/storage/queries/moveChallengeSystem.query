@@ -1,0 +1,25 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+INSERT {
+    GRAPH %NEW_GRAPH_URI% {
+        ?task hobbit:involvesSystemInstance ?system .
+    }
+}
+WHERE {
+    GRAPH %GRAPH_URI% {
+        ?task a hobbit:ChallengeTask ;
+              hobbit:isTaskOf %CHALLENGE_URI% ;
+              hobbit:involvesSystemInstance ?system .
+    }
+};
+
+WITH %GRAPH_URI%
+DELETE {
+    ?task hobbit:involvesSystemInstance ?system .
+}
+WHERE {
+    ?task a hobbit:ChallengeTask ;
+          hobbit:isTaskOf %CHALLENGE_URI% ;
+          hobbit:involvesSystemInstance ?system .
+}

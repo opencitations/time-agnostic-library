@@ -1,0 +1,64 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix qb: <http://purl.org/linked-data/cube#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix hobbit: <http://w3id.org/hobbit/vocab#> .
+@prefix exp: <http://w3id.org/hobbit/experiments#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex: <http://example.org/> .
+@prefix bench: <http://w3id.org/bench#> .
+
+# --- Challenges ---
+
+# --- ex:Challenge1 a	hobbit:Challenge;
+# --- 	rdfs:label "Challenge 1 Label"@en;
+# --- 	rdfs:comment	"Challenge 1 Desc."@en;
+# --- 	hobbit:executionDate "2016-12-24"^^xsd:date;
+# --- 	hobbit:publicationDate "2016-12-26"^^xsd:date;
+# --- 	hobbit:organizer "owner"@en;
+# --- 	hobbit:closed	"true"^^xsd:boolean;
+# --- 	hobbit:visible	"true"^^xsd:boolean .
+
+# --- Challenge Tasks ---
+
+# --- ex:Challenge1Task1 a hobbit:ChallengeTask;
+# --- 	rdfs:label "Challenge 1 task 1 Label"@en;
+# --- 	rdfs:comment	"Challenge 1 task 1 Desc"@en;
+# --- 	hobbit:isTaskOf ex:Challenge1;
+# --- 	hobbit:involvesBenchmark bench:BenchmarkX;
+# --- 	bench:dataType bench:TrafficData;
+# --- 	hobbit:involvesSystemInstance ex:SystemA;
+# --- 	hobbit:involvesSystemInstance ex:SystemB .
+
+# --- Benchmarks ---
+
+# --- bench:BenchmarkX a	hobbit:Benchmark;
+# --- 	rdfs:label "Benchmark X Label"@en;
+# --- 	rdfs:comment	"Benchmark X Desc"@en;
+# --- 	hobbit:hasParameter bench:dataType;
+# ---     hobbit:hasAPI bench:ApiX;
+# --- 	hobbit:measuresKPI bench:kpiX .
+
+bench:dataType a hobbit:ConfigurableParameter;
+    rdfs:range bench:GenerationDataType .
+
+bench:GenerationDataType a owl:Class, rdfs:Class .
+
+bench:TrafficData a bench:GenerationDataType .
+
+# --- bench:kpiX a hobbit:KPI;
+# ---     rdfs:range xsd:double .
+
+# --- Systems ---
+
+# --- ex:SystemA a  hobbit:SystemInstance ;
+# --- 	rdfs:label	"System A Label"@en;
+# --- 	rdfs:comment	"System A Desc"@en;
+# --- 	hobbit:imageName "SystemImageName" ;
+# --- 	hobbit:implementsAPI bench:ApiX .
+# ---
+# --- ex:SystemB a  hobbit:SystemInstance ;
+# --- 	rdfs:label	"System B Label"@en;
+# --- 	rdfs:comment	"System B Desc"@en;
+# --- 	hobbit:imageName "SystemImageName" ;
+# --- 	hobbit:implementsAPI bench:ApiX .

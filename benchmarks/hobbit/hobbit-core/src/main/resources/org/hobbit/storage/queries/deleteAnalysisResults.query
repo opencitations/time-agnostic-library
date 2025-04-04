@@ -1,0 +1,25 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+PREFIX qb: <http://purl.org/linked-data/cube#>
+PREFIX dcterms: <http://purl.org/dc/terms/> 
+
+WITH %GRAPH_URI%
+DELETE {
+    %ANALYSIS_RESULT_SET_URI% ?analysisResultSetProb ?analysisResultSetObj .
+    ?analysisResult ?analysisResultProp ?analysisResultObj .
+}
+WHERE {
+GRAPH %GRAPH_URI% {
+    {SELECT ?analysisResultSetProb ?analysisResultSetObj
+    WHERE {
+        %ANALYSIS_RESULT_SET_URI% ?analysisResultSetProb ?analysisResultSetObj .
+    }} UNION
+    {SELECT ?analysisResult ?analysisResultProp ?analysisResultObj
+    WHERE {
+        {SELECT ?analysisResult
+            WHERE {
+                ?analysisResult dcterms:isPartOf %ANALYSIS_RESULT_SET_URI% .
+            }
+        }
+        ?analysisResult ?analysisResultProp ?analysisResultObj .
+    }}
+}}

@@ -1,0 +1,87 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix qb: <http://purl.org/linked-data/cube#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix hobbit: <http://w3id.org/hobbit/vocab#> .
+@prefix exp: <http://w3id.org/hobbit/experiments#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix sys: <http://w3id.org/system#> .
+@prefix bench: <http://w3id.org/bench#> .
+@prefix example: <http://example.org/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+# --- Benchmark ---
+
+bench:lance a	hobbit:Benchmark;
+    rdfs:label "Lance Benchmark"@en;
+    rdfs:comment	"LANCE is a benchmark for the assessment of Instance Matching techniques and systems for Linked Data data that are accompanied by a schema."@en;
+    hobbit:imageName	"LanceDockerImage";
+    hobbit:version "V1.1";
+    hobbit:measuresKPI bench:precision ;
+    hobbit:measuresKPI bench:recall ;
+    hobbit:measuresKPI bench:fmeasure ;
+    hobbit:hasAPI	bench:lanceApi;
+    hobbit:hasParameter bench:lanceLoadFactor;
+    hobbit:hasParameter bench:lanceDataFormat .
+
+bench:precision a hobbit:KPI;
+    rdfs:label "Precision"@en;
+  rdfs:comment	"Precision = TP / (TP + FP)"@en;
+  rdfs:range	xsd:float .
+
+bench:recall a hobbit:KPI;
+    rdfs:label "Recall"@en;
+  rdfs:comment	"Recall = TP / (TP + FN)"@en;
+  rdfs:range	xsd:float .
+
+bench:fmeasure a hobbit:KPI;
+    rdfs:label "F-measure"@en;
+  rdfs:comment	"F-measure is the harmonic mean of precision and recall."@en;
+  rdfs:range	xsd:float .
+
+bench:lanceDataFormat  a	hobbit:ConfigurableParameter;
+  rdfs:label	"Lance dataset format"@en;
+  rdfs:comment	"......."@en;
+            rdfs:range bench:DataFormat;
+  hobbit:defaultValue bench:Turtle .
+
+bench:lanceLoadFactor a hobbit:ConfigurableParameter;
+  rdfs:label	"Lance load factor"@en;
+  rdfs:comment	"......."@en;
+  rdfs:range xsd:float .
+
+# --- System ---
+
+sys:limesV1 a  hobbit:SystemInstance ;
+  rdfs:label	"Limes"@en;
+  rdfs:comment	"Limes is an Instance Matching System..."@en;
+  hobbit:imageName "LimesImageName" ;
+  hobbit:implementsAPI bench:lanceApi ;
+  hobbit:instanceOf sys:limes ;
+  sys:threshold "0.7"^^xsd:float .
+
+# --- Analysis Results ---
+
+hobbit:PearsonAlgorithm a hobbit:AnalysisAlgorithm ;
+  rdf:type hobbit:AnalysisAlgorithm ;
+  rdfs:label "Pearson correlation"@en ;
+  rdfs:comment "Pearson correlation coefficient is a measure of the linear correlation between two variables X and Y."@en .
+
+example:AnalysisResultset1 a hobbit:AnalysisResultset ;
+  hobbit:involvesBenchmark bench:lance ;
+  hobbit:involvesSystemInstance sys:limesV1 ;
+  dcterms:created "2018-11-30T00:00:00Z"^^xsd:dateTime .
+
+example:AnalysisResult11 a hobbit:AnalysisResult ;
+  dcterms:isPartOf example:AnalysisResultset1 ;
+  hobbit:algorithm hobbit:PearsonAlgorithm ;
+  hobbit:involvesParameter bench:lanceLoadFactor ;
+  hobbit:involvesKPI bench:precision ;
+  rdf:value "0.5"^^xsd:double .
+
+example:AnalysisResult12 a hobbit:AnalysisResult ;
+  dcterms:isPartOf example:AnalysisResultset1 ;
+  hobbit:algorithm hobbit:PearsonAlgorithm ;
+  hobbit:involvesParameter bench:lanceLoadFactor ;
+  hobbit:involvesKPI bench:recall ;
+  rdf:value "0.9"^^xsd:double .

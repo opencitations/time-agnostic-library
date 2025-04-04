@@ -1,0 +1,6 @@
+/scripts/
+/target/
+/.classpath
+/.project
+/logs/
+/dependency-reduced-pom.xml

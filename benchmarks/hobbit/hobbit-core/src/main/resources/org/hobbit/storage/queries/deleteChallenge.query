@@ -1,0 +1,17 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+WITH %GRAPH_URI%
+DELETE {
+    %CHALLENGE_URI% ?challengeProp ?challengeObj .
+    ?challengeTask ?taskProp ?taskObj .
+}
+WHERE {
+    %CHALLENGE_URI% a hobbit:Challenge .
+    %CHALLENGE_URI% ?challengeProp ?challengeObj .
+    OPTIONAL {
+        ?challengeTask a hobbit:ChallengeTask .
+        ?challengeTask hobbit:isTaskOf %CHALLENGE_URI% .
+        ?challengeTask ?taskProp ?taskObj .
+    }
+}

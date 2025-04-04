@@ -1,0 +1,55 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+
+CONSTRUCT {
+    ?e a hobbit:Experiment .
+    ?e hobbit:involvesSystemInstance ?system .
+    ?e hobbit:involvesBenchmark %BENCHMARK_URI% .
+    ?e ?experimentProp  ?experimentObj .
+    %BENCHMARK_URI% ?benchmarkProp ?benchmarkObject .
+    ?system ?systemProp ?systemObject .
+    ?resultProp ?resultPropProp ?resultPropObject .
+    ?parameterProp ?parameterPropProp ?parameterPropObject .
+}
+WHERE {
+GRAPH %GRAPH_URI% {
+    {SELECT ?e ?experimentProp ?experimentObj
+    WHERE {
+        {SELECT ?e
+        WHERE {
+            {SELECT ?e WHERE { ?e hobbit:involvesBenchmark %BENCHMARK_URI% . }}
+            ?e a hobbit:Experiment .
+        }}
+        ?e ?experimentProp ?experimentObj .
+    }} UNION
+    {SELECT ?system ?systemProp ?systemObject
+    WHERE {
+        {SELECT ?system WHERE {
+            ?e hobbit:involvesBenchmark %BENCHMARK_URI% .
+            ?e hobbit:involvesSystemInstance ?system .
+        }}
+        ?system ?systemProp ?systemObject .
+    }} UNION
+    {SELECT ?benchmarkProp ?benchmarkObject WHERE { %BENCHMARK_URI% ?benchmarkProp ?benchmarkObject . }} UNION
+    {SELECT ?parameterProp ?parameterPropProp ?parameterPropObject
+    WHERE {
+        {
+            SELECT ?parameterProp
+            WHERE {
+                {SELECT ?parameterProp WHERE { %BENCHMARK_URI% hobbit:hasParameter ?parameterProp . }}
+                ?parameterProp a ?parameterType .
+                filter(?parameterType in (hobbit:Parameter, hobbit:ConfigurableParameter, hobbit:FeatureParameter))
+            }
+        }
+        ?parameterProp ?parameterPropProp ?parameterPropObject .
+    }} UNION
+    {SELECT ?resultProp ?resultPropProp ?resultPropObject
+    WHERE {
+        {SELECT ?resultProp
+            WHERE {
+                {SELECT ?resultProp WHERE { %BENCHMARK_URI% hobbit:measuresKPI ?resultProp . }}
+                ?resultProp a hobbit:KPI .
+            }
+        }
+        ?resultProp ?resultPropProp ?resultPropObject .
+    }}
+}}

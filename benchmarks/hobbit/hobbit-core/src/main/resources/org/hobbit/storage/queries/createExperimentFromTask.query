@@ -1,0 +1,20 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+
+CONSTRUCT {
+    %EXPERIMENT_URI% a hobbit:Experiment .
+    %EXPERIMENT_URI% hobbit:involvesSystemInstance %SYSTEM_URI% .
+    %EXPERIMENT_URI% hobbit:involvesBenchmark ?benchmark .
+    %EXPERIMENT_URI% hobbit:isPartOf %CHALLENGE_TASK_URI% .
+    ?benchmark hobbit:hasParameter ?parameterProp .
+    %EXPERIMENT_URI% ?parameterProp ?parameterValue . }
+WHERE {
+  GRAPH %GRAPH_URI% {
+  	%CHALLENGE_TASK_URI% a hobbit:ChallengeTask .
+    %CHALLENGE_TASK_URI% hobbit:involvesSystemInstance %SYSTEM_URI% .
+    %CHALLENGE_TASK_URI% hobbit:involvesBenchmark ?benchmark .
+    OPTIONAL {
+        %CHALLENGE_TASK_URI% ?parameterProp ?parameterValue .
+        ?benchmark hobbit:hasParameter ?parameterProp .
+    }
+  }
+}

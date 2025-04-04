@@ -1,0 +1,83 @@
+PREFIX hobbit: <http://w3id.org/hobbit/vocab#>
+PREFIX qb: <http://purl.org/linked-data/cube#>
+PREFIX dcterms: <http://purl.org/dc/terms/> 
+
+CONSTRUCT {
+    ?analysisResultSet a hobbit:AnalysisResultset .
+    ?analysisResultSet hobbit:involvesBenchmark %BENCHMARK_URI% .
+    %BENCHMARK_URI% ?benchmarkProp ?benchmarkObject .
+    ?analysisResultSet hobbit:involvesSystemInstance ?system .
+    ?system ?systemProp ?systemObject .
+    ?analysisResultSet ?analysisResultSetProb ?analysisResultSetObj .
+    ?analysisResult a hobbit:AnalysisResult .
+    ?analysisResult ?analysisResultProp ?analysisResultObj .
+    ?alg ?algProp ?algObj .
+    ?resultProp ?resultPropProp ?resultPropObject .
+    ?parameterProp ?parameterPropProp ?parameterPropObject .
+}
+WHERE {
+GRAPH %GRAPH_URI% {
+    {SELECT ?analysisResultSet ?analysisResultSetProb ?analysisResultSetObj
+    WHERE {
+        {SELECT ?analysisResultSet
+        WHERE {
+            {SELECT ?analysisResultSet WHERE { ?analysisResultSet hobbit:involvesBenchmark %BENCHMARK_URI% . }}
+            ?analysisResultSet a hobbit:AnalysisResultset .
+        }}
+        ?analysisResultSet ?analysisResultSetProb ?analysisResultSetObj .
+    }} UNION
+    {SELECT ?system ?systemProp ?systemObject
+    WHERE {
+        {SELECT ?system WHERE {
+            {SELECT ?analysisResultSet WHERE { ?analysisResultSet hobbit:involvesBenchmark %BENCHMARK_URI% . }}
+            ?analysisResultSet hobbit:involvesSystemInstance ?system .
+        }}
+        ?system ?systemProp ?systemObject .
+    }} UNION
+    {SELECT ?benchmarkProp ?benchmarkObject WHERE { %BENCHMARK_URI% ?benchmarkProp ?benchmarkObject . }} UNION
+    {SELECT ?parameterProp ?parameterPropProp ?parameterPropObject
+    WHERE {
+        {
+            SELECT ?parameterProp
+            WHERE {
+                {SELECT ?parameterProp WHERE { %BENCHMARK_URI% hobbit:hasParameter ?parameterProp . }}
+                ?parameterProp a ?parameterType .
+                filter(?parameterType in (hobbit:Parameter, hobbit:ConfigurableParameter, hobbit:FeatureParameter))
+            }
+        }
+        ?parameterProp ?parameterPropProp ?parameterPropObject .
+    }} UNION
+    {SELECT ?resultProp ?resultPropProp ?resultPropObject
+    WHERE {
+        {SELECT ?resultProp
+            WHERE {
+                {SELECT ?resultProp WHERE { %BENCHMARK_URI% hobbit:measuresKPI ?resultProp . }}
+                ?resultProp a hobbit:KPI .
+            }
+        }
+        ?resultProp ?resultPropProp ?resultPropObject .
+    }} UNION
+    {SELECT ?analysisResult ?analysisResultProp ?analysisResultObj
+    WHERE {
+        {SELECT ?analysisResult
+            WHERE {
+                {SELECT ?analysisResultSet WHERE { ?analysisResultSet hobbit:involvesBenchmark %BENCHMARK_URI% . }}
+                ?analysisResult dcterms:isPartOf ?analysisResultSet .
+            }
+        }
+        ?analysisResult ?analysisResultProp ?analysisResultObj .
+    }} UNION
+    {SELECT ?alg ?algProp ?algObj
+    WHERE {
+        {SELECT ?alg WHERE {
+            {SELECT ?analysisResult
+                WHERE {
+                    {SELECT ?analysisResultSet WHERE { ?analysisResultSet hobbit:involvesBenchmark %BENCHMARK_URI% . }}
+                    ?analysisResult dcterms:isPartOf ?analysisResultSet .
+                }
+            }
+            ?analysisResult hobbit:algorithm ?alg .
+        }}
+        ?alg ?algProp ?algObj .
+    }}
+}}
