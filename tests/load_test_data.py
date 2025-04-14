@@ -1,11 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""Test data loading script for the time-agnostic-library test suite."""
 
 import time
 from pathlib import Path
 from collections import defaultdict
 from rdflib import ConjunctiveGraph
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
+from SPARQLWrapper.SPARQLExceptions import (
+    EndPointNotFound,
+    QueryBadFormed,
+    EndPointInternalError,
+    SPARQLWrapperException
+)
 
 
 def wait_for_virtuoso(endpoint="http://localhost:9999/sparql", timeout=30):
@@ -23,7 +30,7 @@ def wait_for_virtuoso(endpoint="http://localhost:9999/sparql", timeout=30):
             sparql.setReturnFormat(JSON)
             sparql.query()
             return True
-        except Exception:
+        except (EndPointNotFound, SPARQLWrapperException):
             time.sleep(1)
 
 
@@ -45,7 +52,7 @@ def check_data_exists(endpoint="http://localhost:9999/sparql"):
         sparql.setReturnFormat(JSON)
         results = sparql.query().convert()
         return results.get("boolean", False)
-    except Exception:
+    except (EndPointNotFound, QueryBadFormed, SPARQLWrapperException):
         return False
 
 
@@ -97,12 +104,13 @@ def load_data(data_file, endpoint="http://localhost:9999/sparql"):
         try:
             sparql.query()
             print(f"Loaded chunk {(i//chunk_size)+1}/{total_chunks}")
-        except Exception as e:
+        except (EndPointNotFound, QueryBadFormed, EndPointInternalError) as e:
             print(f"Error loading chunk: {e}")
             continue
 
 
 def main():
+    """Main entry point to load test data into the Virtuoso database."""
     # Wait for Virtuoso to be ready
     print("Waiting for Virtuoso to be ready...")
     wait_for_virtuoso()

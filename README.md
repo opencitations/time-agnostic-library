@@ -382,11 +382,20 @@ chmod +x ./tests/start-test-database.sh
 # On Windows (PowerShell)
 ./tests/start-test-database.ps1
 ```
-3. Run the tests:
+3. Run the tests with coverage:
 ```bash
-poetry run test
+# Install development dependencies if you haven't already
+poetry install --with dev
+
+# Run tests with coverage
+poetry run coverage run --rcfile=tests/coverage/.coveragerc
+poetry run coverage report
 ```
-4. After the tests, stop the database:
+4. You can also generate an HTML coverage report:
+```bash
+poetry run coverage html -d htmlcov
+```
+5. After the tests, stop the database:
 ```bash
 # On Linux/macOS
 chmod +x ./tests/stop-test-database.sh
