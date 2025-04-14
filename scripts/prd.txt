@@ -1,0 +1,37 @@
+# Time-Agnostic Library Benchmarking Project
+
+## Project Summary
+The time-agnostic-library is a Python library that allows performing time-travel queries on RDF datasets compliant with the OCDM v2.0.1 provenance specification. The purpose of this project is to benchmark the library using the HOBBIT Versioning Benchmark framework to evaluate its performance and correctness.
+
+## Goals
+- Fully implement the system adapter (time-agnostic-system-adapter) to connect the time-agnostic-library to the HOBBIT benchmarking platform
+- Configure the adapter to work with the HOBBIT Versioning Benchmark framework
+- Run benchmarks to evaluate the library's performance with a single triplestore implementation
+- Document the benchmarking results and insights
+
+## Requirements
+- Implement missing functionality in the time-agnostic-system-adapter
+- Connect the adapter properly to the hobbit-versioning-benchmark
+- Implement all necessary query types for evaluation
+- Test with different dataset sizes and version configurations
+- Measure all KPIs defined by the benchmark:
+  * Query failures
+  * Throughput (queries per second)
+  * Initial version ingestion speed
+  * Applied changes speed
+  * Storage space cost
+  * Average query execution time for each query type
+- Create visualizations and documentation for benchmark results
+
+## Timeline
+- Phase 1: Complete system adapter implementation
+- Phase 2: Local testing of the adapter with the benchmark
+- Phase 3: Configure and run benchmarks
+- Phase 4: Analyze and document results
+- Phase 5: Optimize library based on benchmarking insights
+
+## Deliverables
+- Fully functional time-agnostic-system-adapter
+- Comprehensive benchmark results
+- Performance documentation
+- Recommendations for library optimization 

@@ -1,0 +1,11 @@
+# Task ID: 4
+# Title: Implement Version Query Interface
+# Status: pending
+# Dependencies: 3
+# Priority: high
+# Description: Develop the interface for handling version-based queries required by the HOBBIT benchmark
+# Details:
+Implement handlers for all query types defined in the benchmark: version materialization, cross-version queries, delta queries. Use the time-agnostic-library APIs.
+
+# Test Strategy:
+Create unit tests for each query type with known inputs and expected outputs.

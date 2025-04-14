@@ -1,0 +1,11 @@
+# Task ID: 8
+# Title: Run Complete Benchmark Suite
+# Status: pending
+# Dependencies: 7
+# Priority: high
+# Description: Execute the complete benchmark suite using the configured triplestore
+# Details:
+Configure the HOBBIT platform for benchmark execution. Run benchmarks with different dataset sizes and version configurations.
+
+# Test Strategy:
+Verify benchmark completion without errors. Check that all metrics are collected.
