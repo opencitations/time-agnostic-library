@@ -40,12 +40,12 @@ def check_data_exists(endpoint="http://localhost:9999/sparql"):
         sparql = SPARQLWrapper(endpoint)
         sparql.setQuery(
             """
-        ASK { 
-            GRAPH <https://github.com/arcangelo7/time_agnostic/br/> { 
-                <https://github.com/arcangelo7/time_agnostic/br/2> 
-                <http://purl.org/dc/terms/title> 
-                "Mapping the web relations of science centres and museums from Latin America" 
-            } 
+        ASK {
+            GRAPH <https://github.com/arcangelo7/time_agnostic/br/> {
+                <https://github.com/arcangelo7/time_agnostic/br/2>
+                <http://purl.org/dc/terms/title>
+                "Mapping the web relations of science centres and museums from Latin America"
+            }
         }
         """
         )
@@ -56,57 +56,53 @@ def check_data_exists(endpoint="http://localhost:9999/sparql"):
         return False
 
 
+def _process_chunk(chunk, sparql, chunk_num, total):
+    """Process a chunk of triples and insert them into the database."""
+    # Group triples by graph
+    graphs = defaultdict(list)
+    for s, p, o, c in chunk:
+        graphs[c].append((s, p, o))
+
+    # Construct query with graph contexts
+    insert_parts = []
+    for graph, triples in graphs.items():
+        # Create N3 representations and join them
+        triples_str = " . ".join(f"{s.n3()} {p.n3()} {o.n3()}" for s, p, o in triples)
+        graph_uri = graph.n3().strip("[]")
+        insert_parts.append(f"GRAPH {graph_uri} {{ {triples_str} . }}")
+
+    # Execute the query
+    sparql.setQuery(f"INSERT DATA {{ {' '.join(insert_parts)} }}")
+
+    try:
+        sparql.query()
+        print(f"Loaded chunk {chunk_num}/{total}")
+        return True
+    except (EndPointNotFound, QueryBadFormed, EndPointInternalError) as e:
+        print(f"Error loading chunk: {e}")
+        return False
+
+
 def load_data(data_file, endpoint="http://localhost:9999/sparql"):
     """Load data from .nq file into Virtuoso."""
     print(f"Loading data from {data_file}...")
 
-    # Read the .nq file into an RDFLib ConjunctiveGraph
+    # Parse file and prepare data
     g = ConjunctiveGraph()
     g.parse(data_file, format="nquads")
 
-    # Split into smaller chunks to avoid timeout
-    chunk_size = 1000
-    triples = list(g.quads())
-    total_chunks = (len(triples) + chunk_size - 1) // chunk_size
-
+    # Setup SPARQL connection
     sparql = SPARQLWrapper(endpoint)
     sparql.setMethod(POST)
     sparql.setReturnFormat(JSON)
 
+    # Split and process in chunks
+    chunk_size = 1000
+    triples = list(g.quads())
+    total_chunks = (len(triples) + chunk_size - 1) // chunk_size
+
     for i in range(0, len(triples), chunk_size):
-        chunk = triples[i : i + chunk_size]
-
-        # Group triples by graph
-        graphs = defaultdict(list)
-        for s, p, o, c in chunk:
-            graphs[c].append((s, p, o))  # Keep c as RDFLib Node
-
-        # Construct query with proper graph contexts
-        insert_parts = []
-        for graph, triples in graphs.items():
-            graph_triples = []
-            for s, p, o in triples:
-                triple = f"{s.n3()} {p.n3()} {o.n3()}"
-                graph_triples.append(triple)
-
-            # Remove any square brackets around the graph URI
-            graph_uri = graph.n3().strip("[]")
-            graph_insert = f"GRAPH {graph_uri} {{ {' . '.join(graph_triples)} . }}"
-            insert_parts.append(graph_insert)
-
-        insert_query = f"""
-        INSERT DATA {{
-            {' '.join(insert_parts)}
-        }}
-        """
-
-        sparql.setQuery(insert_query)
-        try:
-            sparql.query()
-            print(f"Loaded chunk {(i//chunk_size)+1}/{total_chunks}")
-        except (EndPointNotFound, QueryBadFormed, EndPointInternalError) as e:
-            print(f"Error loading chunk: {e}")
-            continue
+        _process_chunk(triples[i:i + chunk_size], sparql, (i // chunk_size) + 1, total_chunks)
 
 
 def main():
