@@ -1,9 +1,0 @@
-FROM java
-
-ADD target/spvb-2.2.1.jar /versioning/versioning.jar
-
-COPY required_files/query_templates/* /versioning/query_templates/
-
-WORKDIR /versioning
-
-CMD java -cp versioning.jar org.hobbit.core.run.ComponentStarter org.hobbit.benchmark.versioning.components.VersioningTaskGenerator

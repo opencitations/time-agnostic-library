@@ -1,8 +1,0 @@
-#  Query Type: 1, Modern version materialization
-#  Query Description : 
-#  The full current version of the dataset is retreived  
-
-SELECT ?s ?p ?o
-WHERE {
-  GRAPH {{{graphVmax}}} { ?s ?p ?o }
-}

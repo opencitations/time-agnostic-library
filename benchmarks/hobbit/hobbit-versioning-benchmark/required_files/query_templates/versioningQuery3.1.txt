@@ -1,6 +1,0 @@
-#  Query Type: 3, Historical version materialization
-
-SELECT ?s ?p ?o
-WHERE {
-  GRAPH {{{graphVhistorical}}} { ?s ?p ?o }
-}
