@@ -1,3 +1,10 @@
+## [4.7.1](https://github.com/opencitations/time-agnostic-library/compare/4.7.0...4.7.1) (2025-04-17)
+
+
+### Bug Fixes
+
+* updated the metadata structure to initialize `wasDerivedFrom` as an empty list and populate it with derived entity URIs. ([f5ac68f](https://github.com/opencitations/time-agnostic-library/commit/f5ac68f1e70209dc750f796e46e8625554352ba0))
+
 # [4.7.0](https://github.com/opencitations/time-agnostic-library/compare/4.6.15...4.7.0) (2025-04-17)
 
 
