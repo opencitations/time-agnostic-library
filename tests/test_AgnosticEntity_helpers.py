@@ -55,8 +55,10 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
                 rdflib.term.Literal('2021-06-01T18:46:41+00:00'): [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-31T18:19:47+00:00"', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }"', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#generatedAtTime> "2021-06-01T18:46:41+00:00"', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#generatedAtTime> "2021-06-01T18:46:41+00:00"',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }"', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
@@ -109,10 +111,12 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#wasAttributedTo> <https://orcid.org/0000-0002-8420-0696>', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }"^^<http://www.w3.org/2001/XMLSchema#string>', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#hadPrimarySource> "http://api.crossref.org/journals/0138-9130"', 
+            '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1>',
             '''<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://purl.org/dc/terms/description> "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified."''', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#generatedAtTime> "2021-06-01T18:46:41+00:00"^^<http://www.w3.org/2001/XMLSchema#dateTime>', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#wasAttributedTo> <https://orcid.org/0000-0002-8420-0696>', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }"^^<http://www.w3.org/2001/XMLSchema#string>', 
+            '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2>',
             '''<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://purl.org/dc/terms/description> "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified."''', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
@@ -129,21 +133,29 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': 'http://api.crossref.org/journals/0138-9130', 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.", 
-                    'hasUpdateQuery': 'INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }'}, 
+                    'hasUpdateQuery': 'INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }',
+                    'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1']
+                }, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
                     'generatedAtTime': '2021-06-01T18:46:41+00:00', 
                     'invalidatedAtTime': None, 
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': None, 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.", 
-                    'hasUpdateQuery': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'}, 
+                    'hasUpdateQuery': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }',
+                    'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2']
+                }, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
                     'generatedAtTime': '2021-05-07T09:59:15+00:00', 
                     'invalidatedAtTime': None, 
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': 'http://api.crossref.org/journals/0138-9130', 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.", 
-                    'hasUpdateQuery': None}}}
+                    'hasUpdateQuery': None,
+                    'wasDerivedFrom': []
+                }
+            }
+        }
         self.assertEqual(output, expected_output)
 
     def test__include_prov_metadata_if_prov_input(self):
@@ -543,7 +555,8 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         expected_output = [
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"', 
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-06-01T18:46:41+00:00"', 
-            '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> \\"Giulio Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> \\"Giulio\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> \\"Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }"'
+            '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1>',
+            '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> \\"Giulio Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> \\"Giulio\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> \\"Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }\"'
         ]
         self.assertEqual(output, expected_output)
 

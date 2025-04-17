@@ -492,28 +492,42 @@ class AgnosticEntity:
             ProvEntity.iri_was_attributed_to: "wasAttributedTo", 
             ProvEntity.iri_had_primary_source: "hadPrimarySource", 
             ProvEntity.iri_description: "description",
-            ProvEntity.iri_has_update_query: "hasUpdateQuery"
+            ProvEntity.iri_has_update_query: "hasUpdateQuery",
+            ProvEntity.iri_was_derived_from: "wasDerivedFrom"
         }
         prov_metadata = {
             self.res: dict()
         }
         for triple in triples_generated_at_time:
             time = convert_to_datetime(triple[2], stringify=True)
-            prov_metadata[self.res][str(triple[0])] = {
+            snapshot_uri_str = str(triple[0])
+            prov_metadata[self.res][snapshot_uri_str] = {
                 "generatedAtTime": time,
                 "invalidatedAtTime": None,
                 "wasAttributedTo": None,
                 "hadPrimarySource": None,
                 "description": None,
-                "hasUpdateQuery": None
+                "hasUpdateQuery": None,
+                "wasDerivedFrom": [] # Initialize as empty list
             }
         for entity, metadata in dict(prov_metadata).items():
-            for se, _ in metadata.items():
+            for se_uri_str, snapshot_data in metadata.items():
+                se_uri = URIRef(se_uri_str)
                 for prov_property, abbr in prov_properties.items():
-                    triples_with_property = list(current_state.triples(
-                    (URIRef(se), prov_property, None)))
+                    triples_with_property = list(current_state.triples((se_uri, prov_property, None)))
                     for triple in triples_with_property:
-                        prov_metadata[entity][str(triple[0])][abbr] = str(triple[2])
+                        value = str(triple[2])
+                        if abbr == "wasDerivedFrom":
+                            if not isinstance(snapshot_data[abbr], list):
+                                snapshot_data[abbr] = []
+                            snapshot_data[abbr].append(value)
+                        else:
+                            snapshot_data[abbr] = value
+                
+                # Sort wasDerivedFrom list to ensure deterministic order
+                if "wasDerivedFrom" in snapshot_data and isinstance(snapshot_data["wasDerivedFrom"], list):
+                    snapshot_data["wasDerivedFrom"] = sorted(snapshot_data["wasDerivedFrom"])
+                            
         return prov_metadata
 
     def _get_entity_current_state(self, include_prov_metadata: bool = False) -> list:
@@ -759,7 +773,8 @@ class AgnosticEntity:
                               <{ProvEntity.iri_had_primary_source}> ?source;
                               <{ProvEntity.iri_description}> ?description;
                               <{ProvEntity.iri_has_update_query}> ?updateQuery;
-                              <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime.
+                              <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime;
+                              <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot.
                 }} 
                 WHERE {{
                     ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
@@ -769,18 +784,21 @@ class AgnosticEntity:
                     OPTIONAL {{ ?snapshot <{ProvEntity.iri_had_primary_source}> ?source. }}   
                     OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
                     OPTIONAL {{ ?snapshot <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime. }}  
+                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot. }}
                 }}
             """
         else:
             query_provenance = f"""
                 CONSTRUCT {{
                     ?snapshot <{ProvEntity.iri_generated_at_time}> ?t;      
-                              <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                              <{ProvEntity.iri_has_update_query}> ?updateQuery;
+                              <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot.
                 }} 
                 WHERE {{
                     ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
                               <{ProvEntity.iri_generated_at_time}> ?t.
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}   
+                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
+                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot. }}
                 }}
             """
         return Sparql(query_provenance, config=self.config).run_construct_query()

@@ -105,21 +105,29 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': None, 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.", 
-                    'hasUpdateQuery': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }'}, 
+                    'hasUpdateQuery': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }',
+                    'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2']
+                }, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
                     'generatedAtTime': '2021-05-07T09:59:15+00:00', 
                     'invalidatedAtTime': '2021-05-31T18:19:47+00:00', 
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': None, 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.", 
-                    'hasUpdateQuery': None}, 
+                    'hasUpdateQuery': None,
+                    'wasDerivedFrom': []
+                }, 
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
                     'generatedAtTime': '2021-05-31T18:19:47+00:00', 
                     'invalidatedAtTime': '2021-06-01T18:46:41+00:00', 
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
                     'hadPrimarySource': None, 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.", 
-                    'hasUpdateQuery': 'INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }'}}}
+                    'hasUpdateQuery': 'INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }',
+                    'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1']
+                }
+            }
+        }
 
         self.assertEqual(output_0, expected_output_0)
         self.assertEqual(output_1, expected_output_1)
@@ -203,7 +211,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
-                    "hasUpdateQuery": "INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }"
+                    "hasUpdateQuery": "INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }",
+                    "wasDerivedFrom": ["https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1"]
                 },
                 "https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1": {
                     "generatedAtTime": "2021-05-07T09:59:15+00:00",
@@ -211,7 +220,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.",
-                    "hasUpdateQuery": None
+                    "hasUpdateQuery": None,
+                    "wasDerivedFrom": []
                 },
                 "https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3": {
                     "generatedAtTime": "2021-06-01T18:46:41+00:00",
@@ -219,7 +229,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
-                    "hasUpdateQuery": "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }"
+                    "hasUpdateQuery": "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }",
+                    "wasDerivedFrom": ["https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2"]
                 }
             },
             "https://github.com/arcangelo7/time_agnostic/ra/15519": {
@@ -229,7 +240,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/ra/15519' has been deleted.",
-                    "hasUpdateQuery": "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> \"Giulio Marini\"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> \"Giulio\"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> \"Marini\"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }"
+                    "hasUpdateQuery": "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> \"Giulio Marini\"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> \"Giulio\"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> \"Marini\"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }",
+                    "wasDerivedFrom": ["https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1"]
                 },
                 "https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1": {
                     "generatedAtTime": "2021-05-07T09:59:15+00:00",
@@ -237,7 +249,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/ra/15519' has been created.",
-                    "hasUpdateQuery": None
+                    "hasUpdateQuery": None,
+                    "wasDerivedFrom": []
                 }
             },
             "https://github.com/arcangelo7/time_agnostic/id/85509": {
@@ -247,7 +260,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/id/85509' has been created.",
-                    "hasUpdateQuery": None
+                    "hasUpdateQuery": None,
+                    "wasDerivedFrom": []
                 },
                 "https://github.com/arcangelo7/time_agnostic/id/85509/prov/se/2": {
                     "generatedAtTime": "2021-06-01T18:46:41+00:00",
@@ -255,7 +269,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/id/85509' has been deleted.",
-                    "hasUpdateQuery": "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/id/> { <https://github.com/arcangelo7/time_agnostic/id/85509> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid> . <https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> 'http://orcid.org/0000-0002-3259-2309'. <https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/datacite/Identifier> . } }"
+                    "hasUpdateQuery": "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/id/> { <https://github.com/arcangelo7/time_agnostic/id/85509> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid> . <https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> 'http://orcid.org/0000-0002-3259-2309'. <https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/datacite/Identifier> . } }",
+                    "wasDerivedFrom": ["https://github.com/arcangelo7/time_agnostic/id/85509/prov/se/1"]
                 }
             },
             "https://github.com/arcangelo7/time_agnostic/ra/4": {
@@ -265,7 +280,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been created.",
-                    "hasUpdateQuery": None
+                    "hasUpdateQuery": None,
+                    "wasDerivedFrom": []
                 },
                 "https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/2": {
                     "generatedAtTime": "2021-06-01T18:46:41+00:00",
@@ -273,7 +289,9 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been merged with 'https://github.com/arcangelo7/time_agnostic/ra/15519'.",
-                    "hasUpdateQuery": None
+                    "hasUpdateQuery": None,
+                    "wasDerivedFrom": ["https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1", 
+                                     "https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1"]
                 }
             },
             "https://github.com/arcangelo7/time_agnostic/id/14": {
@@ -283,7 +301,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been created.",
-                    "hasUpdateQuery": None
+                    "hasUpdateQuery": None,
+                    "wasDerivedFrom": []
                 },
                 "https://github.com/arcangelo7/time_agnostic/id/14/prov/se/2": {
                     "generatedAtTime": "2021-06-01T18:46:41+00:00",
@@ -291,7 +310,9 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been merged with 'https://github.com/arcangelo7/time_agnostic/id/85509'.",
-                    "hasUpdateQuery": None
+                    "hasUpdateQuery": None,
+                    "wasDerivedFrom": ['https://github.com/arcangelo7/time_agnostic/id/14/prov/se/1',
+                                     'https://github.com/arcangelo7/time_agnostic/id/85509/prov/se/1']
                 }
             }
         }
@@ -380,7 +401,9 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
                     'hadPrimarySource': None,
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been merged with 'https://github.com/arcangelo7/time_agnostic/ra/15519'.",
-                    'hasUpdateQuery': None
+                    'hasUpdateQuery': None,
+                    'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1', 
+                                     'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1']
                 },
                 'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1': {
                     'generatedAtTime': '2021-05-07T09:59:15+00:00',
@@ -388,7 +411,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
                     'hadPrimarySource': None,
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been created.",
-                    'hasUpdateQuery': None
+                    'hasUpdateQuery': None,
+                    'wasDerivedFrom': []
                 }
             },
             'https://github.com/arcangelo7/time_agnostic/id/14': {
@@ -398,15 +422,18 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
                     'hadPrimarySource': None,
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been created.",
-                    'hasUpdateQuery': None
+                    'hasUpdateQuery': None,
+                    'wasDerivedFrom': []
                 },
-                'https://github.com/arcangelo7/time_agnostic/id/14/prov/se/2': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00',
-                    'invalidatedAtTime': None,
-                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
-                    'hadPrimarySource': None,
-                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been merged with 'https://github.com/arcangelo7/time_agnostic/id/85509'.",
-                    'hasUpdateQuery': None
+                "https://github.com/arcangelo7/time_agnostic/id/14/prov/se/2": {
+                    "generatedAtTime": "2021-06-01T18:46:41+00:00",
+                    "invalidatedAtTime": None,
+                    "wasAttributedTo": "https://orcid.org/0000-0002-8420-0696",
+                    "hadPrimarySource": None,
+                    "description": "The entity 'https://github.com/arcangelo7/time_agnostic/id/14' has been merged with 'https://github.com/arcangelo7/time_agnostic/id/85509'.",
+                    "hasUpdateQuery": None,
+                    "wasDerivedFrom": ['https://github.com/arcangelo7/time_agnostic/id/14/prov/se/1',
+                                     'https://github.com/arcangelo7/time_agnostic/id/85509/prov/se/1']
                 }
             },
             'https://github.com/arcangelo7/time_agnostic/ra/15519': {
@@ -416,7 +443,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
                     'hadPrimarySource': None,
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/15519' has been created.",
-                    'hasUpdateQuery': None
+                    'hasUpdateQuery': None,
+                    'wasDerivedFrom': []
                 },
                 'https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2': {
                     'generatedAtTime': '2021-06-01T18:46:41+00:00',
@@ -424,7 +452,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
                     'hadPrimarySource': None,
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/15519' has been deleted.",
-                    'hasUpdateQuery': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> "Giulio Marini"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> "Giulio"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> "Marini"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }'
+                    'hasUpdateQuery': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> "Giulio Marini"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> "Giulio"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> "Marini"^^<http://www.w3.org/2001/XMLSchema#string> .\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }',
+                    'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1']
                 }
             },
             'https://github.com/arcangelo7/time_agnostic/id/85509': {
@@ -434,7 +463,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
                     'hadPrimarySource': None,
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/id/85509' has been created.",
-                    'hasUpdateQuery': None
+                    'hasUpdateQuery': None,
+                    'wasDerivedFrom': []
                 },
                 'https://github.com/arcangelo7/time_agnostic/id/85509/prov/se/2': {
                     'generatedAtTime': '2021-06-01T18:46:41+00:00',
@@ -442,7 +472,8 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
                     'hadPrimarySource': None,
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/id/85509' has been deleted.",
-                    'hasUpdateQuery': "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/id/> { <https://github.com/arcangelo7/time_agnostic/id/85509> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid> . <https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> 'http://orcid.org/0000-0002-3259-2309'. <https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/datacite/Identifier> . } }"
+                    'hasUpdateQuery': "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/id/> { <https://github.com/arcangelo7/time_agnostic/id/85509> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid> . <https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> 'http://orcid.org/0000-0002-3259-2309'. <https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/datacite/Identifier> . } }",
+                    'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/id/85509/prov/se/1']
                 }
             }
         }
