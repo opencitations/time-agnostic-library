@@ -140,6 +140,16 @@ class AgnosticEntity:
                         None if depth is None else depth - 1
                     )
 
+        # Find and collect entities merged into entity_uri based on provenance
+        merged_entities = self._find_merged_entities(entity_uri)
+        for merged_entity_uri in merged_entities:
+            # Ensure we don't re-process or recurse on the same entity via merge link immediately
+            if merged_entity_uri != entity_uri and merged_entity_uri not in processed_entities:
+                self._collect_related_entities_recursively(
+                    merged_entity_uri, processed_entities, histories, include_prov_metadata,
+                    None if depth is None else depth - 1
+                )
+
     def _get_merged_histories(
         self, 
         histories: Dict[str, Tuple[Dict[str, Dict[str, Graph]], Union[Dict[str, Dict[str, str]], None]]], 
@@ -293,6 +303,16 @@ class AgnosticEntity:
                         obj_uri, processed_entities, histories, time, include_prov_metadata, 
                         None if depth is None else depth -1
                     )
+
+        # Find and collect entities merged into entity_uri based on provenance
+        merged_entities = self._find_merged_entities(entity_uri)
+        for merged_entity_uri in merged_entities:
+            # Ensure we don't re-process or recurse on the same entity via merge link immediately
+            if merged_entity_uri != entity_uri and merged_entity_uri not in processed_entities:
+                self._collect_related_entities_states_at_time(
+                    merged_entity_uri, processed_entities, histories, time, include_prov_metadata,
+                    None if depth is None else depth - 1
+                )
 
     def _get_merged_histories_at_time(
         self, 
@@ -764,6 +784,42 @@ class AgnosticEntity:
                 }}
             """
         return Sparql(query_provenance, config=self.config).run_construct_query()
+
+    def _find_merged_entities(self, entity_uri: str) -> Set[str]:
+        """
+        Finds entities that were merged into the given entity_uri based on provenance.
+        An entity is considered merged if one of its snapshots was used in a prov:wasDerivedFrom
+        relation by a snapshot of entity_uri.
+        """
+        merged_entity_uris = set()
+        # This simple query works regardless of quadstore configuration, 
+        # assuming all necessary provenance triples are accessible.
+        query_simple = f"""
+            SELECT DISTINCT ?merged_entity_uri
+            WHERE {{
+                # Find snapshots specializing the current entity
+                ?snapshot <{ProvEntity.iri_specialization_of}> <{entity_uri}> .
+                # Find snapshots from which the current entity's snapshots were derived
+                ?snapshot <{ProvEntity.iri_was_derived_from}> ?derived_snapshot .
+                # Find the entity specialized by the derived snapshot
+                ?derived_snapshot <{ProvEntity.iri_specialization_of}> ?merged_entity_uri .
+                # Exclude cases where the derived snapshot belongs to the same entity
+                FILTER (?merged_entity_uri != <{entity_uri}>)
+            }}
+        """
+        try:
+            results = Sparql(query_simple, config=self.config).run_select_query()
+            bindings = results.get('results', {}).get('bindings', [])
+            for binding in bindings:
+                if 'merged_entity_uri' in binding and 'value' in binding['merged_entity_uri']:
+                    merged_entity_uris.add(binding['merged_entity_uri']['value'])
+        except Exception as e:
+            # Log the error or handle it appropriately
+            print(f"Error querying for merged entities for {entity_uri}: {e}")
+            # Depending on requirements, you might want to raise the exception
+            # or return an empty set to allow processing to continue.
+
+        return merged_entity_uris
 
 def _filter_timestamps_by_interval(interval: Tuple[str, str], iterator: list, time_index: str = None) -> list:
     if interval:
