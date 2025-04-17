@@ -1,3 +1,10 @@
+# [4.7.0](https://github.com/opencitations/time-agnostic-library/compare/4.6.15...4.7.0) (2025-04-17)
+
+
+### Features
+
+* [release] include merged entities in history retrieval ([a2f186a](https://github.com/opencitations/time-agnostic-library/commit/a2f186a262427ee7cd0dafc6b10333c0ab995071))
+
 ## [4.6.15](https://github.com/opencitations/time-agnostic-library/compare/4.6.14...4.6.15) (2025-03-12)
 
 
