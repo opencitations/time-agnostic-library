@@ -1,3 +1,27 @@
+# [5.0.0](https://github.com/opencitations/time-agnostic-library/compare/4.7.1...5.0.0) (2025-05-29)
+
+
+### Features
+
+* Add script to find representative entities for benchmarking ([c457cee](https://github.com/opencitations/time-agnostic-library/commit/c457ceedcda721406dfb12ad5974d804e4d45066))
+* **agnostic_entity:** remove cache and enhance entity relationships ([b9258b7](https://github.com/opencitations/time-agnostic-library/commit/b9258b768d082907696ec5720bfe70e529021255))
+* Enhance entity selection script with local file analysis and improved SPARQL querying ([bd5d871](https://github.com/opencitations/time-agnostic-library/commit/bd5d8714d305b913220d36e290d4e15c411407b7))
+
+
+### BREAKING CHANGES
+
+* **agnostic_entity:** - Added new parameters to AgnosticEntity:
+  - `include_related_objects`: Enables inclusion of related objects
+  - `include_merged_entities`: Controls inclusion of merged entities
+  - `include_reverse_relations`: Manages reverse relationship inclusion
+- Removed all caching functionality as it was deemed obsolete and non-functional
+- Increased test coverage for new features
+- Removed untested and deprecated features
+
+This change requires updates to all code that instantiates or interacts with AgnosticEntity objects.
+
+[release]
+
 ## [4.7.1](https://github.com/opencitations/time-agnostic-library/compare/4.7.0...4.7.1) (2025-04-17)
 
 
