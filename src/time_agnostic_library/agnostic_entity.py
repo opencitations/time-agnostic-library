@@ -96,16 +96,39 @@ class AgnosticEntity:
         :returns:  Tuple[dict, Union[dict, None]] -- The output is always a two-element tuple. The first is a dictionary containing all the versions of a given resource. The second is a dictionary containing all the provenance metadata linked to that resource if **include_prov_metadata** is True, None if False.
         """
         if self.include_related_objects or self.include_merged_entities or self.include_reverse_relations:
-            processed_entities = set()
             histories = {}
-            self._collect_related_entities_recursively(self.res, processed_entities, histories, include_prov_metadata)
+            self._collect_all_related_entities_histories(histories, include_prov_metadata)
             return self._get_merged_histories(histories, include_prov_metadata)
         else:
             entity_history = self._get_entity_current_state(include_prov_metadata)
             entity_history = self._get_old_graphs(entity_history)
             return tuple(entity_history)
 
-    def _collect_related_entities_recursively(
+    def _collect_all_related_entities_histories(
+        self, 
+        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]], 
+        include_prov_metadata: bool
+    ) -> None:
+        """
+        Collects histories for all related entities using three separate recursions.
+        """
+        main_entity = AgnosticEntity(self.res, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+        entity_history = main_entity._get_entity_current_state(include_prov_metadata)
+        entity_history = main_entity._get_old_graphs(entity_history)
+        histories[self.res] = (entity_history[0], entity_history[1])
+
+        processed_entities = {self.res}
+
+        if self.include_related_objects:
+            self._collect_related_objects_recursively(self.res, processed_entities, histories, include_prov_metadata)
+
+        if self.include_merged_entities:
+            self._collect_merged_entities_recursively(self.res, processed_entities, histories, include_prov_metadata)
+
+        if self.include_reverse_relations:
+            self._collect_reverse_relations_recursively(self.res, processed_entities, histories, include_prov_metadata)
+
+    def _collect_related_objects_recursively(
         self, 
         entity_uri: str, 
         processed_entities: Set[str], 
@@ -114,85 +137,94 @@ class AgnosticEntity:
         depth: int = None
     ) -> None:
         """
-        Recursively collects entities and their histories.
-
-        :param entity_uri: The URI of the entity to start from.
-        :param processed_entities: A set to keep track of already processed entities to avoid cycles.
-        :param histories: A dictionary to store the histories of entities.
-        :param include_prov_metadata: Whether to include provenance metadata.
-        :param depth: Maximum recursion depth, if None, unlimited.
+        Recursively collects entities that are objects of the given entity.
         """
         if depth is not None and depth <= 0:
             return
 
-        if entity_uri in processed_entities:
-            return
-        
-        processed_entities.add(entity_uri)
-
-        agnostic_entity = AgnosticEntity(entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-        entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
-        entity_history = agnostic_entity._get_old_graphs(entity_history)
-        histories[entity_uri] = (entity_history[0], entity_history[1])
-        
         next_depth = None if depth is None else depth - 1
 
-        self._process_additional_entities(
-            entity_uri, processed_entities, next_depth,
-            lambda uri: self._collect_related_entities_recursively(uri, processed_entities, histories, include_prov_metadata, next_depth),
-            entity_graphs=entity_history[0][entity_uri]
-        )
+        entity_graphs = histories[entity_uri][0][entity_uri] if entity_uri in histories else None
+        if not entity_graphs:
+            return
 
-    def _process_additional_entities(
-        self,
-        entity_uri: str,
-        processed_entities: Set[str],
-        depth: int,
-        recursive_callback,
-        entity_graphs: Dict[str, Graph] = None
-    ) -> None:
-        """
-        Helper generic method to process additional entities (related objects, merged entities, reverse relations)
-        
-        :param entity_uri: URI of the current entity
-        :param processed_entities: Set of already processed entities
-        :param depth: Recursion depth
-        :param recursive_callback: Function to call recursively for each found entity
-        :param entity_graphs: Entity graphs to find related objects (optional)
-        """
-        if self.include_related_objects and entity_graphs:
-            self._find_and_process_related_objects(entity_uri, entity_graphs, recursive_callback)
-        
-        if self.include_merged_entities:
-            self._find_and_process_merged_entities(entity_uri, processed_entities, recursive_callback)
-        
-        if self.include_reverse_relations:
-            self._find_and_process_reverse_relations(entity_uri, processed_entities, recursive_callback)
-
-    def _find_and_process_related_objects(self, entity_uri: str, entity_graphs: Dict[str, Graph], recursive_callback):
-        """Find and process related objects"""
+        related_objects = set()
         for timestamp, graph in entity_graphs.items():
-            related_entities = graph.triples((URIRef(entity_uri), None, None))
-            for triple in related_entities:
+            for triple in graph.triples((URIRef(entity_uri), None, None)):
                 predicate = triple[1]
                 obj = triple[2]
                 if isinstance(obj, URIRef) and ProvEntity.PROV not in predicate and predicate != RDF.type:
                     obj_uri = str(obj)
-                    recursive_callback(obj_uri)
+                    related_objects.add(obj_uri)
 
-    def _find_and_process_merged_entities(self, entity_uri: str, processed_entities: Set[str], recursive_callback):
-        """Find and process merged entities"""
+        for obj_uri in related_objects:
+            if obj_uri not in processed_entities:
+                processed_entities.add(obj_uri)
+                
+                agnostic_entity = AgnosticEntity(obj_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+                entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
+                entity_history = agnostic_entity._get_old_graphs(entity_history)
+                histories[obj_uri] = (entity_history[0], entity_history[1])
+                
+                self._collect_related_objects_recursively(obj_uri, processed_entities, histories, include_prov_metadata, next_depth)
+
+    def _collect_merged_entities_recursively(
+        self, 
+        entity_uri: str, 
+        processed_entities: Set[str], 
+        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]], 
+        include_prov_metadata: bool, 
+        depth: int = None
+    ) -> None:
+        """
+        Recursively collects entities that were merged into the given entity.
+        """
+        if depth is not None and depth <= 0:
+            return
+
+        next_depth = None if depth is None else depth - 1
+
         merged_entities = self._find_merged_entities(entity_uri)
-        for merged_entity_uri in merged_entities:
-            if merged_entity_uri != entity_uri and merged_entity_uri not in processed_entities:
-                recursive_callback(merged_entity_uri)
 
-    def _find_and_process_reverse_relations(self, entity_uri: str, processed_entities: Set[str], recursive_callback):
-        """Find and process reverse relations"""
+        for merged_entity_uri in merged_entities:
+            if merged_entity_uri not in processed_entities:
+                processed_entities.add(merged_entity_uri)
+                
+                agnostic_entity = AgnosticEntity(merged_entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+                entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
+                entity_history = agnostic_entity._get_old_graphs(entity_history)
+                histories[merged_entity_uri] = (entity_history[0], entity_history[1])
+                
+                self._collect_merged_entities_recursively(merged_entity_uri, processed_entities, histories, include_prov_metadata, next_depth)
+
+    def _collect_reverse_relations_recursively(
+        self, 
+        entity_uri: str, 
+        processed_entities: Set[str], 
+        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]], 
+        include_prov_metadata: bool, 
+        depth: int = None
+    ) -> None:
+        """
+        Recursively collects entities that have the given entity as an object.
+        """
+        if depth is not None and depth <= 0:
+            return
+
+        next_depth = None if depth is None else depth - 1
+
         reverse_related_entities = self._find_reverse_related_entities(entity_uri)
+
         for reverse_entity_uri in reverse_related_entities:
-            if reverse_entity_uri != entity_uri and reverse_entity_uri not in processed_entities:
-                recursive_callback(reverse_entity_uri)
+            if reverse_entity_uri not in processed_entities:
+                processed_entities.add(reverse_entity_uri)
+                
+                agnostic_entity = AgnosticEntity(reverse_entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+                entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
+                entity_history = agnostic_entity._get_old_graphs(entity_history)
+                histories[reverse_entity_uri] = (entity_history[0], entity_history[1])
+                
+                self._collect_reverse_relations_recursively(reverse_entity_uri, processed_entities, histories, include_prov_metadata, next_depth)
 
     def _get_merged_histories(
         self, 
@@ -303,14 +335,37 @@ class AgnosticEntity:
         :returns: Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]], Union[Dict[str, Dict[str, Dict[str, str]]], None]] -- The method returns a tuple of three elements: the first is a dictionary mapping entity URIs to their graphs at timestamps within the specified interval; the second contains the snapshots metadata of the states that have been returned; if the **include_prov_metadata** parameter is True, the third element of the tuple is the metadata on the other snapshots, otherwise an empty dictionary.
         """
         if self.include_related_objects or self.include_merged_entities or self.include_reverse_relations:
-            processed_entities = set()
             histories = {}
-            self._collect_related_entities_states_at_time(self.res, processed_entities, histories, time, include_prov_metadata)
+            self._collect_all_related_entities_states_at_time(histories, time, include_prov_metadata)
             return self._get_merged_histories_at_time(histories, include_prov_metadata)
         else:
             return self._get_entity_state_at_time(time, include_prov_metadata)
 
-    def _collect_related_entities_states_at_time(
+    def _collect_all_related_entities_states_at_time(
+        self, 
+        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
+        time: Tuple[Union[str, None]], 
+        include_prov_metadata: bool
+    ) -> None:
+        """
+        Collects states at time for all related entities using three separate recursions.
+        """
+        main_entity = AgnosticEntity(self.res, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+        entity_graphs, entity_snapshots, other_snapshots_metadata = main_entity._get_entity_state_at_time(time, include_prov_metadata)
+        histories[self.res] = (entity_graphs, entity_snapshots, other_snapshots_metadata)
+
+        processed_entities = {self.res}
+
+        if self.include_related_objects:
+            self._collect_related_objects_states_at_time(self.res, processed_entities, histories, time, include_prov_metadata)
+
+        if self.include_merged_entities:
+            self._collect_merged_entities_states_at_time(self.res, processed_entities, histories, time, include_prov_metadata)
+
+        if self.include_reverse_relations:
+            self._collect_reverse_relations_states_at_time(self.res, processed_entities, histories, time, include_prov_metadata)
+
+    def _collect_related_objects_states_at_time(
         self, 
         entity_uri: str, 
         processed_entities: Set[str], 
@@ -319,25 +374,94 @@ class AgnosticEntity:
         include_prov_metadata: bool, 
         depth: int = None
     ) -> None:
+        """
+        Recursively collects entity states at time for entities that are objects of the given entity.
+        """
         if depth is not None and depth <= 0:
             return
 
-        if entity_uri in processed_entities:
+        next_depth = None if depth is None else depth - 1
+
+        entity_graphs = histories[entity_uri][0] if entity_uri in histories else None
+        if not entity_graphs:
             return
 
-        processed_entities.add(entity_uri)
+        related_objects = set()
+        for timestamp, graph in entity_graphs.items():
+            for triple in graph.triples((URIRef(entity_uri), None, None)):
+                predicate = triple[1]
+                obj = triple[2]
+                if isinstance(obj, URIRef) and ProvEntity.PROV not in predicate and predicate != RDF.type:
+                    obj_uri = str(obj)
+                    related_objects.add(obj_uri)
 
-        agnostic_entity = AgnosticEntity(entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-        entity_graphs, entity_snapshots, other_snapshots_metadata = agnostic_entity._get_entity_state_at_time(time, include_prov_metadata)
-        histories[entity_uri] = (entity_graphs, entity_snapshots, other_snapshots_metadata)
+        for obj_uri in related_objects:
+            if obj_uri not in processed_entities:
+                processed_entities.add(obj_uri)
+                
+                agnostic_entity = AgnosticEntity(obj_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+                entity_graphs, entity_snapshots, other_snapshots_metadata = agnostic_entity._get_entity_state_at_time(time, include_prov_metadata)
+                histories[obj_uri] = (entity_graphs, entity_snapshots, other_snapshots_metadata)
+                
+                self._collect_related_objects_states_at_time(obj_uri, processed_entities, histories, time, include_prov_metadata, next_depth)
+
+    def _collect_merged_entities_states_at_time(
+        self, 
+        entity_uri: str, 
+        processed_entities: Set[str], 
+        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
+        time: Tuple[Union[str, None]], 
+        include_prov_metadata: bool, 
+        depth: int = None
+    ) -> None:
+        """
+        Recursively collects entity states at time for entities that were merged into the given entity.
+        """
+        if depth is not None and depth <= 0:
+            return
 
         next_depth = None if depth is None else depth - 1
 
-        self._process_additional_entities(
-            entity_uri, processed_entities, next_depth,
-            lambda uri: self._collect_related_entities_states_at_time(uri, processed_entities, histories, time, include_prov_metadata, next_depth),
-            entity_graphs=entity_graphs
-        )
+        merged_entities = self._find_merged_entities(entity_uri)
+
+        for merged_entity_uri in merged_entities:
+            if merged_entity_uri not in processed_entities:
+                processed_entities.add(merged_entity_uri)
+                
+                agnostic_entity = AgnosticEntity(merged_entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+                entity_graphs, entity_snapshots, other_snapshots_metadata = agnostic_entity._get_entity_state_at_time(time, include_prov_metadata)
+                histories[merged_entity_uri] = (entity_graphs, entity_snapshots, other_snapshots_metadata)
+                
+                self._collect_merged_entities_states_at_time(merged_entity_uri, processed_entities, histories, time, include_prov_metadata, next_depth)
+
+    def _collect_reverse_relations_states_at_time(
+        self, 
+        entity_uri: str, 
+        processed_entities: Set[str], 
+        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
+        time: Tuple[Union[str, None]], 
+        include_prov_metadata: bool, 
+        depth: int = None
+    ) -> None:
+        """
+        Recursively collects entity states at time for entities that have the given entity as an object.
+        """
+        if depth is not None and depth <= 0:
+            return
+
+        next_depth = None if depth is None else depth - 1
+
+        reverse_related_entities = self._find_reverse_related_entities(entity_uri)
+
+        for reverse_entity_uri in reverse_related_entities:
+            if reverse_entity_uri not in processed_entities:
+                processed_entities.add(reverse_entity_uri)
+                
+                agnostic_entity = AgnosticEntity(reverse_entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+                entity_graphs, entity_snapshots, other_snapshots_metadata = agnostic_entity._get_entity_state_at_time(time, include_prov_metadata)
+                histories[reverse_entity_uri] = (entity_graphs, entity_snapshots, other_snapshots_metadata)
+                
+                self._collect_reverse_relations_states_at_time(reverse_entity_uri, processed_entities, histories, time, include_prov_metadata, next_depth)
 
     def _get_merged_histories_at_time(
         self, 
@@ -550,11 +674,6 @@ class AgnosticEntity:
             return entity_current_state
         for quad in self._query_dataset(self.res).quads():
             current_state.add(quad)
-        if self.include_related_objects or self.include_merged_entities or self.include_reverse_relations:
-            processed_entities = set()
-            self._collect_related_entities_current_state(
-                self.res, processed_entities, current_state
-            )
         triples_generated_at_time = list(
             current_state.triples((None, ProvEntity.iri_generated_at_time, None))
         )
@@ -577,33 +696,6 @@ class AgnosticEntity:
         else:
             entity_current_state.append(None)
         return entity_current_state
-
-    def _collect_related_entities_current_state(
-        self,
-        entity_uri: str,
-        processed_entities: Set[str],
-        current_state: ConjunctiveGraph,
-        depth: int = None
-    ) -> None:
-        if depth is not None and depth <= 0:
-            return
-
-        if entity_uri in processed_entities:
-            return
-
-        processed_entities.add(entity_uri)
-
-        entity_graph = self._query_dataset(entity_uri)
-        for quad in entity_graph.quads():
-            current_state.add(quad)
-
-        next_depth = None if depth is None else depth - 1
-
-        self._process_additional_entities(
-            entity_uri, processed_entities, next_depth,
-            lambda uri: self._collect_related_entities_current_state(uri, processed_entities, current_state, next_depth),
-            entity_graphs={None: entity_graph}
-        )
 
     def _get_old_graphs(self, entity_current_state:List[Dict[str, Dict[str, ConjunctiveGraph]]]) -> list:
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(

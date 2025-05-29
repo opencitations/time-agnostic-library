@@ -48,7 +48,7 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
 
     def test_collect_related_entities_recursively_with_zero_depth(self):
         """
-        Test _collect_related_entities_recursively with depth = 0.
+        Test _collect_related_objects_recursively with depth = 0.
         This should trigger the early return condition: if depth is not None and depth <= 0: return
         """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -63,7 +63,8 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         processed_entities = set()
         histories = {}
         
-        agnostic_entity._collect_related_entities_recursively(
+        # Test the related objects recursion with depth 0
+        agnostic_entity._collect_related_objects_recursively(
             entity_uri, processed_entities, histories, include_prov_metadata=False, depth=0
         )
         
@@ -72,7 +73,7 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
 
     def test_collect_related_entities_recursively_with_negative_depth(self):
         """
-        Test _collect_related_entities_recursively with depth < 0.
+        Test _collect_related_objects_recursively with depth < 0.
         This should also trigger the early return condition: if depth is not None and depth <= 0: return
         """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -87,7 +88,8 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         processed_entities = set()
         histories = {}
         
-        agnostic_entity._collect_related_entities_recursively(
+        # Test the related objects recursion with negative depth
+        agnostic_entity._collect_related_objects_recursively(
             entity_uri, processed_entities, histories, include_prov_metadata=False, depth=-1
         )
         
@@ -96,7 +98,7 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
 
     def test_collect_related_entities_states_at_time_with_zero_depth(self):
         """
-        Test _collect_related_entities_states_at_time with depth = 0.
+        Test _collect_related_objects_states_at_time with depth = 0.
         This should trigger the early return condition: if depth is not None and depth <= 0: return
         """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -112,7 +114,8 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         histories = {}
         time_interval = ("2021-05-01T00:00:00+00:00", "2021-06-30T23:59:59+00:00")
         
-        agnostic_entity._collect_related_entities_states_at_time(
+        # Test the related objects states at time recursion with depth 0
+        agnostic_entity._collect_related_objects_states_at_time(
             entity_uri, processed_entities, histories, time_interval, include_prov_metadata=False, depth=0
         )
         
@@ -121,7 +124,7 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
 
     def test_collect_related_entities_states_at_time_with_negative_depth(self):
         """
-        Test _collect_related_entities_states_at_time with depth < 0.
+        Test _collect_related_objects_states_at_time with depth < 0.
         This should also trigger the early return condition: if depth is not None and depth <= 0: return
         """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -137,50 +140,13 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         histories = {}
         time_interval = ("2021-05-01T00:00:00+00:00", "2021-06-30T23:59:59+00:00")
         
-        agnostic_entity._collect_related_entities_states_at_time(
+        # Test the related objects states at time recursion with negative depth
+        agnostic_entity._collect_related_objects_states_at_time(
             entity_uri, processed_entities, histories, time_interval, include_prov_metadata=False, depth=-5
         )
         
         self.assertEqual(len(processed_entities), 0)
         self.assertEqual(len(histories), 0)
-
-    def test_process_additional_entities_with_reverse_relations_true(self):
-        """
-        Test _process_additional_entities with include_reverse_relations=True.
-        This should trigger the execution of: if self.include_reverse_relations: self._find_and_process_reverse_relations(...)
-        """
-        entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        agnostic_entity = AgnosticEntity(
-            entity_uri,
-            config=CONFIG,
-            include_related_objects=False,
-            include_merged_entities=False,
-            include_reverse_relations=True
-        )
-        
-        processed_entities = set()
-        callback_called_with = []
-        
-        def mock_recursive_callback(uri):
-            callback_called_with.append(uri)
-        
-        with patch.object(agnostic_entity, '_find_reverse_related_entities') as mock_find_reverse:
-            mock_find_reverse.return_value = {
-                "https://github.com/arcangelo7/time_agnostic/br/15655",
-                "https://github.com/arcangelo7/time_agnostic/br/15656"
-            }
-            
-            agnostic_entity._process_additional_entities(
-                entity_uri, processed_entities, depth=1, recursive_callback=mock_recursive_callback
-            )
-            
-            mock_find_reverse.assert_called_once_with(entity_uri)
-            
-            expected_calls = [
-                "https://github.com/arcangelo7/time_agnostic/br/15655",
-                "https://github.com/arcangelo7/time_agnostic/br/15656"
-            ]
-            self.assertEqual(sorted(callback_called_with), sorted(expected_calls))
 
     def test_get_history_with_reverse_relations(self):
         """
