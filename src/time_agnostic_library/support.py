@@ -23,29 +23,9 @@ from typing import Dict, List, Tuple
 from dateutil import parser
 from rdflib import Literal
 from rdflib.graph import ConjunctiveGraph
-from SPARQLWrapper import POST, SPARQLWrapper
 
 CONFIG_PATH = './config.json'
 
-def empty_the_cache(config_path:str = CONFIG_PATH) -> None:
-    '''
-    It empties the entire cache.
-    :param config_path: The path to the configuration file.
-    :type config_path: str, optional
-    '''
-    with open(config_path, encoding='utf8') as json_file:
-        cache_triplestores = json.load(json_file)['cache_triplestore_url']
-        read_triplestore_url = cache_triplestores['endpoint']
-        write_triplestore_url = cache_triplestores['update_endpoint']
-    if write_triplestore_url:
-        delete_everything_query = '''
-            DELETE {GRAPH ?g {?s ?p ?o}}
-            WHERE {GRAPH ?g {?s ?p ?o}}
-        '''
-        sparql = SPARQLWrapper(read_triplestore_url, updateEndpoint=write_triplestore_url)
-        sparql.setQuery(delete_everything_query)
-        sparql.setMethod(POST)
-        sparql.query()
 
 def generate_config_file(
         config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), dataset_is_quadstore:bool=True,
@@ -116,26 +96,6 @@ def convert_to_datetime(time_string: str, stringify: bool = False) -> datetime:
         if stringify:
             time = time.isoformat()
         return time
-
-def is_within_time_range(range_to_eval:Tuple[str, str], given_range:Tuple[str, str]) -> bool:
-    if not given_range:
-        return True
-    range_to_eval_start = convert_to_datetime(range_to_eval[0])
-    range_to_eval_end = convert_to_datetime(range_to_eval[1])
-    given_range_start = convert_to_datetime(given_range[0])
-    given_range_end = convert_to_datetime(given_range[1])
-    is_within_time_range = False
-    if given_range_start:
-        if range_to_eval_start >= given_range_start:
-            if given_range_end:
-                if range_to_eval_end <= given_range_end:
-                    is_within_time_range = True
-            else:
-                is_within_time_range = True
-    elif given_range_end:
-        if range_to_eval_end <= given_range_end:
-            is_within_time_range = True
-    return is_within_time_range
 
 def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     if cg is None:

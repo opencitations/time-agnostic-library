@@ -119,10 +119,10 @@ In this case, the output is always a two-element tuple. The first is a dictionar
   )
 ```
 
-Finally, the history of an entity and all related entities, along with their provenance metadata, can be obtained by switching to True the **related_entities_history** argument.
+Finally, the history of an entity and all related entities, along with their provenance metadata, can be obtained by setting the appropriate include_* parameters.
 
 ``` python
-  agnostic_entity = AgnosticEntity(res=RES_URI, related_entities_history=True, config_path=CONFIG_PATH)
+  agnostic_entity = AgnosticEntity(res=RES_URI, config=CONFIG, include_related_objects=True, include_merged_entities=True, include_reverse_relations=False)
   agnostic_entity.get_history(include_prov_metadata=True)
 ```
 

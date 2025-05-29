@@ -21,7 +21,6 @@ from datetime import datetime, timezone
 
 from SPARQLWrapper import JSON, SPARQLWrapper
 from time_agnostic_library.support import (convert_to_datetime,
-                                           empty_the_cache,
                                            generate_config_file)
 
 CONFIG_PATH = "tests/config_support_test.json"
@@ -63,19 +62,6 @@ class Test_Support(unittest.TestCase):
                 os.remove(self.config_path)
         except Exception as e:
             print(f"Error during cleanup: {e}")
-
-    def test_empty_the_cache(self):
-        empty_the_cache(CONFIG_PATH)
-        with open(CONFIG_PATH, encoding="utf8") as json_file:
-            cache_triplestore_url = json.load(json_file)["cache_triplestore_url"]["update_endpoint"]
-        if cache_triplestore_url:
-            sparql = SPARQLWrapper(cache_triplestore_url)
-            query = "select ?g where {GRAPH ?g {?s ?p ?o}}"
-            sparql.setQuery(query)
-            sparql.setReturnFormat(JSON)
-            results = sparql.queryAndConvert()
-            expected_results = {'head': {'vars': ['g']}, 'results': {'bindings': []}}
-            self.assertEqual(results, expected_results)
 
     def test_convert_to_datetime(self):
         input = "2021-05-21T19:08:56+00:00"

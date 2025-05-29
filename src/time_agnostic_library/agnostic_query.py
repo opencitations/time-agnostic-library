@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
+# Copyright (c) 2022-2025, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
 # with or without fee is hereby granted, provided that the above copyright notice
@@ -17,26 +17,21 @@
 
 import json
 import multiprocessing
-import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from typing import Dict, List, Set, Tuple, Union
 
 from rdflib import ConjunctiveGraph, Graph, Literal, URIRef, Variable
-from rdflib.namespace import XSD
 from rdflib.paths import InvPath
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
-from SPARQLWrapper.Wrapper import GET, JSON, POST, SPARQLWrapper
-from tqdm import tqdm
-
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity, _filter_timestamps_by_interval)
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
-from time_agnostic_library.support import (convert_to_datetime,
-                                           is_within_time_range)
+from time_agnostic_library.support import convert_to_datetime
+from tqdm import tqdm
 
 CONFIG_PATH = "./config.json"
 
@@ -52,7 +47,6 @@ class AgnosticQuery(object):
         else:
             with open(config_path, encoding="utf8") as json_file:
                 self.config = json.load(json_file)
-        self.__init_cache(self.config)
         self.__init_text_index(self.config)
         if on_time:
             after_time = convert_to_datetime(on_time[0], stringify=True)
@@ -79,18 +73,6 @@ class AgnosticQuery(object):
         self.graphdb_connector_name = config["graphdb_connector_name"]
         if len([index for index in [self.blazegraph_full_text_search, self.fuseki_full_text_search, self.virtuoso_full_text_search, self.graphdb_connector_name] if index]) > 1:
             raise ValueError("The use of multiple indexing systems simultaneously is currently not supported.")
-
-    def __init_cache(self, config:dict):
-        cache_triplestore_url = config["cache_triplestore_url"]
-        self.cache_endpoint = cache_triplestore_url["endpoint"] if not self.other_snapshots else None
-        if self.cache_endpoint:
-            self.sparql_select = SPARQLWrapper(self.cache_endpoint)
-            self.sparql_select.setMethod(GET)
-            self.sparql_update = SPARQLWrapper(cache_triplestore_url['update_endpoint'])
-            self.sparql_update.setMethod(POST)
-            self.already_cached_entities = set()
-            self.starting_cached_date = None
-            self.ending_cached_date = None
 
     def _process_query(self) -> List[Tuple]:
         algebra:CompValue = prepareQuery(self.query).algebra
@@ -161,37 +143,17 @@ class AgnosticQuery(object):
     def _rebuild_relevant_entity(self, entity:Union[URIRef, Literal]) -> None:
         if isinstance(entity, URIRef) and entity not in self.reconstructed_entities:
             self.reconstructed_entities.add(entity)
-            if self.cache_endpoint:
-                relevant_timestamps_in_cache = self._get_relevant_timestamps_from_cache(entity)
-                if relevant_timestamps_in_cache:
-                    for timestamp, cached_graph in relevant_timestamps_in_cache.items():
-                        timestamp = convert_to_datetime(timestamp, stringify=True)
-                        self.reconstructed_entities.add(entity)
-                        self.relevant_entities_graphs.setdefault(entity, dict())[timestamp] = cached_graph
-                    self.already_cached_entities.add(entity)
-                    return
-            agnostic_entity = AgnosticEntity(entity, config=self.config, related_entities_history=False)
+            agnostic_entity = AgnosticEntity(entity, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
             if self.on_time:
                 entity_graphs, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
                 if other_snapshots:
                     self.other_snapshots_metadata.update(other_snapshots)
                 if entity_graphs:
                     for relevant_timestamp, cg in entity_graphs.items():
-                        if self.cache_endpoint:
-                            self._cache_entity_graph(entity, cg, relevant_timestamp, entity_snapshots)
-                        # store in RAM
                         self.relevant_entities_graphs.setdefault(entity, dict())[relevant_timestamp] = cg
-                elif self.cache_endpoint:
-                    # Record that in this period there are no relevant timestamps
-                    self._cache_entity_graph(entity, ConjunctiveGraph(), dict(), dict())
             else:
                 entity_history = agnostic_entity.get_history(include_prov_metadata=True)
                 if entity_history[0][entity]:
-                    if self.cache_endpoint:
-                        for entity, reconstructed_graphs in entity_history[0].items():
-                            for timestamp, reconstructed_graph in reconstructed_graphs.items(): 
-                                self._cache_entity_graph(entity, reconstructed_graph, timestamp, entity_history[1])
-                    # store in RAM
                     self.relevant_entities_graphs.update(entity_history[0]) 
 
     def _get_query_to_identify(self, triple:list) -> str:
@@ -361,14 +323,6 @@ class AgnosticQuery(object):
                             executor.map(self._rebuild_relevant_entity, [result[variable_index] for result in results]) 
         return explicit_triples
 
-    def _upload_data_to_cache(self):
-        if self.cache_insert_queries:
-            chunks = [self.cache_insert_queries[i:i + 10] for i in range(0, len(self.cache_insert_queries), 10)]
-            for chunk in chunks:
-                self.sparql_update.setQuery('; '.join(chunk))
-                self.sparql_update.query()
-                self.cache_insert_queries = list()
-    
     def _align_snapshots(self) -> None:
         # Merge entities based on snapshots
         for _, snapshots in self.relevant_entities_graphs.items():
@@ -395,8 +349,6 @@ class AgnosticQuery(object):
                                 for quad in self.relevant_graphs[previous_se].quads((subject, None, None, None)):
                                     self.relevant_graphs[se].add(quad)
                                     graph_to_cache.add(quad[:3])
-                                if self.cache_endpoint:
-                                    self._cache_entity_graph(subject, graph_to_cache, se, dict())
         
     def _sort_relevant_graphs(self):
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
@@ -445,107 +397,6 @@ class AgnosticQuery(object):
                 return True
         return False
 
-    def _cache_entity_graph(self, entity:str, reconstructed_graph:ConjunctiveGraph, timestamp:str, prov_metadata:dict) -> None:
-        if entity in self.already_cached_entities:
-            return
-        reconstructed_graph = deepcopy(reconstructed_graph)
-        timestamp = convert_to_datetime(timestamp, stringify=True)
-        graph_iri = f"https://github.com/opencitations/time-agnostic-library/{timestamp}"
-        graph_iri_cache = f"{entity}/cache"
-        graph_iri_relevant = f"https://github.com/opencitations/time-agnostic-library/relevant/{timestamp}"
-        if self.starting_cached_date:
-            self.cache_insert_queries.append(f"DELETE DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> '{self.starting_cached_date}'}}}}")
-        if self.ending_cached_date:
-            self.cache_insert_queries.append(f"DELETE DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> '{self.ending_cached_date}'}}}}")
-        if not self.on_time:
-            self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> 'true'}}}}")
-        elif self.on_time:
-            if self.on_time[0]:
-                self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> '{self.on_time[0]}'}}}}")
-            if self.on_time[1]:
-                self.cache_insert_queries.append(f"INSERT DATA {{GRAPH <{graph_iri_cache}>{{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> '{self.on_time[1]}'}}}}")
-        insert_query = get_insert_query(graph_iri=graph_iri, data=reconstructed_graph)[0]
-        if insert_query:
-            self.cache_insert_queries.append(insert_query)
-        prov = Graph()
-        if prov_metadata: 
-            prov.add((URIRef(entity), URIRef('https://github.com/opencitations/time-agnostic-library/hasRelevantTime'), Literal(timestamp, datatype=XSD.string)))
-        prov_insert_query = get_insert_query(graph_iri=graph_iri_relevant, data=prov)[0]
-        if prov_insert_query:
-            self.cache_insert_queries.append(prov_insert_query)
-
-    def _get_relevant_timestamps_from_cache(self, entity:URIRef) -> Dict[str, Graph]:
-        cached_graphs = dict()
-        query_completeness = f"""
-        OPTIONAL {{GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.}}}}
-        OPTIONAL {{
-            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> ?startingDate. }}
-        }}
-        OPTIONAL {{
-            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> ?endingDate. }}
-        }}
-        """ if not self.on_time else f"""
-        OPTIONAL {{
-            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/isComplete> ?complete.}}
-        }}
-        OPTIONAL {{
-            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasStartingDate> ?startingDate. }}
-        }}
-        OPTIONAL {{
-            GRAPH <{entity}/cache> {{<{entity}/entity> <https://github.com/opencitations/time-agnostic-library/hasEndingDate> ?endingDate. }}
-        }}
-        """
-        select = '?complete ?startingDate ?endingDate' if self.on_time else '?complete'
-        query_timestamps = f"""
-        SELECT DISTINCT ?p ?o ?datatype ?c {select}
-        WHERE {{
-            OPTIONAL {{            
-                GRAPH ?c {{
-                    <{URIRef(entity)}> ?p ?o. 
-                    BIND (datatype(?o) AS ?datatype).}}
-            }}
-            {query_completeness}                 
-        }}
-        """
-        query_relevant_timestamps = f"""
-        SELECT DISTINCT ?relevant
-        WHERE {{<{entity}> <https://github.com/opencitations/time-agnostic-library/hasRelevantTime> ?relevant.}}
-        """
-        self.sparql_select.setQuery(query_relevant_timestamps)
-        self.sparql_select.setReturnFormat(JSON)
-        relevant_timestamps = {relevant_timestamp['relevant']['value'] for relevant_timestamp in self.sparql_select.queryAndConvert()['results']['bindings']}
-        self.sparql_select.setQuery(query_timestamps)
-        results = self.sparql_select.queryAndConvert()
-        is_within_cached_interval = False
-        if results["results"]["bindings"]:
-            completeness_info = results["results"]["bindings"][0]
-            if "complete" in completeness_info:
-                if completeness_info["complete"]["value"] == "true":
-                    is_within_cached_interval = True
-            starting_date = completeness_info["startingDate"]["value"] if "startingDate" in completeness_info else None
-            ending_date = completeness_info["endingDate"]["value"] if "endingDate" in completeness_info else None
-            self.starting_cached_date = starting_date
-            self.ending_cached_date = ending_date
-            if not is_within_cached_interval and self.on_time:
-                is_within_cached_interval = is_within_time_range(self.on_time, (starting_date, ending_date))
-            if is_within_cached_interval:
-                # Relevant times must be checked separately, because if in a certain snapshot the entity has been deleted, 
-                # that time will be among the relevant times but not among the times found
-                for relevant_timestamp in relevant_timestamps:
-                    if is_within_time_range((relevant_timestamp, relevant_timestamp), self.on_time):
-                        cached_graphs.setdefault(relevant_timestamp, ConjunctiveGraph())
-                for result in results["results"]["bindings"]:
-                    if relevant_timestamps:
-                        found_timestamp = result["c"]["value"].split("https://github.com/opencitations/time-agnostic-library/")[-1]
-                        if found_timestamp in relevant_timestamps and is_within_time_range((found_timestamp, found_timestamp), self.on_time):
-                            obj = result["o"]["value"]
-                            obj = Literal(obj) if 'datatype' in result else URIRef(obj)
-                            cached_graphs[found_timestamp].add((URIRef(entity), URIRef(result["p"]["value"]), obj))
-            if starting_date and is_within_time_range(self.on_time, (starting_date, None)):
-                cached_graphs.setdefault(starting_date, ConjunctiveGraph())
-            if ending_date and is_within_time_range(self.on_time, (None, ending_date)):
-                cached_graphs.setdefault(ending_date, ConjunctiveGraph())
-        return cached_graphs
 
 class VersionQuery(AgnosticQuery):
     """
@@ -563,18 +414,9 @@ class VersionQuery(AgnosticQuery):
 
     def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph) -> tuple:
         output = set()
-        if self.cache_endpoint:
-            split_by_where = re.split(pattern="where", string=self.query, maxsplit=1, flags=re.IGNORECASE)
-            query_named_graph = split_by_where[0] + f"FROM <https://github.com/opencitations/time-agnostic-library/{timestamp}> WHERE" + split_by_where[1]
-            self.sparql_select.setQuery(query_named_graph)
-            self.sparql_select.setReturnFormat(JSON)
-            sparql_results = self.sparql_select.queryAndConvert()
-            vars_list = sparql_results["head"]["vars"]
-            results = sparql_results["results"]["bindings"]
-        else:
-            query_results = graph.query(self.query)
-            vars_list = query_results.vars
-            results = query_results.bindings
+        query_results = graph.query(self.query)
+        vars_list = query_results.vars
+        results = query_results.bindings
         for result in results:
             Sparql._get_tuples_set(result, output, vars_list)
         normalized_timestamp = convert_to_datetime(timestamp, stringify=True)
@@ -587,7 +429,6 @@ class VersionQuery(AgnosticQuery):
         
         :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
         """
-        self._upload_data_to_cache()
         agnostic_result:dict[str, Set[Tuple]] = dict()
         with ThreadPoolExecutor() as executor:
             for future in [executor.submit(self._query_reconstructed_graph, timestamp, graph) for timestamp, graph in self.relevant_graphs.items()]:

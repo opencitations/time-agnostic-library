@@ -134,7 +134,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
     
     def test_get_history_with_related_entities_author_role(self):
         input_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        entity = AgnosticEntity(input_uri, related_entities_history=True, config=CONFIG)
+        entity = AgnosticEntity(input_uri, include_related_objects=True, include_merged_entities=True, include_reverse_relations=False, config=CONFIG)
         history, prov_metadata = entity.get_history(include_prov_metadata=True)
         # Convert results to normalized format for comparison
         history_dict = _to_dict_of_nt_sorted_lists(history)
@@ -320,7 +320,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
 
     def test_get_history_and_related_entities(self):
         input = "https://github.com/arcangelo7/time_agnostic/ra/4"
-        output = AgnosticEntity(input, related_entities_history=True, config=CONFIG).get_history(include_prov_metadata=False)
+        output = AgnosticEntity(input, include_related_objects=True, include_merged_entities=True, include_reverse_relations=False, config=CONFIG).get_history(include_prov_metadata=False)
         output_0 = _to_dict_of_nt_sorted_lists(output[0])
         expected_output_0 = {
             'https://github.com/arcangelo7/time_agnostic/ra/4': {
@@ -358,7 +358,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
 
     def test_get_history_and_related_entities_with_metadata(self):
         input = "https://github.com/arcangelo7/time_agnostic/ra/4"
-        output = AgnosticEntity(input, related_entities_history=True, config=CONFIG).get_history(include_prov_metadata=True)
+        output = AgnosticEntity(input, include_related_objects=True, include_merged_entities=True, include_reverse_relations=False, config=CONFIG).get_history(include_prov_metadata=True)
         output_0 = _to_dict_of_nt_sorted_lists(output[0])
         output_1 = output[1]
         expected_output_0 = {

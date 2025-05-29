@@ -46,7 +46,7 @@ class TestAgnosticEntityStateAtTime(unittest.TestCase):
 
     def test_get_state_at_time_and_related_entities_with_metadata(self):
         input = "https://github.com/arcangelo7/time_agnostic/ra/4"
-        output = AgnosticEntity(input, related_entities_history=True, config=CONFIG).get_state_at_time(
+        output = AgnosticEntity(input, include_related_objects=True, include_merged_entities=True, include_reverse_relations=False, config=CONFIG).get_state_at_time(
             time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), include_prov_metadata=True
         )
         output_0 = _to_dict_of_nt_sorted_lists(output[0])
@@ -190,8 +190,6 @@ class TestAgnosticEntityStateAtTime(unittest.TestCase):
                     'hadPrimarySource': None, 
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified."}}
         , {})
-        import json
-        print(json.dumps(output, indent=4))
         self.assertEqual(output, expected_output)
 
     def test_get_state_at_interval_no_hooks(self):
