@@ -1,3 +1,10 @@
+## [5.0.1](https://github.com/opencitations/time-agnostic-library/compare/5.0.0...5.0.1) (2025-05-29)
+
+
+### Bug Fixes
+
+* **agnostic_entity:** isolate recursive collection methods ([b51686d](https://github.com/opencitations/time-agnostic-library/commit/b51686d80a55693bb17016d980b7bedfeb5beb3f))
+
 # [5.0.0](https://github.com/opencitations/time-agnostic-library/compare/4.7.1...5.0.0) (2025-05-29)
 
 
