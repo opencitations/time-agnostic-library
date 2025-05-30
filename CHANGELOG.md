@@ -1,3 +1,10 @@
+## [5.0.2](https://github.com/opencitations/time-agnostic-library/compare/5.0.1...5.0.2) (2025-05-30)
+
+
+### Performance Improvements
+
+* upgrade RDFLib to v7.1.4 and remove query locks ([d25fa38](https://github.com/opencitations/time-agnostic-library/commit/d25fa384056e13618cee95a04213aee856b339aa))
+
 ## [5.0.1](https://github.com/opencitations/time-agnostic-library/compare/5.0.0...5.0.1) (2025-05-29)
 
 
