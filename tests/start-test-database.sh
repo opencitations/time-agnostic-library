@@ -4,13 +4,18 @@
 # Get the absolute path of the current directory
 CURRENT_DIR="$(pwd)"
 
-# Create test database directory if it doesn't exist
-mkdir -p "${CURRENT_DIR}/tests/test_db"
+# Remove test database directory if it exists and create a new one
+TEST_DB_DIR="${CURRENT_DIR}/tests/test_db"
+if [ -d "${TEST_DB_DIR}" ]; then
+    echo "Removing existing test database directory..."
+    rm -rf "${TEST_DB_DIR}"
+fi
+mkdir -p "${TEST_DB_DIR}"
 
 # Check if container already exists and remove it if it does
 if [ "$(docker ps -a -q -f name=test-virtuoso)" ]; then
-    echo "Removing existing test-virtuoso container..."
-    docker rm -f test-virtuoso
+    echo "Removing existing test-virtuoso container and its volumes..."
+    docker rm -f -v test-virtuoso
 fi
 
 # Start Virtuoso database

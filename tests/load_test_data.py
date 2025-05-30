@@ -3,16 +3,14 @@
 """Test data loading script for the time-agnostic-library test suite."""
 
 import time
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
+
 from rdflib import ConjunctiveGraph
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
-from SPARQLWrapper.SPARQLExceptions import (
-    EndPointNotFound,
-    QueryBadFormed,
-    EndPointInternalError,
-    SPARQLWrapperException
-)
+from SPARQLWrapper import JSON, POST, SPARQLWrapper
+from SPARQLWrapper.SPARQLExceptions import (EndPointInternalError,
+                                            EndPointNotFound, QueryBadFormed,
+                                            SPARQLWrapperException)
 
 
 def wait_for_virtuoso(endpoint="http://localhost:9999/sparql", timeout=30):
@@ -116,6 +114,8 @@ def main():
     if check_data_exists():
         print("Test data already present in the database.")
         return
+    else:
+        print("Test data not found in the database. Loading...")
 
     # Load the data
     data_file = Path(__file__).parent / "kb" / "data.nq"
