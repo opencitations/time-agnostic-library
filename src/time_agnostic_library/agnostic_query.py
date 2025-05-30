@@ -16,7 +16,6 @@
 
 
 import json
-import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from typing import Dict, List, Set, Tuple, Union
@@ -621,18 +620,13 @@ class DeltaQuery(AgnosticQuery):
         output = dict()
         print(f"[DeltaQuery:INFO] Identifying changed entities.")
         pbar = tqdm(total=len(self.reconstructed_entities))
-        l = multiprocessing.Lock()
-        with ThreadPoolExecutor(initializer=init_lock, initargs=(l,)) as executor:
+        with ThreadPoolExecutor() as executor:
             futures = executor.map(self.__identify_changed_entities, self.reconstructed_entities)
             for future in futures:
                 output.update(future)
                 pbar.update()
         pbar.close()        
         return output
-
-def init_lock(l):
-    global lock
-    lock = l
 
 def get_insert_query(graph_iri: URIRef, data: Graph) -> Tuple[str, int]:
     num_of_statements: int = len(data)

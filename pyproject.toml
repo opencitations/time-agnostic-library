@@ -23,9 +23,9 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.9,<3.14"
 python_dateutil = "^2.8.2"
-rdflib = "6.3.2"
 SPARQLWrapper = "2.0.0"
 tqdm = "^4.62.3" 
+rdflib = "^7.1.4"
 
 [tool.poetry.group.dev.dependencies]
 chardet = "^4.0.0"

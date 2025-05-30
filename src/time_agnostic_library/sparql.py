@@ -15,7 +15,6 @@
 # SOFTWARE.
 
 
-import multiprocessing
 from typing import Set, Tuple, List
 import zipfile
 from rdflib import XSD, ConjunctiveGraph
@@ -28,7 +27,6 @@ from SPARQLWrapper import JSON, POST, RDFXML, SPARQLWrapper
 from time_agnostic_library.prov_entity import ProvEntity
 
 CONFIG_PATH = "./config.json"
-lock = multiprocessing.Lock()
 
 class Sparql:
     """
@@ -106,9 +104,7 @@ class Sparql:
                         file_cg.parse(file=file, format="json-ld")
             else:
                 file_cg.parse(location=file_path, format="json-ld")
-            lock.acquire()
             query_results = file_cg.query(self.query)
-            lock.release()
             vars_list = [str(var) for var in query_results.vars]
             output['head']['vars'] = vars_list
             for result in query_results:
@@ -194,9 +190,7 @@ class Sparql:
     def _get_graph_from_triplestores(self) -> ConjunctiveGraph:
         cg = ConjunctiveGraph()
         storer = self.storer["triplestore_urls"]
-        lock.acquire()
         prepare_query:Query = prepareQuery(self.query)
-        lock.release()
         algebra:CompValue = prepare_query.algebra
         for url in storer:
             sparql = SPARQLWrapper(url)
@@ -247,9 +241,7 @@ class Sparql:
         output.add(tuple(results_list))
     
     def _cut_by_limit(self, input):
-        lock.acquire()
         algebra:CompValue = prepareQuery(self.query).algebra
-        lock.release()
         if "length" in algebra["p"]:
             limit = int(algebra["p"]["length"])
             input = input[:limit]

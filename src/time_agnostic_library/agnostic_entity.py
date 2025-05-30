@@ -15,7 +15,6 @@
 # SOFTWARE.
 
 import copy
-import threading
 from typing import Dict, List, Set, Tuple, Union
 
 from rdflib import RDF, BNode, Graph, Literal, Namespace, URIRef
@@ -46,8 +45,6 @@ class AgnosticEntity:
     :type config: dict
     """
 
-    _parser_lock = threading.Lock()
-    
     def __init__(self, res:str, config:dict, include_related_objects:bool=False, include_merged_entities:bool=False, include_reverse_relations:bool=False):
         self.res = res
         self.include_related_objects = include_related_objects
@@ -787,8 +784,7 @@ class AgnosticEntity:
             return graph_literal == query_literal
 
         try:
-            with cls._parser_lock:
-                parsed_query = parser.parseUpdate(update_query)
+            parsed_query = parser.parseUpdate(update_query)
             namespace_manager = extract_namespaces(parsed_query)
             operations = extract_quads_from_update(parsed_query, namespace_manager)
             for operation_type, quads in operations:
