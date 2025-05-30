@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
+# Copyright (c) 2022-2025, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
 # with or without fee is hereby granted, provided that the above copyright notice
@@ -15,15 +15,13 @@
 # SOFTWARE.
 
 
-import unittest
-from time_agnostic_library.agnostic_query import VersionQuery
-from time_agnostic_library.support import (_to_conjunctive_graph,
-                                           _to_dict_of_conjunctive_graphs,
-                                           _to_dict_of_nt_sorted_lists)
-import rdflib
-import json
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
 import os
+import unittest
+
+import rdflib
+from time_agnostic_library.agnostic_query import VersionQuery
+from time_agnostic_library.support import (_to_dict_of_conjunctive_graphs,
+                                           _to_dict_of_nt_sorted_lists)
 
 CONFIG_PATH = os.path.join('tests', 'config.json')
 CONFIG_VIRTUOSO = os.path.join('tests', 'config_virtuoso.json')
