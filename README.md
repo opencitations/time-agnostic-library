@@ -393,7 +393,7 @@ poetry run coverage report
 ```
 4. You can also generate an HTML coverage report:
 ```bash
-poetry run coverage html -d htmlcov
+poetry run coverage html -d htmlcov 
 ```
 5. After the tests, stop the database:
 ```bash
