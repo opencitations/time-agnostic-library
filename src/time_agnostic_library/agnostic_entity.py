@@ -779,14 +779,31 @@ class AgnosticEntity:
 
         def match_literal(graph_literal, query_literal):
             if isinstance(graph_literal, Literal) and isinstance(query_literal, Literal):
-                return (graph_literal.value == query_literal.value and
-                        (graph_literal.datatype == query_literal.datatype or query_literal.datatype is None))
+                # Check datatype compatibility first
+                datatypes_match = (graph_literal.datatype == query_literal.datatype or query_literal.datatype is None)
+                
+                # Try value comparison, fallback to string comparison if values are None
+                values_match = False
+                graph_value = graph_literal.value
+                query_value = query_literal.value
+                
+                if graph_value is not None and query_value is not None:
+                    values_match = graph_value == query_value
+                elif graph_value is None and query_value is None:
+                    # Both values are None (like xsd:gYear), compare string representations
+                    values_match = str(graph_literal) == str(query_literal)
+                else:
+                    # One is None, one is not - no match
+                    values_match = False
+                
+                return values_match and datatypes_match
             return graph_literal == query_literal
 
         try:
             parsed_query = parser.parseUpdate(update_query)
             namespace_manager = extract_namespaces(parsed_query)
             operations = extract_quads_from_update(parsed_query, namespace_manager)
+            
             for operation_type, quads in operations:
                 if operation_type == 'DeleteData':
                     for quad in quads:
