@@ -1,3 +1,10 @@
+## [5.0.3](https://github.com/opencitations/time-agnostic-library/compare/5.0.2...5.0.3) (2025-07-07)
+
+
+### Bug Fixes
+
+* **agnostic_entity:** improve literal matching logic in query processing ([9f26506](https://github.com/opencitations/time-agnostic-library/commit/9f2650637c60ea1a18f797f5c8a2ee7ffd913b0d))
+
 ## [5.0.2](https://github.com/opencitations/time-agnostic-library/compare/5.0.1...5.0.2) (2025-05-30)
 
 
