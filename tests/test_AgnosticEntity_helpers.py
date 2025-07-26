@@ -54,10 +54,13 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 rdflib.term.Literal('2021-06-01T18:46:41+00:00'): [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#specializationOf> <https://github.com/arcangelo7/time_agnostic/ar/15519>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-31T18:19:47+00:00"', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#specializationOf> <https://github.com/arcangelo7/time_agnostic/ar/15519>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }"', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#generatedAtTime> "2021-06-01T18:46:41+00:00"',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#specializationOf> <https://github.com/arcangelo7/time_agnostic/ar/15519>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }"', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
@@ -553,8 +556,10 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         input = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ra/15519", config=CONFIG)
         output = _to_nt_sorted_list(input._query_provenance())
         expected_output = [
-            '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"', 
-            '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-06-01T18:46:41+00:00"', 
+            '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"',
+            '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/ns/prov#specializationOf> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
+            '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-06-01T18:46:41+00:00"',
+            '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <http://www.w3.org/ns/prov#specializationOf> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1>',
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> \\"Giulio Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> \\"Giulio\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> \\"Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }\"'
         ]

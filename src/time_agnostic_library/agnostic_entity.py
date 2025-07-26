@@ -719,8 +719,13 @@ class AgnosticEntity:
                     entity_current_state[0][self.res][date_graph[0]] = previous_graph
         for time in list(entity_current_state[0][self.res]):
             cg_no_pro = entity_current_state[0][self.res].pop(time)
-            for prov_property in ProvEntity.get_prov_properties():
-                cg_no_pro.remove((None, prov_property, None))
+            prov_entities = set()
+            for triple in cg_no_pro.triples((None, ProvEntity.iri_specialization_of, URIRef(self.res))):
+                prov_entities.add(triple[0])
+            
+            for prov_entity in prov_entities:
+                cg_no_pro.remove((prov_entity, None, None))
+            
             time_str = convert_to_datetime(time, stringify=True)
             entity_current_state[0][self.res][time_str] = cg_no_pro
         return entity_current_state
@@ -872,7 +877,8 @@ class AgnosticEntity:
                               <{ProvEntity.iri_description}> ?description;
                               <{ProvEntity.iri_has_update_query}> ?updateQuery;
                               <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime;
-                              <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot.
+                              <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot;
+                              <{ProvEntity.iri_specialization_of}> <{self.res}>.
                 }} 
                 WHERE {{
                     ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
@@ -890,7 +896,8 @@ class AgnosticEntity:
                 CONSTRUCT {{
                     ?snapshot <{ProvEntity.iri_generated_at_time}> ?t;      
                               <{ProvEntity.iri_has_update_query}> ?updateQuery;
-                              <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot.
+                              <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot;
+                              <{ProvEntity.iri_specialization_of}> <{self.res}>.
                 }} 
                 WHERE {{
                     ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
