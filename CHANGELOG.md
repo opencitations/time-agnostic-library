@@ -1,3 +1,10 @@
+## [5.0.4](https://github.com/opencitations/time-agnostic-library/compare/5.0.3...5.0.4) (2025-07-26)
+
+
+### Bug Fixes
+
+* **agnostic_entity:** [release] add prov:specializationOf triples for targeted entity removal ([7c562f1](https://github.com/opencitations/time-agnostic-library/commit/7c562f10f8741525fa61c6587d1f58d1df813e79))
+
 ## [5.0.3](https://github.com/opencitations/time-agnostic-library/compare/5.0.2...5.0.3) (2025-07-07)
 
 
