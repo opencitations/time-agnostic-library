@@ -222,7 +222,8 @@ class Sparql:
                             if 'datatype' in quad[var]:
                                 quad_to_add.append(Literal(quad[var]["value"], datatype=quad[var]['datatype']))
                             else:
-                                quad_to_add.append(Literal(quad[var]["value"], datatype=XSD.string))
+                                # Create literal without explicit datatype to preserve original representation
+                                quad_to_add.append(Literal(quad[var]["value"]))
                     cg.add(tuple(quad_to_add))
             elif algebra.name == "ConstructQuery":
                 sparql.setReturnFormat(RDFXML)
