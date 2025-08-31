@@ -1,3 +1,10 @@
+## [5.0.5](https://github.com/opencitations/time-agnostic-library/compare/5.0.4...5.0.5) (2025-08-31)
+
+
+### Bug Fixes
+
+* **sparql:** [release] preserve original literal representation without explicit datatype ([b6915a8](https://github.com/opencitations/time-agnostic-library/commit/b6915a8ab3a5b089b8c24d254080a0a71acc39e3))
+
 ## [5.0.4](https://github.com/opencitations/time-agnostic-library/compare/5.0.3...5.0.4) (2025-07-26)
 
 
