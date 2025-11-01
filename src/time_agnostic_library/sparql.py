@@ -17,7 +17,7 @@
 
 from typing import Set, Tuple, List
 import zipfile
-from rdflib import XSD, ConjunctiveGraph
+from rdflib import XSD, Dataset
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.sparql import Query
@@ -97,7 +97,7 @@ class Sparql:
     def _get_results_from_files(self, output: dict) -> dict:
         storer: List[str] = self.storer["file_paths"]
         for file_path in storer:
-            file_cg = ConjunctiveGraph()
+            file_cg = Dataset(default_union=True)
             if file_path.endswith('.zip'):
                 with zipfile.ZipFile(file_path, 'r') as z:
                     with z.open(z.namelist()[0]) as file:
@@ -142,13 +142,13 @@ class Sparql:
         else:
             return {'type': 'literal', 'value': str(value)}
 
-    def run_construct_query(self) -> ConjunctiveGraph:
+    def run_construct_query(self) -> Dataset:
         """
-        Given a CONSTRUCT query, it returns the results in a ConjunctiveGraph. 
+        Given a CONSTRUCT query, it returns the results in a Dataset. 
 
-        :returns:  ConjunctiveGraph -- A ConjunctiveGraph containing the results of the query.
+        :returns:  Dataset -- A Dataset containing the results of the query.
         """
-        cg = ConjunctiveGraph()
+        cg = Dataset(default_union=True)
         if self.storer["file_paths"]:
             results = self._get_graph_from_files()
             for quad in results.quads():
@@ -171,11 +171,11 @@ class Sparql:
             return results.get('boolean', False)
         return False
 
-    def _get_graph_from_files(self) -> ConjunctiveGraph:
-        cg = ConjunctiveGraph()
+    def _get_graph_from_files(self) -> Dataset:
+        cg = Dataset(default_union=True)
         storer = self.storer["file_paths"]
         for file_path in storer:
-            file_cg = ConjunctiveGraph()
+            file_cg = Dataset(default_union=True)
             if file_path.endswith('.zip'):
                 with zipfile.ZipFile(file_path, 'r') as z:
                     with z.open(z.namelist()[0]) as file:
@@ -187,8 +187,8 @@ class Sparql:
                 cg.add(result)
         return cg
 
-    def _get_graph_from_triplestores(self) -> ConjunctiveGraph:
-        cg = ConjunctiveGraph()
+    def _get_graph_from_triplestores(self) -> Dataset:
+        cg = Dataset(default_union=True)
         storer = self.storer["triplestore_urls"]
         prepare_query:Query = prepareQuery(self.query)
         algebra:CompValue = prepare_query.algebra

@@ -18,11 +18,11 @@
 import json
 import re
 from datetime import datetime, timezone
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from dateutil import parser
 from rdflib import Literal
-from rdflib.graph import ConjunctiveGraph
+from rdflib import Dataset
 
 CONFIG_PATH = './config.json'
 
@@ -97,10 +97,10 @@ def convert_to_datetime(time_string: str, stringify: bool = False) -> datetime:
             time = time.isoformat()
         return time
 
-def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
+def _to_nt_sorted_list(cg:Dataset) -> list:
     if cg is None:
         return None
-    normalized_cg = ConjunctiveGraph()
+    normalized_cg = Dataset(default_union=True)
     for quad in cg.quads():
         normalized_quad = tuple(Literal(str(el), datatype=None) if isinstance(el, Literal) else el for el in quad)
         normalized_cg.add(normalized_quad)
@@ -109,10 +109,10 @@ def _to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     sorted_nt_list = sorted(nt_list)
     return sorted_nt_list
 
-def _to_dict_of_nt_sorted_lists(dictionary:Dict[str, Dict[str, ConjunctiveGraph]]) -> Dict[str, Dict[str, List[str]]]:
+def _to_dict_of_nt_sorted_lists(dictionary:Dict[str, Dict[str, Dataset]]) -> Dict[str, Dict[str, List[str]]]:
     dict_of_nt_sorted_lists = dict()
     for key, value in dictionary.items():
-        if isinstance(value, ConjunctiveGraph):
+        if isinstance(value, Dataset):
             dict_of_nt_sorted_lists[key] = _to_nt_sorted_list(value)
         else:
             for snapshot, cg in value.items():
@@ -120,22 +120,22 @@ def _to_dict_of_nt_sorted_lists(dictionary:Dict[str, Dict[str, ConjunctiveGraph]
                 dict_of_nt_sorted_lists[key][snapshot] = _to_nt_sorted_list(cg)
     return dict_of_nt_sorted_lists
 
-def _to_conjunctive_graph(nt_list:List[str]) -> ConjunctiveGraph:
-    cg = ConjunctiveGraph()
+def _to_dataset(nt_list:List[str]) -> Dataset:
+    cg = Dataset(default_union=True)
     for triple in nt_list:
         cg.parse(data=triple + '.', format='nt')
     return cg
 
-def _to_dict_of_conjunctive_graphs(dictionary:Dict[str, Dict[str, List]]) -> Dict[str, Dict[str, ConjunctiveGraph]]:
-    dict_of_conjunctive_graphs = dict()
+def _to_dict_of_datasets(dictionary:Dict[str, Dict[str, List]]) -> Dict[str, Dict[str, Dataset]]:
+    dict_of_datasets = dict()
     for key, value in dictionary.items():
         if isinstance(value, list):
-            cg = _to_conjunctive_graph(value)
-            dict_of_conjunctive_graphs.setdefault(key, dict())
-            dict_of_conjunctive_graphs[key] = cg
+            cg = _to_dataset(value)
+            dict_of_datasets.setdefault(key, dict())
+            dict_of_datasets[key] = cg
         else:
             for snapshot, triples in value.items():
-                cg = _to_conjunctive_graph(triples)
-                dict_of_conjunctive_graphs.setdefault(key, dict())
-                dict_of_conjunctive_graphs[key][snapshot] = cg
-    return dict_of_conjunctive_graphs
+                cg = _to_dataset(triples)
+                dict_of_datasets.setdefault(key, dict())
+                dict_of_datasets[key][snapshot] = cg
+    return dict_of_datasets

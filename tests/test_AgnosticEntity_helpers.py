@@ -17,9 +17,9 @@
 import unittest
 
 import rdflib
-from rdflib.graph import ConjunctiveGraph
+from rdflib import Dataset
 from time_agnostic_library.agnostic_entity import AgnosticEntity
-from time_agnostic_library.support import (_to_conjunctive_graph,
+from time_agnostic_library.support import (_to_dataset,
                                            _to_dict_of_nt_sorted_lists,
                                            _to_nt_sorted_list)
 
@@ -105,7 +105,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
             (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3'), rdflib.term.URIRef('http://www.w3.org/ns/prov#generatedAtTime'), rdflib.term.Literal('2021-06-01T18:46:41+00:00', datatype=rdflib.term.URIRef('http://www.w3.org/2001/XMLSchema#dateTime'))), 
             (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1'), rdflib.term.URIRef('http://www.w3.org/ns/prov#generatedAtTime'), rdflib.term.Literal('2021-05-07T09:59:15+00:00', datatype=rdflib.term.URIRef('http://www.w3.org/2001/XMLSchema#dateTime')))
         ]
-        current_state = _to_conjunctive_graph([
+        current_state = _to_dataset([
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"^^<http://www.w3.org/2001/XMLSchema#dateTime>', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#wasAttributedTo> <https://orcid.org/0000-0002-8420-0696>', 
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#hadPrimarySource> "http://api.crossref.org/journals/0138-9130"', 
@@ -165,7 +165,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         triples_generated_at_time = [
             (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1'), rdflib.term.URIRef('http://www.w3.org/ns/prov#generatedAtTime'), rdflib.term.Literal('2021-05-07T09:59:15.000Z'))
         ]
-        current_state = _to_conjunctive_graph([
+        current_state = _to_dataset([
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://purl.org/dc/terms/description> "The entity \\\'https://github.com/arcangelo7/time_agnostic/ra/15519\\\' has been created."', 
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/prov#Entity>', 
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15.000Z"', 
@@ -179,7 +179,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         self.assertEqual(output, expected_output)
 
     def test__manage_long_update_queries_insert_data_only(self):
-        input_1 = ConjunctiveGraph()
+        input_1 = Dataset(default_union=True)
         input_2 = """
             DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/br/> { 
             <https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/spar/pro/isDocumentContextFor> <https://github.com/arcangelo7/time_agnostic/ar/2995> .
@@ -406,7 +406,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         self.assertEqual(output, expected_output)
 
     def test__manage_update_queries_if_short_query(self):
-        input_1 = ConjunctiveGraph()
+        input_1 = Dataset(default_union=True)
         input_1.add((
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/1'), 
             rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), 
@@ -431,7 +431,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         self.assertEqual(output, expected_output)
 
     def test_manage_update_queries_if_multiple_delete_update(self):
-        input_1 = ConjunctiveGraph()
+        input_1 = Dataset(default_union=True)
         input_2 = """
             INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/br/> { <https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/78745> .
             <https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/78741> .

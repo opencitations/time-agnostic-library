@@ -20,7 +20,7 @@ import unittest
 
 import rdflib
 from time_agnostic_library.agnostic_query import VersionQuery
-from time_agnostic_library.support import (_to_dict_of_conjunctive_graphs,
+from time_agnostic_library.support import (_to_dict_of_datasets,
                                            _to_dict_of_nt_sorted_lists)
 
 CONFIG_PATH = os.path.join('tests', 'config.json')
@@ -185,7 +185,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        agnostic_query.relevant_entities_graphs = _to_dict_of_conjunctive_graphs({
+        agnostic_query.relevant_entities_graphs = _to_dict_of_datasets({
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
@@ -246,7 +246,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        agnostic_query.relevant_entities_graphs = _to_dict_of_conjunctive_graphs({
+        agnostic_query.relevant_entities_graphs = _to_dict_of_datasets({
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
@@ -399,7 +399,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        agnostic_query.relevant_entities_graphs = _to_dict_of_conjunctive_graphs({
+        agnostic_query.relevant_entities_graphs = _to_dict_of_datasets({
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-05-31T18:19:47+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
@@ -471,7 +471,7 @@ class Test_VersionQuery(unittest.TestCase):
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
-        agnostic_query.relevant_entities_graphs = _to_dict_of_conjunctive_graphs({
+        agnostic_query.relevant_entities_graphs = _to_dict_of_datasets({
             rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
@@ -601,7 +601,7 @@ class Test_VersionQuery(unittest.TestCase):
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.vars_to_explicit_by_time = dict()
-        agnostic_query.relevant_graphs = _to_dict_of_conjunctive_graphs({
+        agnostic_query.relevant_graphs = _to_dict_of_datasets({
             '2021-06-01T18:46:41+00:00': [
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 

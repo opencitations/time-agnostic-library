@@ -17,8 +17,7 @@
 import copy
 from typing import Dict, List, Set, Tuple, Union
 
-from rdflib import RDF, BNode, Graph, Literal, Namespace, URIRef
-from rdflib.graph import ConjunctiveGraph, Graph
+from rdflib import RDF, BNode, Dataset, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import NamespaceManager
 from rdflib.plugins.sparql import parser
 from rdflib.term import BNode, URIRef
@@ -616,7 +615,7 @@ class AgnosticEntity:
             }
         return entity_graphs, entity_snapshots, other_snapshots_metadata
     
-    def _include_prov_metadata(self, triples_generated_at_time:list, current_state:ConjunctiveGraph) -> dict:
+    def _include_prov_metadata(self, triples_generated_at_time:list, current_state:Dataset) -> dict:
         if list(current_state.triples((URIRef(self.res), URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), ProvEntity.iri_entity))): 
             return dict()
         prov_properties = {
@@ -663,7 +662,7 @@ class AgnosticEntity:
 
     def _get_entity_current_state(self, include_prov_metadata: bool = False) -> list:
         entity_current_state = [{self.res: dict()}]
-        current_state = ConjunctiveGraph()
+        current_state = Dataset(default_union=True)
         for quad in self._query_provenance(include_prov_metadata).quads():
             current_state.add(quad)
         if len(current_state) == 0:
@@ -694,8 +693,8 @@ class AgnosticEntity:
             entity_current_state.append(None)
         return entity_current_state
 
-    def _get_old_graphs(self, entity_current_state:List[Dict[str, Dict[str, ConjunctiveGraph]]]) -> list:
-        ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
+    def _get_old_graphs(self, entity_current_state:List[Dict[str, Dict[str, Dataset]]]) -> list:
+        ordered_data: List[Tuple[str, Dataset]] = sorted(
             entity_current_state[0][self.res].items(),
             key=lambda x: convert_to_datetime(x[0]),
             reverse=True
@@ -703,7 +702,7 @@ class AgnosticEntity:
         for index, date_graph in enumerate(ordered_data):
             if index > 0:
                 next_snapshot = ordered_data[index-1][0]
-                previous_graph: ConjunctiveGraph = copy.deepcopy(entity_current_state[0][self.res][next_snapshot])
+                previous_graph: Dataset = copy.deepcopy(entity_current_state[0][self.res][next_snapshot])
                 snapshot_uri = previous_graph.value(
                     predicate=ProvEntity.iri_generated_at_time,
                     object=Literal(next_snapshot)
@@ -731,7 +730,7 @@ class AgnosticEntity:
         return entity_current_state
 
     @classmethod
-    def _manage_update_queries(cls, graph: ConjunctiveGraph, update_query: str) -> None:
+    def _manage_update_queries(cls, graph: Dataset, update_query: str) -> None:
         def extract_namespaces(parsed_query):
             namespace_manager = NamespaceManager(Graph())
             if hasattr(parsed_query, 'prologue') and parsed_query.prologue:
@@ -828,7 +827,7 @@ class AgnosticEntity:
             print(f"Error processing update query: {e}")
             print(f"Problematic query: {update_query}")
 
-    def _query_dataset(self, entity_uri: str = None) -> ConjunctiveGraph:
+    def _query_dataset(self, entity_uri: str = None) -> Dataset:
         # A SELECT hack can be used to return RDF quads in named graphs,
         # since the CONSTRUCT allows only to return triples in SPARQL 1.1.
         # Here is an example of SELECT hack using VALUES:
@@ -867,7 +866,7 @@ class AgnosticEntity:
 
         return Sparql(query_dataset, config=self.config).run_construct_query()
 
-    def _query_provenance(self, include_prov_metadata:bool=False) -> ConjunctiveGraph:
+    def _query_provenance(self, include_prov_metadata:bool=False) -> Dataset:
         if include_prov_metadata:
             query_provenance = f"""
                 CONSTRUCT {{

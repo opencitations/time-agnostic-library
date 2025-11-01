@@ -6,7 +6,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-from rdflib import ConjunctiveGraph
+from rdflib import Dataset
 from SPARQLWrapper import JSON, POST, SPARQLWrapper
 from SPARQLWrapper.SPARQLExceptions import (EndPointInternalError,
                                             EndPointNotFound, QueryBadFormed,
@@ -86,7 +86,7 @@ def load_data(data_file, endpoint="http://localhost:9999/sparql"):
     print(f"Loading data from {data_file}...")
 
     # Parse file and prepare data
-    g = ConjunctiveGraph()
+    g = Dataset(default_union=True)
     g.parse(data_file, format="nquads")
 
     # Setup SPARQL connection
