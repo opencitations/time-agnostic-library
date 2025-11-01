@@ -1,3 +1,12 @@
+## [5.0.6](https://github.com/opencitations/time-agnostic-library/compare/5.0.5...5.0.6) (2025-11-01)
+
+
+### Bug Fixes
+
+* **ci:** install Poetry and dev dependencies for documentation build ([884e332](https://github.com/opencitations/time-agnostic-library/commit/884e3329d4ac8176ec8f76b60d1397d6e849a7fd))
+* migrate from deprecated ConjunctiveGraph to Dataset and add edge case tests for agnostic_entity, agnostic_query, and sparql modules ([49ecfac](https://github.com/opencitations/time-agnostic-library/commit/49ecfac27601618187284856756f5fe7e9f465fe))
+* remove redundant and outdated edge case tests ([7c79179](https://github.com/opencitations/time-agnostic-library/commit/7c791798225989a477825f87c63dc48fb2cc5491))
+
 ## [5.0.5](https://github.com/opencitations/time-agnostic-library/compare/5.0.4...5.0.5) (2025-08-31)
 
 
