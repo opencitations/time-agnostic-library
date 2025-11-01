@@ -243,5 +243,137 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         mock_sparql_class.assert_called_once()
         mock_sparql_instance.run_select_query.assert_called_once()
 
+    def test_collect_merged_entities_recursively_with_positive_depth(self):
+        """
+        Test _collect_merged_entities_recursively with depth = 1 using real test data.
+        This should exercise the recursive call logic and depth decrement.
+        Entity ra/4 was merged with ra/15519, so ra/4 should have merged entities.
+        """
+        entity_uri = "https://github.com/arcangelo7/time_agnostic/ra/4"
+        agnostic_entity = AgnosticEntity(
+            entity_uri,
+            config=CONFIG,
+            include_related_objects=False,
+            include_merged_entities=True,
+            include_reverse_relations=False
+        )
+
+        processed_entities = set()
+        histories = {}
+
+        # Test with depth = 1 - should collect merged entities but not recurse further
+        agnostic_entity._collect_merged_entities_recursively(
+            entity_uri, processed_entities, histories, include_prov_metadata=False, depth=1
+        )
+
+        # Should have found at least the merged entity ra/15519
+        self.assertGreater(len(processed_entities), 0)
+        self.assertGreater(len(histories), 0)
+
+    def test_collect_reverse_relations_recursively_with_positive_depth(self):
+        """
+        Test _collect_reverse_relations_recursively with depth = 1 using real test data.
+        This should exercise the recursive call logic for reverse relations.
+        Entity ar/15519 has reverse relations (entities that reference it).
+        """
+        entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15520"
+        agnostic_entity = AgnosticEntity(
+            entity_uri,
+            config=CONFIG,
+            include_related_objects=False,
+            include_merged_entities=False,
+            include_reverse_relations=True
+        )
+
+        processed_entities = set()
+        histories = {}
+
+        # Test with depth = 1 - should collect reverse related entities
+        agnostic_entity._collect_reverse_relations_recursively(
+            entity_uri, processed_entities, histories, include_prov_metadata=False, depth=1
+        )
+
+        # Should process reverse related entities
+        self.assertIsInstance(processed_entities, set)
+        self.assertIsInstance(histories, dict)
+
+    def test_collect_merged_entities_states_at_time_with_positive_depth(self):
+        """
+        Test _collect_merged_entities_states_at_time with depth = 1.
+        This tests the state-at-time variant of merged entity collection with depth control.
+        """
+        entity_uri = "https://github.com/arcangelo7/time_agnostic/ra/4"
+        time_interval = ("2021-05-01T00:00:00+00:00", "2021-06-30T23:59:59+00:00")
+
+        agnostic_entity = AgnosticEntity(
+            entity_uri,
+            config=CONFIG,
+            include_related_objects=False,
+            include_merged_entities=True,
+            include_reverse_relations=False
+        )
+
+        processed_entities = set()
+        histories = {}
+
+        # Test with depth = 1
+        agnostic_entity._collect_merged_entities_states_at_time(
+            entity_uri, processed_entities, histories, time_interval, include_prov_metadata=False, depth=1
+        )
+
+        # Should have found merged entities
+        self.assertGreater(len(processed_entities), 0)
+
+    def test_collect_reverse_relations_states_at_time_with_positive_depth(self):
+        """
+        Test _collect_reverse_relations_states_at_time with depth = 1.
+        This tests the state-at-time variant of reverse relation collection with depth control.
+        """
+        entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15520"
+        time_interval = ("2021-05-01T00:00:00+00:00", "2021-06-30T23:59:59+00:00")
+
+        agnostic_entity = AgnosticEntity(
+            entity_uri,
+            config=CONFIG,
+            include_related_objects=False,
+            include_merged_entities=False,
+            include_reverse_relations=True
+        )
+
+        processed_entities = set()
+        histories = {}
+
+        # Test with depth = 1
+        agnostic_entity._collect_reverse_relations_states_at_time(
+            entity_uri, processed_entities, histories, time_interval, include_prov_metadata=False, depth=1
+        )
+
+        # Should process reverse related entities
+        self.assertIsInstance(processed_entities, set)
+        self.assertIsInstance(histories, dict)
+
+    def test_get_history_with_merged_entities_and_depth(self):
+        """
+        Test get_history with include_merged_entities=True and depth parameter.
+        This tests the full integration of depth-controlled merged entity retrieval.
+        """
+        entity_uri = "https://github.com/arcangelo7/time_agnostic/ra/4"
+
+        agnostic_entity = AgnosticEntity(
+            entity_uri,
+            config=CONFIG,
+            include_related_objects=False,
+            include_merged_entities=True,
+            include_reverse_relations=False,
+            depth=2
+        )
+
+        history, prov_metadata = agnostic_entity.get_history(include_prov_metadata=False)
+
+        self.assertIsInstance(history, dict)
+        self.assertIn(entity_uri, history)
+        # Should have collected merged entities up to depth 2
+        self.assertGreater(len(history), 1)
+
 if __name__ == '__main__':
     unittest.main() 

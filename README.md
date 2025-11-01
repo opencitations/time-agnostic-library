@@ -1,6 +1,6 @@
 [<img src="https://img.shields.io/badge/powered%20by-OpenCitations-%239931FC?labelColor=2D22DE" />](http://opencitations.net)
 [![run_tests](https://github.com/opencitations/time-agnostic-library/actions/workflows/run_tests.yml/badge.svg)](https://github.com/opencitations/time-agnostic-library/actions/workflows/run_tests.yml)
-![Coverage](https://byob.yarr.is/arcangelo7/badges/opencitations-time-agnostic-library-coverage-main)
+[![Coverage](https://byob.yarr.is/arcangelo7/badges/opencitations-time-agnostic-library-coverage-main)](https://opencitations.github.io/time-agnostic-library)
 ![PyPI](https://img.shields.io/pypi/pyversions/time-agnostic-library)
 [![PyPI version](https://badge.fury.io/py/time-agnostic-library.svg)](https://badge.fury.io/py/time-agnostic-library)
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/opencitations/time-agnostic-library)
