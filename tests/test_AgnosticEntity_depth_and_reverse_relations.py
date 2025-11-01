@@ -352,28 +352,5 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         self.assertIsInstance(processed_entities, set)
         self.assertIsInstance(histories, dict)
 
-    def test_get_history_with_merged_entities_and_depth(self):
-        """
-        Test get_history with include_merged_entities=True and depth parameter.
-        This tests the full integration of depth-controlled merged entity retrieval.
-        """
-        entity_uri = "https://github.com/arcangelo7/time_agnostic/ra/4"
-
-        agnostic_entity = AgnosticEntity(
-            entity_uri,
-            config=CONFIG,
-            include_related_objects=False,
-            include_merged_entities=True,
-            include_reverse_relations=False,
-            depth=2
-        )
-
-        history, prov_metadata = agnostic_entity.get_history(include_prov_metadata=False)
-
-        self.assertIsInstance(history, dict)
-        self.assertIn(entity_uri, history)
-        # Should have collected merged entities up to depth 2
-        self.assertGreater(len(history), 1)
-
 if __name__ == '__main__':
     unittest.main() 

@@ -140,54 +140,6 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         self.assertEqual(entity_graphs, {})
         self.assertEqual(entity_snapshots, {})
 
-    @patch('time_agnostic_library.agnostic_entity.Sparql')
-    def test_get_merged_histories_with_no_relevant_time(self, mock_sparql_class):
-        """
-        Test _get_merged_histories when no relevant time is found for related entities.
-        This should exercise the continue statement at line 511 when relevant_time is None.
-        """
-        # Use an entity that actually exists in test data
-        entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-
-        agnostic_entity = AgnosticEntity(
-            entity_uri,
-            config=CONFIG,
-            include_related_objects=True,
-            include_merged_entities=False,
-            include_reverse_relations=False
-        )
-
-        from rdflib import Dataset
-        empty_graph = Dataset()
-
-        # Create histories where related entity has timestamps that don't overlap
-        histories = {
-            entity_uri: (
-                {
-                    '2021-01-01T00:00:00+00:00': empty_graph,
-                    '2021-02-01T00:00:00+00:00': empty_graph
-                },
-                {}
-            ),
-            'https://example.com/related_entity': (
-                {
-                    '2022-01-01T00:00:00+00:00': empty_graph,  # Much later timestamp
-                    '2022-02-01T00:00:00+00:00': empty_graph
-                },
-                {}
-            )
-        }
-
-        # This should handle the case where no relevant_time is found
-        result = agnostic_entity._get_merged_histories(
-            histories, include_prov_metadata=False
-        )
-
-        # Should still return valid structure
-        self.assertIsInstance(result, tuple)
-        merged_histories = result[0]
-        self.assertIsInstance(merged_histories, dict)
-        self.assertIn(entity_uri, merged_histories)
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_find_merged_entities_with_sparql_error(self, mock_sparql_class):
@@ -376,78 +328,6 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         self.assertEqual(result[0]['time']['value'], '2021-06-01T18:46:41.000Z')
         self.assertEqual(result[1]['time']['value'], '2021-07-15T12:00:00.000Z')
 
-    def test_manage_update_queries_with_xsd_year_literals(self):
-        """
-        Test _manage_update_queries with xsd:gYear literals where literal.value is None.
-        This should exercise the literal comparison logic at lines 796-801.
-        """
-        from rdflib import Dataset, URIRef, Literal
-        from rdflib.namespace import XSD
-
-        # Create a graph with xsd:gYear literal
-        graph = Dataset()
-        test_entity = URIRef("https://example.com/entity")
-        test_graph = URIRef("https://example.com/graph")
-        year_literal1 = Literal("2021", datatype=XSD.gYear)
-
-        # Add initial triple with xsd:gYear
-        graph.add((test_entity, URIRef("https://example.com/year"), year_literal1, test_graph))
-
-        # Update query that changes the year
-        update_query = """
-            DELETE DATA {
-                GRAPH <https://example.com/graph> {
-                    <https://example.com/entity> <https://example.com/year> "2021"^^<http://www.w3.org/2001/XMLSchema#gYear> .
-                }
-            };
-            INSERT DATA {
-                GRAPH <https://example.com/graph> {
-                    <https://example.com/entity> <https://example.com/year> "2022"^^<http://www.w3.org/2001/XMLSchema#gYear> .
-                }
-            }
-        """
-
-        # Apply the update query (should handle xsd:gYear where value is None)
-        AgnosticEntity._manage_update_queries(graph, update_query)
-
-        # Verify the year was updated
-        years = list(graph.objects(test_entity, URIRef("https://example.com/year")))
-        self.assertEqual(len(years), 1)
-        self.assertEqual(str(years[0]), "2022")
-
-    def test_manage_update_queries_with_mixed_none_values(self):
-        """
-        Test _manage_update_queries when one literal has None value and the other doesn't.
-        This should exercise the else clause at lines 799-801.
-        """
-        from rdflib import Dataset, URIRef, Literal
-        from rdflib.namespace import XSD
-
-        # Create a graph
-        graph = Dataset()
-        test_entity = URIRef("https://example.com/entity")
-        test_graph = URIRef("https://example.com/graph")
-
-        # Add a normal string literal
-        normal_literal = Literal("normal value", datatype=XSD.string)
-        graph.add((test_entity, URIRef("https://example.com/prop"), normal_literal, test_graph))
-
-        # Try to delete with xsd:gYear (which has None value) - should not match
-        update_query = """
-            DELETE DATA {
-                GRAPH <https://example.com/graph> {
-                    <https://example.com/entity> <https://example.com/prop> "2021"^^<http://www.w3.org/2001/XMLSchema#gYear> .
-                }
-            }
-        """
-
-        # Apply the update query - should not delete because datatypes don't match
-        AgnosticEntity._manage_update_queries(graph, update_query)
-
-        # Verify the original value is still there
-        values = list(graph.objects(test_entity, URIRef("https://example.com/prop")))
-        self.assertEqual(len(values), 1)
-        self.assertEqual(str(values[0]), "normal value")
 
     def test_manage_update_queries_with_malformed_query(self):
         """

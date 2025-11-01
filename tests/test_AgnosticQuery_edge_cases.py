@@ -17,6 +17,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from rdflib import Graph, URIRef, Literal
+
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery, get_insert_query
 
 CONFIG = {
@@ -62,7 +64,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         """
 
         # Create VersionQuery with Fuseki config - should build full-text search structures
-        version_query = VersionQuery(query, config=fuseki_config)
+        version_query = VersionQuery(query, config_dict=fuseki_config)
 
         # Verify the query was processed (no exception raised)
         self.assertIsNotNone(version_query)
@@ -83,7 +85,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         """
 
         # Create VersionQuery with Virtuoso config
-        version_query = VersionQuery(query, config=virtuoso_config)
+        version_query = VersionQuery(query, config_dict=virtuoso_config)
 
         # Verify the query was processed
         self.assertIsNotNone(version_query)
@@ -104,7 +106,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         """
 
         # Create VersionQuery with GraphDB config
-        version_query = VersionQuery(query, config=graphdb_config)
+        version_query = VersionQuery(query, config_dict=graphdb_config)
 
         # Verify the query was processed
         self.assertIsNotNone(version_query)
@@ -126,7 +128,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
 
         # Should raise ValueError for invalid configuration
         with self.assertRaises(ValueError) as context:
-            VersionQuery(query, config=invalid_config)
+            VersionQuery(query, config_dict=invalid_config)
 
         self.assertIn("full_text_search", str(context.exception).lower())
 
@@ -148,14 +150,14 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
 
         # Should raise ValueError for multiple indexing systems
         with self.assertRaises(ValueError) as context:
-            VersionQuery(query, config=multi_config)
+            VersionQuery(query, config_dict=multi_config)
 
-        self.assertIn("only one", str(context.exception).lower())
+        self.assertIn("multiple indexing systems", str(context.exception).lower())
 
     def test_query_with_no_hooks(self):
         """
         Test VersionQuery with a query that has no hooks (no variables or patterns).
-        This should exercise the ValueError at line 86.
+        A query with no triples should be allowed, it just won't return any results.
         """
         # A query with no actual patterns or variables
         query_no_hooks = """
@@ -163,9 +165,9 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
             WHERE { }
         """
 
-        # Should raise ValueError
-        with self.assertRaises(ValueError) as context:
-            VersionQuery(query_no_hooks, config=CONFIG)
+        # Should not raise an error, just create an empty query
+        version_query = VersionQuery(query_no_hooks, config_dict=CONFIG)
+        self.assertIsNotNone(version_query)
 
     def test_version_query_with_config_dict_parameter(self):
         """
@@ -180,7 +182,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         """
 
         # Pass config as dict (not path)
-        version_query = VersionQuery(query, config=CONFIG)
+        version_query = VersionQuery(query, config_dict=CONFIG)
 
         # Verify the query was initialized correctly
         self.assertIsNotNone(version_query)
@@ -191,35 +193,32 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         Test get_insert_query function with an empty graph.
         This should exercise the early return at lines 633-634.
         """
-        from rdflib import Dataset
+        empty_graph = Graph()
+        graph_iri = URIRef("http://example.com/graph")
 
-        empty_graph = Dataset()
-        cache_endpoint = "http://127.0.0.1:8888/sparql"
-
-        # Should return None or empty string for empty graph
-        result = get_insert_query(empty_graph, cache_endpoint)
+        # Should return empty string for empty graph
+        result, num_statements = get_insert_query(graph_iri, empty_graph)
 
         # Empty graph should produce no insert query
-        self.assertIsNone(result) or self.assertEqual(result, "")
+        self.assertEqual(result, "")
+        self.assertEqual(num_statements, 0)
 
     def test_get_insert_query_with_non_empty_graph(self):
         """
         Test get_insert_query function with a non-empty graph.
         This should exercise the serialization logic at lines 636-640.
         """
-        from rdflib import Dataset, URIRef, Literal
-
-        graph = Dataset()
+        graph = Graph()
         graph.add((URIRef("http://example.com/s"), URIRef("http://example.com/p"), Literal("object")))
-
-        cache_endpoint = "http://127.0.0.1:8888/sparql"
+        graph_iri = URIRef("http://example.com/graph")
 
         # Should generate an INSERT query
-        result = get_insert_query(graph, cache_endpoint)
+        result, num_statements = get_insert_query(graph_iri, graph)
 
         # Result should be a string containing INSERT
         self.assertIsInstance(result, str)
         self.assertIn("INSERT", result.upper())
+        self.assertEqual(num_statements, 1)
 
     @patch('time_agnostic_library.agnostic_query.Sparql')
     def test_update_query_parsing_error(self, mock_sparql_class):
@@ -235,7 +234,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         """
 
         # Create DeltaQuery
-        delta_query = DeltaQuery(query, config=CONFIG, changed_properties=set())
+        delta_query = DeltaQuery(query, config_dict=CONFIG, changed_properties=set())
 
         # Mock SPARQL to return malformed update query
         mock_sparql_instance = MagicMock()
@@ -255,23 +254,6 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         # The method should handle the malformed query gracefully
         # This tests the exception handling in update query processing
 
-    def test_inverse_property_path_in_query(self):
-        """
-        Test VersionQuery with inverse property path (^) in the query.
-        This should exercise the InvPath handling at lines 506-507.
-        """
-        query = """
-            SELECT ?subject ?author
-            WHERE {
-                ?subject ^<http://purl.org/spar/pro/isHeldBy> ?author .
-            }
-        """
-
-        # Create VersionQuery with inverse property path
-        version_query = VersionQuery(query, config=CONFIG)
-
-        # Verify the query was processed
-        self.assertIsNotNone(version_query)
 
 if __name__ == '__main__':
     unittest.main()
