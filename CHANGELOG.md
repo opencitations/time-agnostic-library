@@ -1,3 +1,10 @@
+## [5.0.7](https://github.com/opencitations/time-agnostic-library/compare/5.0.6...5.0.7) (2025-11-12)
+
+
+### Bug Fixes
+
+* use explicit triple addition for CONSTRUCT queries on Dataset [release] ([ff20047](https://github.com/opencitations/time-agnostic-library/commit/ff20047ba9f9c30f65c90f2afa1bc1282ff0c9fa))
+
 ## [5.0.6](https://github.com/opencitations/time-agnostic-library/compare/5.0.5...5.0.6) (2025-11-01)
 
 
