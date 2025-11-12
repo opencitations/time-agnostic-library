@@ -228,7 +228,11 @@ class Sparql:
             elif algebra.name == "ConstructQuery":
                 sparql.setReturnFormat(RDFXML)
                 sparql.setOnlyConneg(True)
-                cg += sparql.queryAndConvert()     
+                result_graph = sparql.queryAndConvert()
+                # CONSTRUCT queries always return triples (not quads)
+                # Cannot use += on a Dataset - must use .add() which adds to default graph
+                for s, p, o in result_graph.triples((None, None, None)):
+                    cg.add((s, p, o))     
         return cg        
     
     @classmethod
