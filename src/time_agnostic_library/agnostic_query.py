@@ -415,17 +415,25 @@ class VersionQuery(AgnosticQuery):
         output = set()
         query_results = graph.query(self.query)
         vars_list = query_results.vars
-        results = query_results.bindings
-        for result in results:
-            Sparql._get_tuples_set(result, output, vars_list)
+        for result in query_results.bindings:
+            row = []
+            for var in vars_list:
+                val = result.get(var)
+                if val is not None:
+                    row.append(str(val) if not isinstance(val, Literal) else val.n3())
+                else:
+                    row.append(None)
+            output.add(tuple(row))
         normalized_timestamp = convert_to_datetime(timestamp, stringify=True)
         return normalized_timestamp, output
         
-    def run_agnostic_query(self) -> Tuple[Dict[str, Set[Tuple]], dict]:
+    def run_agnostic_query(self, include_all_timestamps: bool = False) -> Tuple[Dict[str, Set[Tuple]], dict]:
         """
-        Run the query provided as a time-travel query. 
+        Run the query provided as a time-travel query.
         If the **on_time** argument was specified, it runs on versions within the specified interval, on all versions otherwise.
-        
+
+        :param include_all_timestamps: If True and running a cross-version query (no on_time), fill gaps between snapshot timestamps by carrying forward results from the nearest earlier timestamp. The full set of timestamps is derived from all prov:generatedAtTime values in the provenance store.
+        :type include_all_timestamps: bool
         :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
         """
         agnostic_result:dict[str, Set[Tuple]] = dict()
@@ -433,8 +441,39 @@ class VersionQuery(AgnosticQuery):
             for future in [executor.submit(self._query_reconstructed_graph, timestamp, graph) for timestamp, graph in self.relevant_graphs.items()]:
                 normalized_timestamp, output = future.result()
                 agnostic_result[normalized_timestamp] = output
-        agnostic_result = {timestamp:{tuple(Literal(el, datatype=None) if isinstance(el, Literal) else el for el in result_tuple) for result_tuple in results} for timestamp, results in agnostic_result.items()}
+        if include_all_timestamps and self.on_time is None:
+            agnostic_result = self._fill_timestamp_gaps(agnostic_result)
         return agnostic_result, {data["generatedAtTime"] for _, data in self.other_snapshots_metadata.items()}
+
+    def _get_all_provenance_timestamps(self) -> set:
+        query = f"""
+            SELECT DISTINCT ?time WHERE {{
+                ?snapshot <{ProvEntity.iri_generated_at_time}> ?time .
+            }}
+        """
+        results = Sparql(query, self.config).run_select_query()
+        return {r['time']['value'] for r in results['results']['bindings']}
+
+    def _fill_timestamp_gaps(self, result: dict) -> dict:
+        all_timestamps = self._get_all_provenance_timestamps()
+        sorted_result_ts = sorted(result.keys(), key=convert_to_datetime)
+        if not sorted_result_ts:
+            return result
+        min_ts = convert_to_datetime(sorted_result_ts[0])
+        max_ts = convert_to_datetime(sorted_result_ts[-1])
+        relevant_timestamps = sorted(
+            [t for t in all_timestamps if min_ts <= convert_to_datetime(t) <= max_ts],
+            key=convert_to_datetime
+        )
+        filled = dict(result)
+        last_known = None
+        for ts in relevant_timestamps:
+            normalized = convert_to_datetime(ts, stringify=True)
+            if normalized in filled:
+                last_known = normalized
+            elif last_known is not None:
+                filled[normalized] = filled[last_known]
+        return filled
 
 
 class DeltaQuery(AgnosticQuery):

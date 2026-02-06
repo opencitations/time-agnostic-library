@@ -77,13 +77,20 @@ def run_vm_query(sparql: str, version: int, config: dict) -> int:
     ts = version_to_timestamp(version)
     vq = VersionQuery(sparql, on_time=(ts, ts), config_dict=config)
     result, _ = vq.run_agnostic_query()
-    return sum(len(v) for v in result.values())
+    if not result:
+        return 0
+    latest_ts = max(result.keys())
+    return len(result[latest_ts])
 
 
 def run_vq_query(sparql: str, config: dict) -> Dict[str, int]:
-    vq = VersionQuery(sparql, config_dict=config)
-    result, _ = vq.run_agnostic_query()
-    return {ts: len(bindings) for ts, bindings in result.items()}
+    try:
+        vq = VersionQuery(sparql, config_dict=config)
+        result, _ = vq.run_agnostic_query(include_all_timestamps=True)
+        return {ts: len(bindings) for ts, bindings in result.items()}
+    except Exception as e:
+        console.print(f"  [red]VQ error: {e}")
+        return {}
 
 
 def verify_pattern_vm(
