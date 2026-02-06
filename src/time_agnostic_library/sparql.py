@@ -17,12 +17,12 @@
 
 from typing import Set, Tuple, List
 import zipfile
-from rdflib import XSD, Dataset
+from rdflib import Graph, XSD, Dataset
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.sparql import Query
 from rdflib.term import Literal, URIRef, _toPythonMapping
-from SPARQLWrapper import JSON, POST, RDFXML, SPARQLWrapper
+from SPARQLWrapper import JSON, POST, RDFXML, TURTLE, SPARQLWrapper
 
 from time_agnostic_library.prov_entity import ProvEntity
 
@@ -221,16 +221,20 @@ class Sparql:
                         else:
                             if 'datatype' in quad[var]:
                                 quad_to_add.append(Literal(quad[var]["value"], datatype=quad[var]['datatype']))
+                            elif 'xml:lang' in quad[var]:
+                                quad_to_add.append(Literal(quad[var]["value"], lang=quad[var]['xml:lang']))
                             else:
-                                # Create literal without explicit datatype to preserve original representation
                                 quad_to_add.append(Literal(quad[var]["value"]))
                     cg.add(tuple(quad_to_add))
             elif algebra.name == "ConstructQuery":
-                sparql.setReturnFormat(RDFXML)
+                sparql.setReturnFormat(TURTLE)
                 sparql.setOnlyConneg(True)
-                result_graph = sparql.queryAndConvert()
-                # CONSTRUCT queries always return triples (not quads)
-                # Cannot use += on a Dataset - must use .add() which adds to default graph
+                raw_result = sparql.queryAndConvert()
+                result_graph = Graph()
+                if isinstance(raw_result, bytes):
+                    result_graph.parse(data=raw_result, format="turtle")
+                else:
+                    result_graph = raw_result
                 for s, p, o in result_graph.triples((None, None, None)):
                     cg.add((s, p, o))     
         return cg        
@@ -240,7 +244,11 @@ class Sparql:
         results_list = list()
         for var in vars_list:
             if str(var) in result_dict:
-                results_list.append(str(result_dict[str(var)]["value"] if "value" in result_dict[str(var)] else result_dict[str(var)]))
+                val = result_dict[str(var)]
+                if isinstance(val, dict) and "value" in val:
+                    results_list.append(str(val["value"]))
+                else:
+                    results_list.append(str(val))
             else:
                 results_list.append(None)
         output.add(tuple(results_list))
