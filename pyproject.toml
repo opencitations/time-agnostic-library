@@ -26,6 +26,7 @@ python_dateutil = "^2.8.2"
 SPARQLWrapper = "2.0.0"
 tqdm = "^4.62.3" 
 rdflib = "^7.1.4"
+rich = "^14.3.2"
 
 [tool.poetry.group.dev.dependencies]
 chardet = "^4.0.0"
@@ -40,6 +41,7 @@ tqdm = "^4.65.0"
 pebble = "^5.0.3"
 autopep8 = "^2.0.4"
 isort = "^6.0.1"
+qlever = "^0.5.45"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

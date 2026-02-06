@@ -12,6 +12,7 @@ tests/tests.zip
 setup.py
 execution_example.py
 benchmark/meta
+benchmark/bear/data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
