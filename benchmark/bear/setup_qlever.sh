@@ -22,10 +22,10 @@ if [ ! -f "${PROVENANCE_NQ}" ]; then
 fi
 
 QLEVER="qlever"
-if command -v poetry &> /dev/null && poetry run qlever --help &> /dev/null; then
-    QLEVER="poetry run qlever"
+if command -v uv &> /dev/null && uv run qlever --help &> /dev/null; then
+    QLEVER="uv run qlever"
 elif ! command -v qlever &> /dev/null; then
-    echo "Error: qlever CLI not found. Install with: poetry add --group dev qlever"
+    echo "Error: qlever CLI not found. Install with: uv add --dev qlever"
     exit 1
 fi
 

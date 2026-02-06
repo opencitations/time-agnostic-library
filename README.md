@@ -7,7 +7,7 @@
 
 # time-agnostic-library 
 
-**time-agnostic-library** is a Python &ge;3.7 library that allows performing time-travel queries on RDF datasets compliant with the [OCDM v2.0.1](https://figshare.com/articles/Metadata_for_the_OpenCitations_Corpus/3443876) provenance specification.
+**time-agnostic-library** is a Python &ge;3.10 library that allows performing time-travel queries on RDF datasets compliant with the [OCDM v2.0.1](https://figshare.com/articles/Metadata_for_the_OpenCitations_Corpus/3443876) provenance specification.
 
 The package was tested on **Blazegraph**, **GraphDB**, **Apache Jena Fuseki**, and **OpenLink Virtuoso**, and it is fully compatible with these triplestores. 
 
@@ -338,14 +338,7 @@ The configuration file is mainly used to indicate to the library where to search
 ## Developer's guide
 
 ### First steps
-  1. Install Poetry:
-```bash
-# Linux, macOS, Windows (WSL)
-curl -sSL https://install.python-poetry.org | python3 -
-
-# Windows (Powershell)
-(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
-```
+  1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
   2. Clone this repository:
 ```bash
 git clone https://github.com/opencitations/time-agnostic-library
@@ -353,17 +346,13 @@ cd ./time-agnostic-library
 ```
   3. Install all the dependencies:
 ```bash
-poetry install
+uv sync --dev
 ```
   4. Build the package (_output dir:_ `dist`):
 ```bash
-poetry build
+uv build
 ```
-  5. Globally install the package:
-```bash
-pip install ./dist/time-agnostic-library-<VERSION>.tar.gz
-```
-  6. If everything went the right way, than you should be able to use `time_agnostic_library` in your Python modules as follows:
+  5. If everything went the right way, than you should be able to use `time_agnostic_library` in your Python modules as follows:
 ```python
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.agnostic_query import AgnosticQuery
@@ -384,16 +373,12 @@ chmod +x ./tests/start-test-database.sh
 ```
 3. Run the tests with coverage:
 ```bash
-# Install development dependencies if you haven't already
-poetry install --with dev
-
-# Run tests with coverage
-poetry run coverage run --rcfile=tests/coverage/.coveragerc
-poetry run coverage report
+uv run coverage run --rcfile=tests/coverage/.coveragerc
+uv run coverage report
 ```
 4. You can also generate an HTML coverage report:
 ```bash
-poetry run coverage html -d htmlcov 
+uv run coverage html -d htmlcov
 ```
 5. After the tests, stop the database:
 ```bash

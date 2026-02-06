@@ -40,9 +40,9 @@ docker exec test-virtuoso /opt/virtuoso-opensource/bin/isql -U dba -P dba exec="
 Write-Host "Granting SPARQL_UPDATE role..."
 docker exec test-virtuoso /opt/virtuoso-opensource/bin/isql -U dba -P dba exec="DB.DBA.USER_GRANT_ROLE ('SPARQL', 'SPARQL_UPDATE');"
 
-# Load test data using Poetry
+# Load test data
 Write-Host "Loading test data..."
-poetry run python tests/load_test_data.py
+uv run python tests/load_test_data.py
 
 Write-Host "Setup completed."
 Write-Host "Virtuoso DB: http://localhost:9999/sparql" 

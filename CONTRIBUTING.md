@@ -18,8 +18,8 @@ To set up the development environment:
 git clone https://github.com/opencitations/time-agnostic-library.git
 cd time-agnostic-library
 
-# Install dependencies using Poetry
-poetry install
+# Install dependencies
+uv sync --dev
 ```
 
 ## Testing
@@ -27,7 +27,7 @@ poetry install
 Before submitting a pull request, make sure all tests pass:
 
 ```bash
-poetry run coverage run --rcfile=tests/coverage/.coveragerc
+uv run coverage run --rcfile=tests/coverage/.coveragerc
 ```
 
 ## Release Process
