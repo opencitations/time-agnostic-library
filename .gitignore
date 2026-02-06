@@ -85,8 +85,10 @@ instance/
 # Scrapy stuff:
 .scrapy
 
-# Sphinx documentation
-docs/_build/
+# Starlight documentation
+docs/dist/
+docs/.astro/
+docs/node_modules/
 
 # PyBuilder
 target/

@@ -35,15 +35,13 @@ dev = [
     "psutil>=7.2.2",
     "qlever>=0.5.45",
     "requests>=2.32.5",
-    "sphinx-autodoc-defaultargs>=0.1.2",
-    "sphinx-material>=0.0.36",
     "wget>=3.2",
 ]
 
 [project.urls]
 Homepage = "https://github.com/opencitations/time-agnostic-library"
 Repository = "https://github.com/opencitations/time-agnostic-library"
-Documentation = "https://time-agnostic-library.readthedocs.io"
+Documentation = "https://opencitations.github.io/time-agnostic-library"
 
 [project.scripts]
 test = "tests.run_all_tests:main"
