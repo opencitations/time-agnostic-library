@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -15,9 +14,9 @@
 # SOFTWARE.
 
 
-from typing import List
 import zipfile
-from rdflib import Graph, XSD, Dataset
+
+from rdflib import XSD, Dataset, Graph
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.sparql import Query
@@ -31,17 +30,17 @@ CONFIG_PATH = "./config.json"
 class Sparql:
     """
     The Sparql class handles SPARQL queries.
-    It is instantiated by passing as a parameter 
+    It is instantiated by passing as a parameter
     the path to a configuration file, whose default location is "./config.json".
-    The configuration file must be in JSON format and contain information on the sources to be queried. 
+    The configuration file must be in JSON format and contain information on the sources to be queried.
     There are two types of sources: dataset and provenance sources and they need to be specified separately.
-    Both triplestores and JSON files are supported. 
+    Both triplestores and JSON files are supported.
     In addition, some optional values can be set to make executions faster and more efficient.
 
     - **blazegraph_full_text_search**: Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure. The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
     - **graphdb_connector_name**: Specify the name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html.
     - **cache_triplestore_url**: Specifies the triplestore URL to use as a cache to make queries faster. If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for reading in the "endpoint" field and the endpoint for writing in the "update_endpoint" field. If there is only one endpoint (e.g. Blazegraph), specify it in both fields.
-    
+
     Here is an example of the configuration file content: ::
 
         {
@@ -59,7 +58,7 @@ class Sparql:
                 "endpoint": "http://127.0.0.1:7200/repositories/cache",
                 "update_endpoint": "http://127.0.0.1:7200/repositories/cache/statements"
             }
-        }            
+        }
 
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
@@ -80,7 +79,7 @@ class Sparql:
             _toPythonMapping.pop(XSD.gYear)
         if XSD.gYearMonth in _toPythonMapping:
             _toPythonMapping.pop(XSD.gYearMonth)
-    
+
     def run_select_query(self) -> dict:
         """
         Given a SELECT query, it returns the results in SPARQL JSON bindings format.
@@ -95,12 +94,11 @@ class Sparql:
         return output
 
     def _get_results_from_files(self, output: dict) -> dict:
-        storer: List[str] = self.storer["file_paths"]
+        storer: list[str] = self.storer["file_paths"]
         for file_path in storer:
             file_cg = Dataset(default_union=True)
             if file_path.endswith('.zip'):
-                with zipfile.ZipFile(file_path, 'r') as z:
-                    with z.open(z.namelist()[0]) as file:
+                with zipfile.ZipFile(file_path, 'r') as z, z.open(z.namelist()[0]) as file:
                         file_cg.parse(file=file, format="json-ld")  # type: ignore[arg-type]
             else:
                 file_cg.parse(location=file_path, format="json-ld")
@@ -117,7 +115,7 @@ class Sparql:
                         binding[var] = self._format_result_value(value)
                 output['results']['bindings'].append(binding)
         return output
-    
+
     def _get_results_from_triplestores(self, output: dict) -> dict:
         storer = self.storer["triplestore_urls"]
         for url in storer:
@@ -147,7 +145,7 @@ class Sparql:
 
     def run_construct_query(self) -> Dataset:
         """
-        Given a CONSTRUCT query, it returns the results in a Dataset. 
+        Given a CONSTRUCT query, it returns the results in a Dataset.
 
         :returns:  Dataset -- A Dataset containing the results of the query.
         """
@@ -179,8 +177,7 @@ class Sparql:
         for file_path in storer:
             file_cg = Dataset(default_union=True)
             if file_path.endswith('.zip'):
-                with zipfile.ZipFile(file_path, 'r') as z:
-                    with z.open(z.namelist()[0]) as file:
+                with zipfile.ZipFile(file_path, 'r') as z, z.open(z.namelist()[0]) as file:
                         file_cg.parse(file=file, format="json-ld")  # type: ignore[arg-type]
             else:
                 file_cg.parse(location=file_path, format="json-ld")
@@ -199,7 +196,7 @@ class Sparql:
             sparql.setMethod(POST)
             sparql.setQuery(self.query)
             sparql.setOnlyConneg(True)
-            # A SELECT hack can be used to return RDF quads in named graphs, 
+            # A SELECT hack can be used to return RDF quads in named graphs,
             # since the CONSTRUCT allows only to return triples in SPARQL 1.1.
             # Here is an exemple of SELECT hack
             #
@@ -209,14 +206,14 @@ class Sparql:
             #     GRAPH ?c {{?s ?p ?o}}
             # }}
             #
-            # Aftwerwards, the rdflib add method can be used to add quads to a Conjunctive Graph, 
-            # where the fourth element is the context.    
+            # Aftwerwards, the rdflib add method can be used to add quads to a Conjunctive Graph,
+            # where the fourth element is the context.
             if algebra.name == "SelectQuery":
                 sparql.setReturnFormat(JSON)
                 sparql.setOnlyConneg(True)
                 results: dict = sparql.queryAndConvert()  # type: ignore[assignment]
                 for quad in results["results"]["bindings"]:
-                    quad_to_add = list()
+                    quad_to_add = []
                     for var in results["head"]["vars"]:
                         if quad[var]["type"] == "uri":
                             quad_to_add.append(URIRef(quad[var]["value"]))
@@ -238,12 +235,12 @@ class Sparql:
                 elif isinstance(raw_result, Graph):
                     result_graph = raw_result
                 for s, p, o in result_graph.triples((None, None, None)):
-                    cg.add((s, p, o))     
-        return cg        
-    
+                    cg.add((s, p, o))
+        return cg
+
     @classmethod
     def _get_tuples_set(cls, result_dict:dict, output:set, vars_list: list) -> None:
-        results_list = list()
+        results_list = []
         for var in vars_list:
             if str(var) in result_dict:
                 val = result_dict[str(var)]
@@ -254,7 +251,7 @@ class Sparql:
             else:
                 results_list.append(None)
         output.add(tuple(results_list))
-    
+
     def _cut_by_limit(self, input: Dataset) -> Dataset:
         algebra:CompValue = prepareQuery(self.query).algebra
         if "length" in algebra["p"]:

@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2016, Silvio Peroni <essepuntato@gmail.com>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -14,7 +13,7 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-from typing import ClassVar, List
+from typing import ClassVar
 
 from rdflib import Namespace, URIRef
 
@@ -41,10 +40,10 @@ class ProvEntity:
     iri_has_update_query: ClassVar[URIRef] = OCO.hasUpdateQuery
 
     @classmethod
-    def get_prov_properties(cls) -> List[URIRef]:
+    def get_prov_properties(cls) -> list[URIRef]:
         prov_properties = [
-            cls.iri_entity, cls.iri_generated_at_time, cls.iri_invalidated_at_time, 
-            cls.iri_specialization_of, cls.iri_was_derived_from, cls.iri_had_primary_source, 
+            cls.iri_entity, cls.iri_generated_at_time, cls.iri_invalidated_at_time,
+            cls.iri_specialization_of, cls.iri_was_derived_from, cls.iri_had_primary_source,
             cls.iri_was_attributed_to, cls.iri_description, cls.iri_has_update_query
         ]
         return prov_properties

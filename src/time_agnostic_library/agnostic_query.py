@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2022-2025, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -18,34 +17,37 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
-from typing import Dict, List, Set, Tuple, Union
 
 from rdflib import ConjunctiveGraph, Graph, Literal, URIRef, Variable
 from rdflib.paths import InvPath
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
+from tqdm import tqdm
+
 from time_agnostic_library.agnostic_entity import (
-    AgnosticEntity, _filter_timestamps_by_interval, _parse_datetime)
+    AgnosticEntity,
+    _filter_timestamps_by_interval,
+    _parse_datetime,
+)
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import convert_to_datetime
-from tqdm import tqdm
 
 CONFIG_PATH = "./config.json"
 
 
-class AgnosticQuery(object):
+class AgnosticQuery:
     blazegraph_full_text_search: bool
     fuseki_full_text_search: bool
     virtuoso_full_text_search: bool
     graphdb_connector_name: str
 
-    def __init__(self, query: str, on_time: Union[Tuple[Union[str, None], Union[str, None]], None] = (None, None), other_snapshots: bool = False, config_path: str = CONFIG_PATH, config_dict: Union[dict, None] = None):
+    def __init__(self, query: str, on_time: tuple[str | None, str | None] | None = (None, None), other_snapshots: bool = False, config_path: str = CONFIG_PATH, config_dict: dict | None = None):
         self.query = query
         self.other_snapshots = other_snapshots
         self.config_path = config_path
-        self.other_snapshots_metadata: dict = dict()
+        self.other_snapshots_metadata: dict = {}
         if config_dict is not None:
             self.config = config_dict
         else:
@@ -55,18 +57,18 @@ class AgnosticQuery(object):
         if on_time:
             after_time = convert_to_datetime(on_time[0], stringify=True)
             before_time = convert_to_datetime(on_time[1], stringify=True)
-            self.on_time: Union[Tuple[Union[str, None], Union[str, None]], None] = (after_time, before_time)  # type: ignore[assignment]
+            self.on_time: tuple[str | None, str | None] | None = (after_time, before_time)  # type: ignore[assignment]
         else:
             self.on_time = None
         self.reconstructed_entities: set = set()
-        self.vars_to_explicit_by_time: dict = dict()
-        self.relevant_entities_graphs: dict = dict()
-        self.relevant_graphs: Dict[str, ConjunctiveGraph] = dict()
-        self.cache_insert_queries = list()
+        self.vars_to_explicit_by_time: dict = {}
+        self.relevant_entities_graphs: dict = {}
+        self.relevant_graphs: dict[str, ConjunctiveGraph] = {}
+        self.cache_insert_queries = []
         self._rebuild_relevant_graphs()
-    
+
     def __init_text_index(self, config:dict):
-        for full_text_search in {"blazegraph_full_text_search", "fuseki_full_text_search", "virtuoso_full_text_search"}:
+        for full_text_search in ("blazegraph_full_text_search", "fuseki_full_text_search", "virtuoso_full_text_search"):
             ts_full_text_search:str = config[full_text_search]
             if ts_full_text_search.lower() in {"true", "1", 1, "t", "y", "yes", "ok"}:
                 setattr(self, full_text_search, True)
@@ -78,12 +80,12 @@ class AgnosticQuery(object):
         if len([index for index in [self.blazegraph_full_text_search, self.fuseki_full_text_search, self.virtuoso_full_text_search, self.graphdb_connector_name] if index]) > 1:
             raise ValueError("The use of multiple indexing systems simultaneously is currently not supported.")
 
-    def _process_query(self) -> List[Tuple]:
+    def _process_query(self) -> list[tuple]:
         algebra:CompValue = prepareQuery(self.query).algebra
         if algebra.name != "SelectQuery":
             raise ValueError("Only SELECT queries are allowed.")
-        triples = list()
-        # The algebra can be extremely variable in case of one or more OPTIONAL in the query: 
+        triples = []
+        # The algebra can be extremely variable in case of one or more OPTIONAL in the query:
         # it is necessary to navigate the dictionary recursively in search of the values of the "triples" keys.
         self._tree_traverse(algebra, "triples", triples)
         triples_without_hook = [triple for triple in triples if isinstance(triple[0], Variable) and isinstance(triple[1], Variable) and isinstance(triple[2], Variable)]
@@ -91,13 +93,13 @@ class AgnosticQuery(object):
             raise ValueError("Could not perform a generic time agnostic query. Please, specify at least one URI or Literal within the query.")
         return triples
 
-    def _tree_traverse(self, tree:dict, key:str, values:List[Tuple]) -> None:
+    def _tree_traverse(self, tree:dict, key:str, values:list[tuple]) -> None:
         for k, v in tree.items():
             if k == key:
                 values.extend(v)
             elif isinstance(v, dict):
                 found = self._tree_traverse(v, key, values)
-                if found is not None:  
+                if found is not None:
                     values.extend(found)
 
     def _rebuild_relevant_graphs(self) -> None:
@@ -133,7 +135,7 @@ class AgnosticQuery(object):
                 return False
         return True
 
-    def _there_is_transitive_closure(self, variable:Variable, triples:Set[Tuple]) -> bool:
+    def _there_is_transitive_closure(self, variable:Variable, triples:set[tuple]) -> bool:
         there_is_transitive_closure = False
         for triple in triples:
             if variable in triple and triple.index(variable) == 2:
@@ -144,21 +146,21 @@ class AgnosticQuery(object):
                     there_is_transitive_closure = self._there_is_transitive_closure(triple[0], other_triples)
         return there_is_transitive_closure
 
-    def _rebuild_relevant_entity(self, entity:Union[URIRef, Literal]) -> None:
+    def _rebuild_relevant_entity(self, entity:URIRef | Literal) -> None:
         if isinstance(entity, URIRef) and entity not in self.reconstructed_entities:
             self.reconstructed_entities.add(entity)
             agnostic_entity = AgnosticEntity(entity, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
             if self.on_time:
-                entity_graphs, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
+                entity_graphs, _entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
                 if other_snapshots:
                     self.other_snapshots_metadata.update(other_snapshots)
                 if entity_graphs:
                     for relevant_timestamp, cg in entity_graphs.items():
-                        self.relevant_entities_graphs.setdefault(entity, dict())[relevant_timestamp] = cg
+                        self.relevant_entities_graphs.setdefault(entity, {})[relevant_timestamp] = cg
             else:
                 entity_history = agnostic_entity.get_history(include_prov_metadata=True)
                 if entity_history[0][entity]:
-                    self.relevant_entities_graphs.update(entity_history[0]) 
+                    self.relevant_entities_graphs.update(entity_history[0])
 
     def _get_query_to_identify(self, triple: tuple) -> str:
         solvable_triple = [el.n3() for el in triple]
@@ -168,7 +170,7 @@ class AgnosticQuery(object):
                 CONSTRUCT {{{solvable_triple[2]} {predicate} {solvable_triple[0]}}}
                 WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
             """
-        elif isinstance(triple[1], URIRef) or isinstance(triple[1], Variable):
+        elif isinstance(triple[1], (URIRef, Variable)):
             query_to_identify = f"""
                 CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
                 WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
@@ -184,19 +186,19 @@ class AgnosticQuery(object):
             new_uris = uris_in_triple.difference(uris_in_triple_checked)
             if not new_uris:
                 return False
-        return True   
+        return True
 
     def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = self.get_full_text_search(uris_in_triple)
         return query_to_identify
-    
+
     def get_full_text_search(self, uris_in_triple:set) -> str:
         uris_in_triple = {str(el) for el in uris_in_triple}
         if self.blazegraph_full_text_search:
             query_to_identify = f'''
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
-            SELECT DISTINCT ?updateQuery 
+            SELECT DISTINCT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 ?updateQuery bds:search "{' '.join(uris_in_triple)}";
@@ -216,7 +218,7 @@ class AgnosticQuery(object):
             query_obj = "' AND '".join(uris_in_triple)
             query_to_identify = f'''
             PREFIX bif: <bif:>
-            SELECT DISTINCT ?updateQuery 
+            SELECT DISTINCT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 ?updateQuery bif:contains "'{query_obj}'".
@@ -228,7 +230,7 @@ class AgnosticQuery(object):
             query_to_identify = f'''
             PREFIX con: <http://www.ontotext.com/connectors/lucene#>
             PREFIX con-inst: <http://www.ontotext.com/connectors/lucene/instance#>
-            SELECT DISTINCT ?updateQuery 
+            SELECT DISTINCT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 [] a con-inst:{self.graphdb_connector_name};
@@ -238,7 +240,7 @@ class AgnosticQuery(object):
             '''
         else:
             query_to_identify = f'''
-            SELECT DISTINCT ?updateQuery 
+            SELECT DISTINCT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 {').'.join([f"FILTER CONTAINS (?updateQuery, '{uri}'" for uri in uris_in_triple])}).
@@ -246,7 +248,9 @@ class AgnosticQuery(object):
             '''
         return query_to_identify
 
-    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set = set()):
+    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set | None = None):
+        if present_entities is None:
+            present_entities = set()
         def _process_triple(processed_triple, uris_in_triple: set, relevant_entities_found: set):
             processed_triple = [el["string"] if "string" in el else el for el in processed_triple]
             relevant_entities = {processed_triple[0]} if len(uris_in_triple.intersection(processed_triple)) == len(uris_in_triple) else None
@@ -276,7 +280,7 @@ class AgnosticQuery(object):
                             for inner_triple in request["quads"]["triples"]:
                                 _process_triple(inner_triple, uris_in_triple, relevant_entities_found)
         if relevant_entities_found:
-            print(f"[VersionQuery:INFO] Rebuilding relevant entities' history.")
+            print("[VersionQuery:INFO] Rebuilding relevant entities' history.")
             pbar = tqdm(total=len(relevant_entities_found))
             for new_entity_found in relevant_entities_found:
                 self._rebuild_relevant_entity(new_entity_found)
@@ -286,20 +290,20 @@ class AgnosticQuery(object):
             #     for _ in as_completed(results):
             #         pbar.update()
             pbar.close()
-    
+
     def _solve_variables(self) -> None:
-        self.vars_to_explicit_by_time = dict()
+        self.vars_to_explicit_by_time = {}
         self._get_vars_to_explicit_by_time()
         while self._there_are_variables():
             solved_variables = self._explicit_solvable_variables()
             self._align_snapshots()
             if not solved_variables:
-                return 
+                return
             self._update_vars_to_explicit(solved_variables)
             self._get_vars_to_explicit_by_time()
 
     def _there_are_variables(self) -> bool:
-        for _, triples in self.vars_to_explicit_by_time.items():
+        for triples in self.vars_to_explicit_by_time.values():
             for triple in triples:
                 vars = [el for el in triple if isinstance(el, Variable)]
                 if vars:
@@ -307,7 +311,7 @@ class AgnosticQuery(object):
         return False
 
     def _explicit_solvable_variables(self) -> dict:
-        explicit_triples:Dict[str, Dict[str, set]] = dict()
+        explicit_triples:dict[str, dict[str, set]] = {}
         for se, triples in self.vars_to_explicit_by_time.items():
             for triple in triples:
                 variables = [el for el in triple if isinstance(el, Variable)]
@@ -322,7 +326,7 @@ class AgnosticQuery(object):
                         """
                         results = self.relevant_graphs[se].query(query_to_identify)
                         for result in results:
-                            explicit_triples.setdefault(se, dict())
+                            explicit_triples.setdefault(se, {})
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(result)
                         with ThreadPoolExecutor() as executor:
@@ -331,15 +335,15 @@ class AgnosticQuery(object):
 
     def _align_snapshots(self) -> None:
         # Merge entities based on snapshots
-        for _, snapshots in self.relevant_entities_graphs.items():
+        for snapshots in self.relevant_entities_graphs.values():
             for snapshot, graph in snapshots.items():
                 if snapshot in self.relevant_graphs:
                     for quad in graph.quads():
                         self.relevant_graphs[snapshot].add(quad)
                 else:
                     self.relevant_graphs[snapshot] = deepcopy(graph)
-        # To copy the entity two conditions must be met: 
-        #   1) the entity is present in tn but not in tn+1; 
+        # To copy the entity two conditions must be met:
+        #   1) the entity is present in tn but not in tn+1;
         #   2) the entity is absent in tn+1 because it has not changed and not because it has been deleted.
         ordered_data = self._sort_relevant_graphs()
         for index, se_cg in enumerate(ordered_data):
@@ -348,24 +352,22 @@ class AgnosticQuery(object):
             if index > 0:
                 previous_se = ordered_data[index-1][0]
                 for subject in self.relevant_graphs[previous_se].subjects():
-                    if (subject, None, None, None) not in cg:
-                        if subject in self.relevant_entities_graphs:
-                            if se not in self.relevant_entities_graphs[subject]:
+                    if (subject, None, None, None) not in cg and subject in self.relevant_entities_graphs and se not in self.relevant_entities_graphs[subject]:
                                 graph_to_cache = Graph()
                                 for quad in self.relevant_graphs[previous_se].quads((subject, None, None, None)):
                                     self.relevant_graphs[se].add(quad)
                                     graph_to_cache.add(quad[:3])
-        
+
     def _sort_relevant_graphs(self):
-        ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
+        ordered_data: list[tuple[str, ConjunctiveGraph]] = sorted(
             self.relevant_graphs.items(),
             key=lambda x: _parse_datetime(x[0]),
             reverse=False # That is, from past to present, assuming that the past influences the present and not the opposite like in Dark
         )
-        return ordered_data   
+        return ordered_data
 
     def _update_vars_to_explicit(self, solved_variables:dict):
-        vars_to_explicit_by_time: dict = dict()
+        vars_to_explicit_by_time: dict = {}
         for se, triples in self.vars_to_explicit_by_time.items():
             vars_to_explicit_by_time.setdefault(se, set())
             new_triples = set()
@@ -377,31 +379,26 @@ class AgnosticQuery(object):
                                 new_triple = None
                                 if solved_triple[0] != triple[0] and solved_triple[1] == triple[1]:
                                     continue
-                                elif solved_triple[0] == triple[0] and solved_triple[1] == triple[1]: 
-                                    new_triple = solved_triple 
+                                elif solved_triple[0] == triple[0] and solved_triple[1] == triple[1]:
+                                    new_triple = solved_triple
                                 else:
                                     new_triple = (solved_triple[2], triple[1], triple[2])
                                 new_triples.add(new_triple)
-                        elif not any(isinstance(el, Variable) for el in triple):
+                        elif not any(isinstance(el, Variable) for el in triple) or not any(var for var in solved_variables[se] if var in triple):
                             new_triples.add(triple)
-                        elif not any(var for var in solved_variables[se] if var in triple):
-                            new_triples.add(triple)
-            vars_to_explicit_by_time[se] = new_triples 
+            vars_to_explicit_by_time[se] = new_triples
         self.vars_to_explicit_by_time = vars_to_explicit_by_time
 
     def _get_vars_to_explicit_by_time(self) -> None:
-        for se, _ in self.relevant_graphs.items():
+        for se in self.relevant_graphs:
             if se not in self.vars_to_explicit_by_time:
                 self.vars_to_explicit_by_time[se] = set()
                 for triple in self.triples:
                     if any(el for el in triple if isinstance(el, Variable) and not self._is_a_dead_end(el, triple)) and not self._is_isolated(triple):
                         self.vars_to_explicit_by_time[se].add(triple)
-    
-    def _is_a_dead_end(self, el:Union[URIRef, Variable, Literal], triple:tuple) -> bool:
-        if isinstance(el, Variable):
-            if triple.index(el) == 2 and not any(triple for triple in self.triples if el in triple if triple.index(el) == 0):
-                return True
-        return False
+
+    def _is_a_dead_end(self, el:URIRef | Variable | Literal, triple:tuple) -> bool:
+        return isinstance(el, Variable) and triple.index(el) == 2 and not any(triple for triple in self.triples if el in triple if triple.index(el) == 0)
 
 
 class VersionQuery(AgnosticQuery):
@@ -415,8 +412,8 @@ class VersionQuery(AgnosticQuery):
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time: Union[Tuple[Union[str, None], Union[str, None]], None] = None, other_snapshots:bool=False, config_path:str=CONFIG_PATH, config_dict: Union[dict, None] = None):
-        super(VersionQuery, self).__init__(query, on_time, other_snapshots, config_path, config_dict)
+    def __init__(self, query:str, on_time: tuple[str | None, str | None] | None = None, other_snapshots:bool=False, config_path:str=CONFIG_PATH, config_dict: dict | None = None):
+        super().__init__(query, on_time, other_snapshots, config_path, config_dict)
 
     def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph) -> tuple:
         output = []
@@ -433,9 +430,9 @@ class VersionQuery(AgnosticQuery):
             output.append(binding)
         normalized_timestamp = convert_to_datetime(timestamp, stringify=True)
         return normalized_timestamp, output
-        
-    def run_agnostic_query(self, include_all_timestamps: bool = False) -> Tuple[Dict[str, List[Dict]], set]:
-        agnostic_result: dict[str, List[Dict]] = dict()
+
+    def run_agnostic_query(self, include_all_timestamps: bool = False) -> tuple[dict[str, list[dict]], set]:
+        agnostic_result: dict[str, list[dict]] = {}
         with ThreadPoolExecutor() as executor:
             for future in [executor.submit(self._query_reconstructed_graph, timestamp, graph) for timestamp, graph in self.relevant_graphs.items()]:
                 normalized_timestamp, output = future.result()
@@ -488,8 +485,10 @@ class DeltaQuery(AgnosticQuery):
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time: Union[Tuple[Union[str, None], Union[str, None]], None] = None, changed_properties:Set[str]=set(), config_path:str = CONFIG_PATH, config_dict: Union[dict, None] = None):
-        super(DeltaQuery, self).__init__(query=query, on_time=on_time, config_path=config_path, config_dict=config_dict)
+    def __init__(self, query:str, on_time: tuple[str | None, str | None] | None = None, changed_properties:set[str] | None=None, config_path:str = CONFIG_PATH, config_dict: dict | None = None):
+        if changed_properties is None:
+            changed_properties = set()
+        super().__init__(query=query, on_time=on_time, config_path=config_path, config_dict=config_dict)
         self.changed_properties = changed_properties
 
     def _rebuild_relevant_graphs(self) -> None:
@@ -516,7 +515,9 @@ class DeltaQuery(AgnosticQuery):
         # Then, the graphs of the entities obtained from the hooks are reconstructed
         self._solve_variables()
 
-    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set = set()):
+    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set | None = None):
+        if present_entities is None:
+            present_entities = set()
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = set()
         query_to_identify = self._get_query_to_update_queries(triple)
@@ -546,7 +547,7 @@ class DeltaQuery(AgnosticQuery):
                 CONSTRUCT {{{solvable_triple[2]} {predicate} {solvable_triple[0]}}}
                 WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
             """
-        elif isinstance(triple[1], URIRef) or isinstance(triple[1], Variable):
+        elif isinstance(triple[1], (URIRef, Variable)):
             query_to_identify = f"""
                 CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
                 WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
@@ -559,9 +560,9 @@ class DeltaQuery(AgnosticQuery):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         query_to_identify = self.get_full_text_search(uris_in_triple)
         return query_to_identify
-    
+
     def __identify_changed_entities(self, identified_entity: URIRef):
-        output = dict()
+        output = {}
         query = f"""
             SELECT DISTINCT ?time ?updateQuery ?description
             WHERE {{
@@ -588,7 +589,7 @@ class DeltaQuery(AgnosticQuery):
                 identified_entity_str = str(identified_entity)
                 output[identified_entity_str] = {
                     "created": None,
-                    "modified": dict(),
+                    "modified": {},
                     "deleted": None
                 }
                 # Sort the results by time
@@ -616,12 +617,12 @@ class DeltaQuery(AgnosticQuery):
                     else:
                         output[identified_entity_str]["created"] = creation_date
         return output
-        
+
     def run_agnostic_query(self) -> dict:
         """
-        Queries the deltas relevant to the query and the properties set 
-        in the specified time interval. If no property was indicated, 
-        any changes are considered. If no time interval was selected, 
+        Queries the deltas relevant to the query and the properties set
+        in the specified time interval. If no property was indicated,
+        any changes are considered. If no time interval was selected,
         the whole dataset's history is considered.
         The output has the following format: ::
 
@@ -652,23 +653,23 @@ class DeltaQuery(AgnosticQuery):
                         TIMESTAMP_N: UPDATE_QUERY_N
                     },
                     "deleted": TIMESTAMP_DELETION
-                },		
-            }            
+                },
+            }
 
         :returns Dict[str, Set[Tuple]] -- The output is a dictionary that reports the modified entities, when they were created, modified, and deleted. Changes are reported as SPARQL UPDATE queries. If the entity was not created or deleted within the indicated range, the "created" or "deleted" value is None. On the other hand, if the entity does not exist within the input interval, the "modified" value is an empty dictionary.
         """
-        output = dict()
-        print(f"[DeltaQuery:INFO] Identifying changed entities.")
+        output = {}
+        print("[DeltaQuery:INFO] Identifying changed entities.")
         pbar = tqdm(total=len(self.reconstructed_entities))
         with ThreadPoolExecutor() as executor:
             futures = executor.map(self.__identify_changed_entities, self.reconstructed_entities)
             for future in futures:
                 output.update(future)
                 pbar.update()
-        pbar.close()        
+        pbar.close()
         return output
 
-def get_insert_query(graph_iri: URIRef, data: Graph) -> Tuple[str, int]:
+def get_insert_query(graph_iri: URIRef, data: Graph) -> tuple[str, int]:
     num_of_statements: int = len(data)
     if num_of_statements <= 0:
         return "", 0

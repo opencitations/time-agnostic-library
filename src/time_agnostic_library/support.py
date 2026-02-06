@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -18,19 +17,17 @@
 import json
 import re
 from datetime import datetime, timezone
-from typing import List, Union
 
 from dateutil import parser
-from rdflib import Literal
-from rdflib import Dataset
+from rdflib import Dataset, Literal
 
 CONFIG_PATH = './config.json'
 
 
 def generate_config_file(
-        config_path:str=CONFIG_PATH, dataset_urls:list=list(), dataset_dirs:list=list(), dataset_is_quadstore:bool=True,
-        provenance_urls:list=list(), provenance_dirs:list=list(), provenance_is_quadstore:bool=True,
-        blazegraph_full_text_search:bool=False, fuseki_full_text_search:bool=False, virtuoso_full_text_search:bool=False, 
+        config_path:str=CONFIG_PATH, dataset_urls:list | None=None, dataset_dirs:list | None=None, dataset_is_quadstore:bool=True,
+        provenance_urls:list | None=None, provenance_dirs:list | None=None, provenance_is_quadstore:bool=True,
+        blazegraph_full_text_search:bool=False, fuseki_full_text_search:bool=False, virtuoso_full_text_search:bool=False,
         graphdb_connector_name:str='', cache_endpoint:str='', cache_update_endpoint:str='') -> dict:
     '''
     Given the configuration parameters, a file compliant with the syntax of the time-agnostic-library configuration files is generated.
@@ -61,6 +58,14 @@ def generate_config_file(
     :param cache_update_endpoint: If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for writing
     :type cache_update_endpoint: str
     '''
+    if provenance_dirs is None:
+        provenance_dirs = []
+    if provenance_urls is None:
+        provenance_urls = []
+    if dataset_dirs is None:
+        dataset_dirs = []
+    if dataset_urls is None:
+        dataset_urls = []
     config = {
         'dataset': {
             'triplestore_urls': dataset_urls,
@@ -79,13 +84,13 @@ def generate_config_file(
         'cache_triplestore_url': {
             'endpoint': cache_endpoint,
             'update_endpoint': cache_update_endpoint
-        }    
+        }
     }
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(config, f)
     return config
 
-def convert_to_datetime(time_string: Union[str, None], stringify: bool = False) -> Union[datetime, str, None]:
+def convert_to_datetime(time_string: str | None, stringify: bool = False) -> datetime | str | None:
     if time_string and time_string != 'None':
         time = parser.parse(time_string)
         if time.tzinfo is None:
@@ -98,7 +103,7 @@ def convert_to_datetime(time_string: Union[str, None], stringify: bool = False) 
         return time
     return None
 
-def _to_nt_sorted_list(cg:Dataset) -> Union[list, None]:
+def _to_nt_sorted_list(cg:Dataset) -> list | None:
     if cg is None:
         return None
     normalized_cg = Dataset(default_union=True)
@@ -111,32 +116,32 @@ def _to_nt_sorted_list(cg:Dataset) -> Union[list, None]:
     return sorted_nt_list
 
 def _to_dict_of_nt_sorted_lists(dictionary: dict) -> dict:
-    dict_of_nt_sorted_lists = dict()
+    dict_of_nt_sorted_lists = {}
     for key, value in dictionary.items():
         if isinstance(value, Dataset):
             dict_of_nt_sorted_lists[key] = _to_nt_sorted_list(value)
         else:
             for snapshot, cg in value.items():
-                dict_of_nt_sorted_lists.setdefault(key, dict())
+                dict_of_nt_sorted_lists.setdefault(key, {})
                 dict_of_nt_sorted_lists[key][snapshot] = _to_nt_sorted_list(cg)
     return dict_of_nt_sorted_lists
 
-def _to_dataset(nt_list:List[str]) -> Dataset:
+def _to_dataset(nt_list:list[str]) -> Dataset:
     cg = Dataset(default_union=True)
     for triple in nt_list:
         cg.parse(data=triple + '.', format='nt')
     return cg
 
 def _to_dict_of_datasets(dictionary: dict) -> dict:
-    dict_of_datasets = dict()
+    dict_of_datasets = {}
     for key, value in dictionary.items():
         if isinstance(value, list):
             cg = _to_dataset(value)
-            dict_of_datasets.setdefault(key, dict())
+            dict_of_datasets.setdefault(key, {})
             dict_of_datasets[key] = cg
         else:
             for snapshot, triples in value.items():
                 cg = _to_dataset(triples)
-                dict_of_datasets.setdefault(key, dict())
+                dict_of_datasets.setdefault(key, {})
                 dict_of_datasets[key][snapshot] = cg
     return dict_of_datasets
