@@ -18,7 +18,7 @@
 import json
 import re
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import List, Union
 
 from dateutil import parser
 from rdflib import Literal
@@ -85,31 +85,32 @@ def generate_config_file(
         json.dump(config, f)
     return config
 
-def convert_to_datetime(time_string: str, stringify: bool = False) -> datetime:
+def convert_to_datetime(time_string: Union[str, None], stringify: bool = False) -> Union[datetime, str, None]:
     if time_string and time_string != 'None':
         time = parser.parse(time_string)
         if time.tzinfo is None:
             time = time.replace(tzinfo=timezone.utc)
         else:
             time = time.astimezone(timezone.utc)
-        
-        if stringify:
-            time = time.isoformat()
-        return time
 
-def _to_nt_sorted_list(cg:Dataset) -> list:
+        if stringify:
+            return time.isoformat()
+        return time
+    return None
+
+def _to_nt_sorted_list(cg:Dataset) -> Union[list, None]:
     if cg is None:
         return None
     normalized_cg = Dataset(default_union=True)
     for quad in cg.quads():
         normalized_quad = tuple(Literal(str(el), datatype=None) if isinstance(el, Literal) else el for el in quad)
-        normalized_cg.add(normalized_quad)
+        normalized_cg.add(normalized_quad)  # type: ignore[arg-type]
     nt_list = re.split(r'\s?\.?\n+', normalized_cg.serialize(format='nt'))
     nt_list = filter(None, nt_list)
     sorted_nt_list = sorted(nt_list)
     return sorted_nt_list
 
-def _to_dict_of_nt_sorted_lists(dictionary:Dict[str, Dict[str, Dataset]]) -> Dict[str, Dict[str, List[str]]]:
+def _to_dict_of_nt_sorted_lists(dictionary: dict) -> dict:
     dict_of_nt_sorted_lists = dict()
     for key, value in dictionary.items():
         if isinstance(value, Dataset):
@@ -126,7 +127,7 @@ def _to_dataset(nt_list:List[str]) -> Dataset:
         cg.parse(data=triple + '.', format='nt')
     return cg
 
-def _to_dict_of_datasets(dictionary:Dict[str, Dict[str, List]]) -> Dict[str, Dict[str, Dataset]]:
+def _to_dict_of_datasets(dictionary: dict) -> dict:
     dict_of_datasets = dict()
     for key, value in dictionary.items():
         if isinstance(value, list):

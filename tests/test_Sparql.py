@@ -332,7 +332,7 @@ class Test_Sparql(unittest.TestCase):
             ),
             ("http://www.w3.org/ns/prov#generatedAtTime", "2021-05-06T18:14:42"),
         ]
-        output = len(Sparql(input_1, CONFIG)._cut_by_limit(input_2))
+        output = len(Sparql(input_1, CONFIG)._cut_by_limit(input_2))  # type: ignore[arg-type]
         expected_output = 2
         self.assertEqual(output, expected_output)
 

@@ -16,8 +16,7 @@
 
 import unittest
 
-import rdflib
-from rdflib import Dataset
+from rdflib import Dataset, Literal, URIRef
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.support import (_to_dataset,
                                            _to_dict_of_nt_sorted_lists,
@@ -52,7 +51,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         output = _to_dict_of_nt_sorted_lists(AgnosticEntity(input, config=CONFIG)._get_entity_current_state()[0])
         expected_output = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
-                rdflib.term.Literal('2021-06-01T18:46:41+00:00'): [
+                Literal('2021-06-01T18:46:41+00:00'): [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#specializationOf> <https://github.com/arcangelo7/time_agnostic/ar/15519>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-31T18:19:47+00:00"', 
@@ -68,8 +67,8 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
                 ], 
-                rdflib.term.Literal('2021-05-31T18:19:47+00:00'): None, 
-                rdflib.term.Literal('2021-05-07T09:59:15+00:00'): None}}
+                Literal('2021-05-31T18:19:47+00:00'): None, 
+                Literal('2021-05-07T09:59:15+00:00'): None}}
         self.assertEqual(output, expected_output)
     
     def test__old_graphs(self):
@@ -101,9 +100,9 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
 
     def test__include_prov_metadata(self):
         triples_generated_at_time = [
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2'), rdflib.term.URIRef('http://www.w3.org/ns/prov#generatedAtTime'), rdflib.term.Literal('2021-05-31T18:19:47+00:00', datatype=rdflib.term.URIRef('http://www.w3.org/2001/XMLSchema#dateTime'))), 
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3'), rdflib.term.URIRef('http://www.w3.org/ns/prov#generatedAtTime'), rdflib.term.Literal('2021-06-01T18:46:41+00:00', datatype=rdflib.term.URIRef('http://www.w3.org/2001/XMLSchema#dateTime'))), 
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1'), rdflib.term.URIRef('http://www.w3.org/ns/prov#generatedAtTime'), rdflib.term.Literal('2021-05-07T09:59:15+00:00', datatype=rdflib.term.URIRef('http://www.w3.org/2001/XMLSchema#dateTime')))
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2'), URIRef('http://www.w3.org/ns/prov#generatedAtTime'), Literal('2021-05-31T18:19:47+00:00', datatype=URIRef('http://www.w3.org/2001/XMLSchema#dateTime'))), 
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3'), URIRef('http://www.w3.org/ns/prov#generatedAtTime'), Literal('2021-06-01T18:46:41+00:00', datatype=URIRef('http://www.w3.org/2001/XMLSchema#dateTime'))), 
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1'), URIRef('http://www.w3.org/ns/prov#generatedAtTime'), Literal('2021-05-07T09:59:15+00:00', datatype=URIRef('http://www.w3.org/2001/XMLSchema#dateTime')))
         ]
         current_state = _to_dataset([
             '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"^^<http://www.w3.org/2001/XMLSchema#dateTime>', 
@@ -163,7 +162,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
 
     def test__include_prov_metadata_if_prov_input(self):
         triples_generated_at_time = [
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1'), rdflib.term.URIRef('http://www.w3.org/ns/prov#generatedAtTime'), rdflib.term.Literal('2021-05-07T09:59:15.000Z'))
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1'), URIRef('http://www.w3.org/ns/prov#generatedAtTime'), Literal('2021-05-07T09:59:15.000Z'))
         ]
         current_state = _to_dataset([
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1> <http://purl.org/dc/terms/description> "The entity \\\'https://github.com/arcangelo7/time_agnostic/ra/15519\\\' has been created."', 
@@ -407,11 +406,11 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
 
     def test__manage_update_queries_if_short_query(self):
         input_1 = Dataset(default_union=True)
-        input_1.add((
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/1'), 
-            rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), 
-            rdflib.term.Literal('10.1007/bf02028088'), 
-            rdflib.term.URIRef("https://github.com/arcangelo7/time_agnostic/id/")
+        input_1.add((  # type: ignore[arg-type]
+            URIRef('https://github.com/arcangelo7/time_agnostic/id/1'),
+            URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'),
+            Literal('10.1007/bf02028088'),
+            URIRef("https://github.com/arcangelo7/time_agnostic/id/")
         ))
         input_2 = """
             DELETE DATA { 

@@ -48,7 +48,7 @@ def check_data_exists(endpoint="http://localhost:9999/sparql"):
         """
         )
         sparql.setReturnFormat(JSON)
-        results = sparql.query().convert()
+        results: dict = sparql.query().convert()  # type: ignore[assignment]
         return results.get("boolean", False)
     except (EndPointNotFound, QueryBadFormed, SPARQLWrapperException):
         return False

@@ -14,7 +14,7 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-from typing import ClassVar
+from typing import ClassVar, List
 
 from rdflib import Namespace, URIRef
 
@@ -41,7 +41,7 @@ class ProvEntity:
     iri_has_update_query: ClassVar[URIRef] = OCO.hasUpdateQuery
 
     @classmethod
-    def get_prov_properties(cls):
+    def get_prov_properties(cls) -> List[URIRef]:
         prov_properties = [
             cls.iri_entity, cls.iri_generated_at_time, cls.iri_invalidated_at_time, 
             cls.iri_specialization_of, cls.iri_was_derived_from, cls.iri_had_primary_source, 

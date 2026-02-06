@@ -15,6 +15,7 @@
 # SOFTWARE.
 
 import copy
+from datetime import datetime
 from typing import Dict, List, Set, Tuple, Union
 
 from rdflib import RDF, BNode, Dataset, Graph, Literal, Namespace, URIRef
@@ -26,6 +27,13 @@ from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import convert_to_datetime
 
 CONFIG_PATH = "./config.json"
+
+
+def _parse_datetime(time_string: str) -> datetime:
+    result = convert_to_datetime(time_string)
+    assert isinstance(result, datetime)
+    return result
+
 
 class AgnosticEntity:
     """
@@ -51,7 +59,7 @@ class AgnosticEntity:
         self.include_reverse_relations = include_reverse_relations
         self.config = config
 
-    def get_history(self, include_prov_metadata: bool=False) -> Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]]]:
+    def get_history(self, include_prov_metadata: bool=False) -> tuple:
         """
         It materializes all versions of an entity. If any of the include_* parameters are True, 
         it also materializes all versions of related entities based on the configured parameters:
@@ -102,7 +110,7 @@ class AgnosticEntity:
 
     def _collect_all_related_entities_histories(
         self, 
-        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]], 
+        histories: dict,
         include_prov_metadata: bool
     ) -> None:
         """
@@ -128,9 +136,9 @@ class AgnosticEntity:
         self, 
         entity_uri: str, 
         processed_entities: Set[str], 
-        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]], 
+        histories: dict,
         include_prov_metadata: bool, 
-        depth: int = None
+        depth: Union[int, None] = None
     ) -> None:
         """
         Recursively collects entities that are objects of the given entity.
@@ -149,7 +157,7 @@ class AgnosticEntity:
             for triple in graph.triples((URIRef(entity_uri), None, None)):
                 predicate = triple[1]
                 obj = triple[2]
-                if isinstance(obj, URIRef) and ProvEntity.PROV not in predicate and predicate != RDF.type:
+                if isinstance(obj, URIRef) and str(ProvEntity.PROV) not in str(predicate) and predicate != RDF.type:
                     obj_uri = str(obj)
                     related_objects.add(obj_uri)
 
@@ -168,9 +176,9 @@ class AgnosticEntity:
         self, 
         entity_uri: str, 
         processed_entities: Set[str], 
-        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]], 
+        histories: dict,
         include_prov_metadata: bool, 
-        depth: int = None
+        depth: Union[int, None] = None
     ) -> None:
         """
         Recursively collects entities that were merged into the given entity.
@@ -197,9 +205,9 @@ class AgnosticEntity:
         self, 
         entity_uri: str, 
         processed_entities: Set[str], 
-        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]]]], 
+        histories: dict,
         include_prov_metadata: bool, 
-        depth: int = None
+        depth: Union[int, None] = None
     ) -> None:
         """
         Recursively collects entities that have the given entity as an object.
@@ -224,9 +232,9 @@ class AgnosticEntity:
 
     def _get_merged_histories(
         self, 
-        histories: Dict[str, Tuple[Dict[str, Dict[str, Graph]], Union[Dict[str, Dict[str, str]], None]]], 
+        histories: dict,
         include_prov_metadata: bool
-    ) -> Tuple[Dict[str, Graph], Dict[str, Dict[str, Dict[str, str]]]]:
+    ) -> tuple:
         """
         Merges the histories of the main entity and related entities based on timestamps.
 
@@ -243,7 +251,7 @@ class AgnosticEntity:
                 metadata[entity_uri] = entity_metadata[entity_uri]
 
         main_entity_times = sorted(
-            entity_histories[self.res].keys(), key=lambda x: convert_to_datetime(x)
+            entity_histories[self.res].keys(), key=lambda x: _parse_datetime(x)
         )
 
         merged_histories = {self.res: {}}
@@ -255,12 +263,12 @@ class AgnosticEntity:
                 if entity_uri == self.res:
                     continue
                 entity_times = sorted(
-                    entity_histories[entity_uri].keys(), key=lambda x: convert_to_datetime(x)
+                    entity_histories[entity_uri].keys(), key=lambda x: _parse_datetime(x)
                 )
 
                 relevant_time = None
                 for etime in entity_times:
-                    if convert_to_datetime(etime) <= convert_to_datetime(timestamp):
+                    if _parse_datetime(etime) <= _parse_datetime(timestamp):
                         relevant_time = etime
                     else:
                         break
@@ -273,10 +281,10 @@ class AgnosticEntity:
         return merged_histories, metadata
 
     def get_state_at_time(
-        self, 
-        time: Tuple[Union[str, None]], 
-        include_prov_metadata: bool = False, 
-        ) -> Tuple[Graph, dict, Union[dict, None]]:
+        self,
+        time: Tuple[Union[str, None], Union[str, None]],
+        include_prov_metadata: bool = False,
+        ) -> tuple:
         """
         Given a time interval, the function returns the states of the resource and optionally its related entities within the interval,
         the returned snapshots metadata, and optionally, the hooks to the previous and subsequent snapshots.
@@ -339,8 +347,8 @@ class AgnosticEntity:
 
     def _collect_all_related_entities_states_at_time(
         self, 
-        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
-        time: Tuple[Union[str, None]], 
+        histories: dict,
+        time: Tuple[Union[str, None], Union[str, None]],
         include_prov_metadata: bool
     ) -> None:
         """
@@ -365,10 +373,10 @@ class AgnosticEntity:
         self, 
         entity_uri: str, 
         processed_entities: Set[str], 
-        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
-        time: Tuple[Union[str, None]], 
+        histories: dict,
+        time: Tuple[Union[str, None], Union[str, None]],
         include_prov_metadata: bool, 
-        depth: int = None
+        depth: Union[int, None] = None
     ) -> None:
         """
         Recursively collects entity states at time for entities that are objects of the given entity.
@@ -387,7 +395,7 @@ class AgnosticEntity:
             for triple in graph.triples((URIRef(entity_uri), None, None)):
                 predicate = triple[1]
                 obj = triple[2]
-                if isinstance(obj, URIRef) and ProvEntity.PROV not in predicate and predicate != RDF.type:
+                if isinstance(obj, URIRef) and str(ProvEntity.PROV) not in str(predicate) and predicate != RDF.type:
                     obj_uri = str(obj)
                     related_objects.add(obj_uri)
 
@@ -405,10 +413,10 @@ class AgnosticEntity:
         self, 
         entity_uri: str, 
         processed_entities: Set[str], 
-        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
-        time: Tuple[Union[str, None]], 
+        histories: dict,
+        time: Tuple[Union[str, None], Union[str, None]],
         include_prov_metadata: bool, 
-        depth: int = None
+        depth: Union[int, None] = None
     ) -> None:
         """
         Recursively collects entity states at time for entities that were merged into the given entity.
@@ -434,10 +442,10 @@ class AgnosticEntity:
         self, 
         entity_uri: str, 
         processed_entities: Set[str], 
-        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
-        time: Tuple[Union[str, None]], 
+        histories: dict,
+        time: Tuple[Union[str, None], Union[str, None]],
         include_prov_metadata: bool, 
-        depth: int = None
+        depth: Union[int, None] = None
     ) -> None:
         """
         Recursively collects entity states at time for entities that have the given entity as an object.
@@ -461,9 +469,9 @@ class AgnosticEntity:
 
     def _get_merged_histories_at_time(
         self, 
-        histories: Dict[str, Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]], 
+        histories: dict,
         include_prov_metadata: bool
-    ) -> Tuple[Dict[str, Dict[str, Graph]], Dict[str, Dict[str, Dict[str, str]]], Union[Dict[str, Dict[str, Dict[str, str]]], None]]:
+    ) -> tuple:
         """
         Merges the states of the main entity and related entities at the given times.
 
@@ -478,11 +486,11 @@ class AgnosticEntity:
         for entity_uri, (entity_graphs, entity_snapshots, other_snapshots) in histories.items():
             entity_histories[entity_uri] = entity_graphs
             entity_snapshots_metadata[entity_uri] = entity_snapshots
-            if include_prov_metadata and other_snapshots:
+            if include_prov_metadata and other_snapshots and other_snapshots_metadata is not None:
                 other_snapshots_metadata[entity_uri] = other_snapshots
 
         main_entity_times = sorted(
-            set(entity_histories[self.res].keys()), key=lambda x: convert_to_datetime(x)
+            set(entity_histories[self.res].keys()), key=lambda x: _parse_datetime(x)
         )
 
         merged_histories = {self.res: {}}
@@ -497,11 +505,11 @@ class AgnosticEntity:
                     related_graph = graphs_at_times[timestamp]
                 else:
                     related_times = sorted(
-                        graphs_at_times.keys(), key=lambda x: convert_to_datetime(x)
+                        graphs_at_times.keys(), key=lambda x: _parse_datetime(x)
                     )
                     relevant_time = None
                     for rt in related_times:
-                        if convert_to_datetime(rt) <= convert_to_datetime(timestamp):
+                        if _parse_datetime(rt) <= _parse_datetime(timestamp):
                             relevant_time = rt
                         else:
                             break
@@ -518,9 +526,9 @@ class AgnosticEntity:
 
     def _get_entity_state_at_time(
         self, 
-        time: Tuple[Union[str, None]], 
+        time: Tuple[Union[str, None], Union[str, None]],
         include_prov_metadata: bool
-    ) -> Tuple[Dict[str, Graph], Dict[str, Dict[str, str]], Union[Dict[str, Dict[str, str]], None]]:
+    ) -> tuple:
         """
         Get the state of the entity at the given time(s).
         
@@ -558,7 +566,7 @@ class AgnosticEntity:
         bindings = results['results']['bindings']
         if not bindings:
             return {}, {}, other_snapshots_metadata
-        sorted_results = sorted(bindings, key=lambda x: convert_to_datetime(x['time']['value']), reverse=True)
+        sorted_results = sorted(bindings, key=lambda x: _parse_datetime(x['time']['value']), reverse=True)
         relevant_results = _filter_timestamps_by_interval(time, sorted_results, time_index='time')
         if include_prov_metadata:
             relevant_snapshot_uris = {relevant_result['snapshot']['value'] for relevant_result in relevant_results}
@@ -574,11 +582,11 @@ class AgnosticEntity:
                     "description": other_snapshot.get('description', {}).get('value')
                 }
         if not relevant_results:
-            interval_start = convert_to_datetime(time[0]) if time[0] else None
+            interval_start = _parse_datetime(time[0]) if time[0] else None
             if interval_start:
-                earlier_snapshots = [r for r in bindings if convert_to_datetime(r['time']['value']) <= interval_start]
+                earlier_snapshots = [r for r in bindings if _parse_datetime(r['time']['value']) <= interval_start]
                 if earlier_snapshots:
-                    latest_snapshot = max(earlier_snapshots, key=lambda x: convert_to_datetime(x['time']['value']))
+                    latest_snapshot = max(earlier_snapshots, key=lambda x: _parse_datetime(x['time']['value']))
                     relevant_results = [latest_snapshot]
                 else:
                     return {}, {}, other_snapshots_metadata
@@ -595,7 +603,7 @@ class AgnosticEntity:
             for result in bindings:
                 result_time = result['time']['value']
                 if 'updateQuery' in result and 'value' in result['updateQuery']:
-                    if convert_to_datetime(result_time) > convert_to_datetime(relevant_result_time):
+                    if _parse_datetime(result_time) > _parse_datetime(relevant_result_time):
                         if sum_update_queries:
                             sum_update_queries += ";"
                         sum_update_queries += result['updateQuery']['value']
@@ -630,7 +638,7 @@ class AgnosticEntity:
             self.res: dict()
         }
         for triple in triples_generated_at_time:
-            time = convert_to_datetime(triple[2], stringify=True)
+            time = convert_to_datetime(str(triple[2]), stringify=True)
             snapshot_uri_str = str(triple[0])
             prov_metadata[self.res][snapshot_uri_str] = {
                 "generatedAtTime": time,
@@ -661,24 +669,24 @@ class AgnosticEntity:
         return prov_metadata
 
     def _get_entity_current_state(self, include_prov_metadata: bool = False) -> list:
-        entity_current_state = [{self.res: dict()}]
+        entity_current_state: list = [{self.res: dict()}]
         current_state = Dataset(default_union=True)
         for quad in self._query_provenance(include_prov_metadata).quads():
-            current_state.add(quad)
+            current_state.add(quad)  # type: ignore[arg-type]
         if len(current_state) == 0:
             entity_current_state.append(dict())
             return entity_current_state
         for quad in self._query_dataset(self.res).quads():
-            current_state.add(quad)
+            current_state.add(quad)  # type: ignore[arg-type]
         triples_generated_at_time = list(
             current_state.triples((None, ProvEntity.iri_generated_at_time, None))
         )
         most_recent_time = None
         for triple in triples_generated_at_time:
             snapshot_time = triple[2]
-            snapshot_date_time = convert_to_datetime(snapshot_time)
+            snapshot_date_time = _parse_datetime(str(snapshot_time))
             if most_recent_time:
-                if snapshot_date_time > convert_to_datetime(most_recent_time):
+                if snapshot_date_time > _parse_datetime(str(most_recent_time)):
                     most_recent_time = snapshot_time
             elif not most_recent_time:
                 most_recent_time = snapshot_time
@@ -696,7 +704,7 @@ class AgnosticEntity:
     def _get_old_graphs(self, entity_current_state:List[Dict[str, Dict[str, Dataset]]]) -> list:
         ordered_data: List[Tuple[str, Dataset]] = sorted(
             entity_current_state[0][self.res].items(),
-            key=lambda x: convert_to_datetime(x[0]),
+            key=lambda x: _parse_datetime(str(x[0])),
             reverse=True
         )
         for index, date_graph in enumerate(ordered_data):
@@ -707,14 +715,14 @@ class AgnosticEntity:
                     predicate=ProvEntity.iri_generated_at_time,
                     object=Literal(next_snapshot)
                 )
-                snapshot_update_query: str = previous_graph.value(
+                snapshot_update_query = previous_graph.value(
                     subject=snapshot_uri,
                     predicate=ProvEntity.iri_has_update_query,
                     object=None)
                 if snapshot_update_query is None:
                     entity_current_state[0][self.res][date_graph[0]] = previous_graph
                 else:
-                    self._manage_update_queries(previous_graph, snapshot_update_query)
+                    self._manage_update_queries(previous_graph, str(snapshot_update_query))
                     entity_current_state[0][self.res][date_graph[0]] = previous_graph
         for time in list(entity_current_state[0][self.res]):
             cg_no_pro = entity_current_state[0][self.res].pop(time)
@@ -727,7 +735,7 @@ class AgnosticEntity:
                 for triple in triples_to_remove:
                     cg_no_pro.remove(triple)
             
-            time_str = convert_to_datetime(time, stringify=True)
+            time_str = str(convert_to_datetime(str(time), stringify=True))
             entity_current_state[0][self.res][time_str] = cg_no_pro
         return entity_current_state
 
@@ -767,7 +775,7 @@ class AgnosticEntity:
                         quads.append((s, p, o, context))
             return quads
 
-        def _process_node(node, namespace_manager: NamespaceManager):
+        def _process_node(node: Union[dict, BNode, str], namespace_manager: NamespaceManager):
             if isinstance(node, dict):
                 if 'prefix' in node and 'localname' in node:
                     namespace = namespace_manager.store.namespace(node['prefix'])
@@ -781,7 +789,7 @@ class AgnosticEntity:
                         return Literal(node['string'])
             elif isinstance(node, BNode):
                 return node
-            return URIRef(node)
+            return URIRef(str(node))
 
         def match_literal(graph_literal, query_literal):
             if isinstance(graph_literal, Literal) and isinstance(query_literal, Literal):
@@ -823,7 +831,7 @@ class AgnosticEntity:
             print(f"Error processing update query: {e}")
             print(f"Problematic query: {update_query}")
 
-    def _query_dataset(self, entity_uri: str = None) -> Dataset:
+    def _query_dataset(self, entity_uri: Union[str, None] = None) -> Dataset:
         # A SELECT hack can be used to return RDF quads in named graphs,
         # since the CONSTRUCT allows only to return triples in SPARQL 1.1.
         # Here is an example of SELECT hack using VALUES:
@@ -971,17 +979,17 @@ class AgnosticEntity:
 
         return reverse_related_entity_uris
 
-def _filter_timestamps_by_interval(interval: Tuple[str, str], iterator: list, time_index: str = None) -> list:
+def _filter_timestamps_by_interval(interval: Union[Tuple[Union[str, None], Union[str, None]], None], iterator: list, time_index: Union[str, None] = None) -> list:
     if interval:
-        after_time = convert_to_datetime(interval[0]) if interval[0] else None
-        before_time = convert_to_datetime(interval[1]) if interval[1] else None
+        after_time = _parse_datetime(interval[0]) if interval[0] else None
+        before_time = _parse_datetime(interval[1]) if interval[1] else None
         relevant_timestamps = []
         for timestamp in iterator:
             if time_index is not None and time_index in timestamp:
                 time_binding = timestamp[time_index]
                 if 'value' in time_binding:
                     time_str = time_binding['value']
-                    time = convert_to_datetime(time_str)
+                    time = _parse_datetime(time_str)
                 else:
                     continue
             else:

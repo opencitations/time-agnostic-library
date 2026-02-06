@@ -15,14 +15,14 @@
 # SOFTWARE.
 
 
-from typing import Set, Tuple, List
+from typing import List
 import zipfile
 from rdflib import Graph, XSD, Dataset
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.sparql import Query
-from rdflib.term import Literal, URIRef, _toPythonMapping
-from SPARQLWrapper import JSON, POST, RDFXML, TURTLE, SPARQLWrapper
+from rdflib.term import Literal, Node, URIRef, _toPythonMapping
+from SPARQLWrapper import JSON, POST, TURTLE, SPARQLWrapper
 
 from time_agnostic_library.prov_entity import ProvEntity
 
@@ -81,11 +81,11 @@ class Sparql:
         if XSD.gYearMonth in _toPythonMapping:
             _toPythonMapping.pop(XSD.gYearMonth)
     
-    def run_select_query(self) -> Set[Tuple]:
+    def run_select_query(self) -> dict:
         """
-        Given a SELECT query, it returns the results in a set of tuples. 
+        Given a SELECT query, it returns the results in SPARQL JSON bindings format.
 
-        :returns:  Set[Tuple] -- A set of tuples, in which the positional value of the elements in the tuples is equivalent to the variables indicated in the query.
+        :returns:  dict -- A dictionary with 'head' and 'results' keys following SPARQL JSON results format.
         """
         output = {'head': {'vars': []}, 'results': {'bindings': []}}
         if self.storer["file_paths"]:
@@ -101,16 +101,18 @@ class Sparql:
             if file_path.endswith('.zip'):
                 with zipfile.ZipFile(file_path, 'r') as z:
                     with z.open(z.namelist()[0]) as file:
-                        file_cg.parse(file=file, format="json-ld")
+                        file_cg.parse(file=file, format="json-ld")  # type: ignore[arg-type]
             else:
                 file_cg.parse(location=file_path, format="json-ld")
             query_results = file_cg.query(self.query)
+            # rdflib types vars as Optional, but it's always set for SELECT queries
+            assert query_results.vars is not None
             vars_list = [str(var) for var in query_results.vars]
             output['head']['vars'] = vars_list
             for result in query_results:
                 binding = {}
                 for var in vars_list:
-                    value = result.get(var)
+                    value = result[var]  # type: ignore[index]
                     if value is not None:
                         binding[var] = self._format_result_value(value)
                 output['results']['bindings'].append(binding)
@@ -123,14 +125,14 @@ class Sparql:
             sparql.setMethod(POST)
             sparql.setQuery(self.query)
             sparql.setReturnFormat(JSON)
-            results = sparql.queryAndConvert()
+            results: dict = sparql.queryAndConvert()  # type: ignore[assignment]
             if not output['head']['vars']:
                 output['head']['vars'] = results['head']['vars']
             output['results']['bindings'].extend(results['results']['bindings'])
         return output
 
     @staticmethod
-    def _format_result_value(value):
+    def _format_result_value(value: Node) -> dict:
         if isinstance(value, URIRef):
             return {'type': 'uri', 'value': str(value)}
         elif isinstance(value, Literal):
@@ -153,13 +155,12 @@ class Sparql:
         if self.storer["file_paths"]:
             results = self._get_graph_from_files()
             for quad in results.quads():
-                cg.add(quad)
+                cg.add(quad)  # type: ignore[arg-type]
         if self.storer["triplestore_urls"]:
             results = self._get_graph_from_triplestores()
             for quad in results.quads():
-                cg.add(quad)
-        cg = self._cut_by_limit(cg)
-        return cg
+                cg.add(quad)  # type: ignore[arg-type]
+        return self._cut_by_limit(cg)
 
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
@@ -168,7 +169,7 @@ class Sparql:
             sparql.setMethod(POST)
             sparql.setQuery(self.query)
             sparql.setReturnFormat(JSON)
-            results = sparql.queryAndConvert()
+            results: dict = sparql.queryAndConvert()  # type: ignore[assignment]
             return results.get('boolean', False)
         return False
 
@@ -180,12 +181,12 @@ class Sparql:
             if file_path.endswith('.zip'):
                 with zipfile.ZipFile(file_path, 'r') as z:
                     with z.open(z.namelist()[0]) as file:
-                        file_cg.parse(file=file, format="json-ld")
+                        file_cg.parse(file=file, format="json-ld")  # type: ignore[arg-type]
             else:
                 file_cg.parse(location=file_path, format="json-ld")
             results = file_cg.query(self.query)
             for result in results:
-                cg.add(result)
+                cg.add(result)  # type: ignore[arg-type]
         return cg
 
     def _get_graph_from_triplestores(self) -> Dataset:
@@ -213,7 +214,7 @@ class Sparql:
             if algebra.name == "SelectQuery":
                 sparql.setReturnFormat(JSON)
                 sparql.setOnlyConneg(True)
-                results = sparql.queryAndConvert()
+                results: dict = sparql.queryAndConvert()  # type: ignore[assignment]
                 for quad in results["results"]["bindings"]:
                     quad_to_add = list()
                     for var in results["head"]["vars"]:
@@ -226,7 +227,7 @@ class Sparql:
                                 quad_to_add.append(Literal(quad[var]["value"], lang=quad[var]['xml:lang']))
                             else:
                                 quad_to_add.append(Literal(quad[var]["value"]))
-                    cg.add(tuple(quad_to_add))
+                    cg.add(tuple(quad_to_add))  # type: ignore[arg-type]
             elif algebra.name == "ConstructQuery":
                 sparql.setReturnFormat(TURTLE)
                 sparql.setOnlyConneg(True)
@@ -234,14 +235,14 @@ class Sparql:
                 result_graph = Graph()
                 if isinstance(raw_result, bytes):
                     result_graph.parse(data=raw_result, format="turtle")
-                else:
+                elif isinstance(raw_result, Graph):
                     result_graph = raw_result
                 for s, p, o in result_graph.triples((None, None, None)):
                     cg.add((s, p, o))     
         return cg        
     
     @classmethod
-    def _get_tuples_set(cls, result_dict:dict, output:set, vars_list: list):
+    def _get_tuples_set(cls, result_dict:dict, output:set, vars_list: list) -> None:
         results_list = list()
         for var in vars_list:
             if str(var) in result_dict:
@@ -254,9 +255,9 @@ class Sparql:
                 results_list.append(None)
         output.add(tuple(results_list))
     
-    def _cut_by_limit(self, input):
+    def _cut_by_limit(self, input: Dataset) -> Dataset:
         algebra:CompValue = prepareQuery(self.query).algebra
         if "length" in algebra["p"]:
             limit = int(algebra["p"]["length"])
-            input = input[:limit]
+            input = input[:limit]  # type: ignore[assignment]
         return input

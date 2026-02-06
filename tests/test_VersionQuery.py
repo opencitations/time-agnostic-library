@@ -19,7 +19,7 @@ import json
 import os
 import unittest
 
-import rdflib
+from rdflib import URIRef, Variable
 from time_agnostic_library.agnostic_query import VersionQuery
 from time_agnostic_library.support import (_to_dict_of_datasets,
                                            _to_dict_of_nt_sorted_lists)
@@ -44,16 +44,16 @@ class Test_VersionQuery(unittest.TestCase):
         """
         input1 = {
             '_vars': {
-                rdflib.term.Variable('o')
+                Variable('o')
             },
             'triples': [
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o'))
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o'))
             ]
         }
         input2 = "triples"
         output = list()
         VersionQuery(query, config_path=CONFIG_PATH)._tree_traverse(input1, input2, output)
-        expected_output = [(rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o'))]
+        expected_output = [(URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o'))]
         self.assertEqual(output, expected_output)
 
     def test__tree_traverse_one_option(self):
@@ -68,18 +68,18 @@ class Test_VersionQuery(unittest.TestCase):
         """
         input1 = {
             '_vars': {
-                rdflib.term.Variable('o')},
+                Variable('o')},
             'triples': [
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'),rdflib.term.URIRef('http://purl.org/spar/pro/RoleInTime')),
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o'))
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'),URIRef('http://purl.org/spar/pro/RoleInTime')),
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o'))
             ]
         }
         input2 = "triples"
         output = list()
         VersionQuery(query, config_path=CONFIG_PATH)._tree_traverse(input1, input2, output)
         expected_output = [
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef('http://purl.org/spar/pro/RoleInTime')), 
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o'))
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), URIRef('http://purl.org/spar/pro/RoleInTime')), 
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ar/2'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o'))
         ]
         self.assertEqual(output, expected_output)
 
@@ -100,45 +100,45 @@ class Test_VersionQuery(unittest.TestCase):
         """
         input1 = {
             '_vars': {
-                rdflib.term.Variable('id'),
-                rdflib.term.Variable('o'),
-                rdflib.term.Variable('value')
+                Variable('id'),
+                Variable('o'),
+                Variable('value')
             },
             'expr': {
                 '_vars': set()
             },
             'p1': {
                 '_vars': {
-                    rdflib.term.Variable('o'), 
-                    rdflib.term.Variable('id')
+                    Variable('o'), 
+                    Variable('id')
                 },
                 'lazy': True,
                 'p1': {
-                    '_vars': {rdflib.term.Variable('o')},
+                    '_vars': {Variable('o')},
                     'expr': {'_vars': set()},
-                    'p1': {'_vars': {rdflib.term.Variable('o')},
-                    'triples': [(rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o'))]},
+                    'p1': {'_vars': {Variable('o')},
+                    'triples': [(URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o'))]},
                     'p2': {'_vars': set(),
-                    'triples': [(rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef('http://purl.org/spar/pro/RoleInTime'))]}
+                    'triples': [(URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), URIRef('http://purl.org/spar/pro/RoleInTime'))]}
                 },
                 'p2': {
-                    '_vars': {rdflib.term.Variable('o'), rdflib.term.Variable('id')},
-                    'triples': [(rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id'))]
+                    '_vars': {Variable('o'), Variable('id')},
+                    'triples': [(Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id'))]
                 }
             },
             'p2': {
-                '_vars': {rdflib.term.Variable('id'), rdflib.term.Variable('value')},
-                    'triples': [(rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))]
+                '_vars': {Variable('id'), Variable('value')},
+                    'triples': [(Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))]
             }
         }
         input2 = "triples"
         output = list()
         VersionQuery(query, config_path=CONFIG_PATH)._tree_traverse(input1, input2, output)
         expected_output = [
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef('http://purl.org/spar/pro/RoleInTime')), 
-            (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')), 
-            (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), URIRef('http://purl.org/spar/pro/RoleInTime')), 
+            (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')), 
+            (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
         ]
         self.assertEqual(output, expected_output)
 
@@ -159,10 +159,10 @@ class Test_VersionQuery(unittest.TestCase):
         """
         output = VersionQuery(input, config_path=CONFIG_PATH)._process_query()
         expected_output = [
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-            (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef('http://purl.org/spar/pro/RoleInTime')), 
-            (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')), 
-            (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+            (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), URIRef('http://purl.org/spar/pro/RoleInTime')), 
+            (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')), 
+            (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
         ]
         self.assertEqual(output, expected_output)
 
@@ -191,7 +191,7 @@ class Test_VersionQuery(unittest.TestCase):
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.relevant_entities_graphs = _to_dict_of_datasets({
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
@@ -252,7 +252,7 @@ class Test_VersionQuery(unittest.TestCase):
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.relevant_entities_graphs = _to_dict_of_datasets({
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
@@ -271,7 +271,7 @@ class Test_VersionQuery(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
                 ]
             }, 
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'): {
                 '2021-05-07T09:59:15+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/14>', 
                     '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent>', 
@@ -287,7 +287,7 @@ class Test_VersionQuery(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://xmlns.com/foaf/0.1/name> "Giulio Marini"'
                 ]
             }, 
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'): {
                 '2021-05-07T09:59:15+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509>', 
                     '<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent>', 
@@ -297,7 +297,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ], 
                 '2021-06-01T18:46:41+00:00': []
             }, 
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/14'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/id/14'): {
                 '2021-05-07T09:59:15+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/id/14> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid>', 
                     '<https://github.com/arcangelo7/time_agnostic/id/14> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "http://orcid.org/0000-0002-3259-2309"', 
@@ -309,7 +309,7 @@ class Test_VersionQuery(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/id/14> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/datacite/Identifier>'
                 ]
             }, 
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/85509'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/id/85509'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/id/85509> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid>', 
                     '<https://github.com/arcangelo7/time_agnostic/id/85509> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "http://orcid.org/0000-0002-3259-2309"', 
@@ -405,7 +405,7 @@ class Test_VersionQuery(unittest.TestCase):
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.relevant_entities_graphs = _to_dict_of_datasets({
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-05-31T18:19:47+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
@@ -425,11 +425,11 @@ class Test_VersionQuery(unittest.TestCase):
                 ]
             }
         })
-        entity = rdflib.URIRef("https://github.com/arcangelo7/time_agnostic/ra/15519")
-        agnostic_query.reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
+        entity = URIRef("https://github.com/arcangelo7/time_agnostic/ra/15519")
+        agnostic_query.reconstructed_entities = {URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
         agnostic_query._rebuild_relevant_entity(entity)
         expected_relevant_entities_graphs = {
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-05-31T18:19:47+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
@@ -447,7 +447,7 @@ class Test_VersionQuery(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
                 ]
             },
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'): {
                 '2021-06-01T18:46:41+00:00': [], 
                 '2021-05-07T09:59:15+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509>', 
@@ -458,7 +458,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ]
             }
         }
-        expected_reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
+        expected_reconstructed_entities = {URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'), URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
         assert (agnostic_query.reconstructed_entities, _to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs)) == (expected_reconstructed_entities, expected_relevant_entities_graphs)
 
     def test__solve_variables(self):
@@ -475,9 +475,9 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        agnostic_query.reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
+        agnostic_query.reconstructed_entities = {URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
         agnostic_query.relevant_entities_graphs = _to_dict_of_datasets({
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
@@ -498,7 +498,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         })
         expected_relevant_entities_graphs = {
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
@@ -517,7 +517,7 @@ class Test_VersionQuery(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
                 ]
             }, 
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/14>', 
                     '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent>', 
@@ -533,7 +533,7 @@ class Test_VersionQuery(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://xmlns.com/foaf/0.1/name> "Giulio Marini"'
                 ]
             }, 
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'): {
                 '2021-06-01T18:46:41+00:00': [], 
                 '2021-05-07T09:59:15+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509>', 
@@ -543,7 +543,7 @@ class Test_VersionQuery(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> "Giulio Marini"'
                 ]
             }, 
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/14'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/id/14'): {
                 '2021-06-01T18:46:41+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/id/14> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid>', 
                     '<https://github.com/arcangelo7/time_agnostic/id/14> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "http://orcid.org/0000-0002-3259-2309"', 
@@ -555,7 +555,7 @@ class Test_VersionQuery(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/id/14> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/datacite/Identifier>'
                 ]
             }, 
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/85509'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/id/85509'): {
                 '2021-06-01T18:46:41+00:00': [], 
                 '2021-05-07T09:59:15+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/id/85509> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid>', 
@@ -564,7 +564,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ]
             }
         }
-        expected_reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/85509'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/id/14')}
+        expected_reconstructed_entities = {URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'), URIRef('https://github.com/arcangelo7/time_agnostic/id/85509'), URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'), URIRef('https://github.com/arcangelo7/time_agnostic/id/14')}
         agnostic_query._solve_variables()
         self.assertEqual(_to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs), expected_relevant_entities_graphs)
         assert (agnostic_query.reconstructed_entities, _to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs)) == (expected_reconstructed_entities, expected_relevant_entities_graphs)
@@ -582,9 +582,9 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        agnostic_query.reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519999')}
+        agnostic_query.reconstructed_entities = {URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519999')}
         agnostic_query.relevant_entities_graphs = dict()
-        expected_reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519999')}
+        expected_reconstructed_entities = {URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519999')}
         expected_relevant_entities_graphs = dict()
         agnostic_query._solve_variables()
         assert (agnostic_query.reconstructed_entities, agnostic_query.relevant_entities_graphs) == (expected_reconstructed_entities, expected_relevant_entities_graphs)
@@ -628,19 +628,19 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query._get_vars_to_explicit_by_time()
         expected_output = {
                 '2021-06-01T18:46:41+00:00': {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                    (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                    (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value')) 
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                    (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                    (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value')) 
                 }, 
                 '2021-05-07T09:59:15+00:00': {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                    (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                    (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                    (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                    (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
                 }, 
                 '2021-05-31T18:19:47+00:00': {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                    (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                    (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                    (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                    (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
                 }
             }
         self.assertEqual(agnostic_query.vars_to_explicit_by_time, expected_output) 
@@ -663,19 +663,19 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.vars_to_explicit_by_time = {
             '2021-06-01T18:46:41+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value')) 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value')) 
             }, 
             '2021-05-07T09:59:15+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value')) 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value')) 
             }, 
             '2021-05-31T18:19:47+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value')) 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value')) 
             }
         }
         output = agnostic_query._there_are_variables()
@@ -717,8 +717,8 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """    
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        variable = rdflib.term.Variable('a')
-        triple =  (rdflib.term.Variable('a'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
+        variable = Variable('a')
+        triple =  (Variable('a'), URIRef('http://purl.org/spar/pro/isHeldBy'), URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
         other_triples = {t for t in agnostic_query.triples if t != triple}
         output = agnostic_query._there_is_transitive_closure(variable, other_triples)
         self.assertEqual(output, False)
@@ -739,8 +739,8 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """    
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        variable = rdflib.term.Variable('id')
-        triple =  (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+        variable = Variable('id')
+        triple =  (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
         other_triples = {t for t in agnostic_query.triples if t != triple}
         output = agnostic_query._there_is_transitive_closure(variable, other_triples)
         self.assertEqual(output, True)
@@ -762,7 +762,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """        
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        triple =  (rdflib.term.Variable('a'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
+        triple =  (Variable('a'), URIRef('http://purl.org/spar/pro/isHeldBy'), URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
         output = agnostic_query._is_isolated(triple)
         self.assertEqual(output, True)
 
@@ -778,7 +778,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        triple =  (rdflib.term.Variable('elt_1'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id_1'))
+        triple =  (Variable('elt_1'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id_1'))
         output = agnostic_query._is_isolated(triple)
         self.assertEqual(output, True)
 
@@ -798,7 +798,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """        
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        triple = (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+        triple = (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
         output = agnostic_query._is_isolated(triple)
         self.assertEqual(output, False)
     
@@ -818,10 +818,10 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """        
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
-        triple_1 = (rdflib.term.URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519"), rdflib.term.URIRef("http://purl.org/spar/pro/isHeldBy"), rdflib.term.Variable("o"))
-        is_a_dead_end_1 = agnostic_query._is_a_dead_end(rdflib.term.URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519"), triple_1)
-        triple_2 = (rdflib.term.Variable("id"), rdflib.term.URIRef("http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue"), rdflib.term.Variable("value"))
-        is_a_dead_end_2 = agnostic_query._is_a_dead_end(rdflib.term.Variable("value"), triple_2)
+        triple_1 = (URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519"), URIRef("http://purl.org/spar/pro/isHeldBy"), Variable("o"))
+        is_a_dead_end_1 = agnostic_query._is_a_dead_end(URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519"), triple_1)
+        triple_2 = (Variable("id"), URIRef("http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue"), Variable("value"))
+        is_a_dead_end_2 = agnostic_query._is_a_dead_end(Variable("value"), triple_2)
         is_a_dead_end = (is_a_dead_end_1, is_a_dead_end_2)
         self.assertEqual(is_a_dead_end, (False, True))
 
@@ -843,36 +843,36 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.vars_to_explicit_by_time = {
             '2021-06-01T18:46:41+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value')) 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value')) 
             }, 
             '2021-05-07T09:59:15+00:00': {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                    (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                    (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                    (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                    (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
             }, 
             '2021-05-31T18:19:47+00:00': {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                    (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                    (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                    (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                    (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
             }
         }
         output = agnostic_query._explicit_solvable_variables()
         expected_output = {
             '2021-05-07T09:59:15+00:00': {
-                rdflib.term.Variable('o'): {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'),rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
+                Variable('o'): {
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),URIRef('http://purl.org/spar/pro/isHeldBy'),URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
                 }
             },
             '2021-05-31T18:19:47+00:00': {
-                rdflib.term.Variable('o'): {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'),rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
+                Variable('o'): {
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),URIRef('http://purl.org/spar/pro/isHeldBy'),URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
                 }
             },
             '2021-06-01T18:46:41+00:00': {
-                rdflib.term.Variable('o'): {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'),rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
+                Variable('o'): {
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),URIRef('http://purl.org/spar/pro/isHeldBy'),URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
                 }
             }
         }
@@ -896,54 +896,54 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.vars_to_explicit_by_time = {
             '2021-06-01T18:46:41+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value')) 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value')) 
             }, 
             '2021-05-07T09:59:15+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value')) 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value')) 
             }, 
             '2021-05-31T18:19:47+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.Variable('o')), 
-                (rdflib.term.Variable('o'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value')) 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), Variable('o')), 
+                (Variable('o'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value')) 
             }
         }
         solved_variables = {
             '2021-05-07T09:59:15+00:00': {
-                rdflib.term.Variable('o'): {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'),rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
+                Variable('o'): {
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),URIRef('http://purl.org/spar/pro/isHeldBy'),URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
                 }
             },
             '2021-05-31T18:19:47+00:00': {
-                rdflib.term.Variable('o'): {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'),rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
+                Variable('o'): {
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),URIRef('http://purl.org/spar/pro/isHeldBy'),URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
                 }
             },
             '2021-06-01T18:46:41+00:00': {
-                rdflib.term.Variable('o'): {
-                    (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'),rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
+                Variable('o'): {
+                    (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'),URIRef('http://purl.org/spar/pro/isHeldBy'),URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'))
                 }
             }
         }
         agnostic_query._update_vars_to_explicit(solved_variables)
         expected_output = {
             '2021-05-31T18:19:47+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519')), 
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519')), 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
             }, 
             '2021-05-07T09:59:15+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519')), 
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value')) 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519')), 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value')) 
             }, 
             '2021-06-01T18:46:41+00:00': {
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4')), 
-                (rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'), rdflib.term.URIRef('http://purl.org/spar/datacite/hasIdentifier'), rdflib.term.Variable('id')),
-                (rdflib.term.Variable('id'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('value'))
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'), URIRef('http://purl.org/spar/pro/isHeldBy'), URIRef('https://github.com/arcangelo7/time_agnostic/ra/4')), 
+                (URIRef('https://github.com/arcangelo7/time_agnostic/ra/4'), URIRef('http://purl.org/spar/datacite/hasIdentifier'), Variable('id')),
+                (Variable('id'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('value'))
             }
         } 
 
@@ -977,7 +977,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?a literal:hasLiteralValue ?b.
             }
         """
-        triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
+        triple = (Variable('a'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('b'))
         query_to_identify = VersionQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify = """
             SELECT DISTINCT ?updateQuery 
@@ -996,7 +996,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?a literal:hasLiteralValue ?b.
             }
         """
-        triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), rdflib.term.Variable('b'))
+        triple = (Variable('a'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('b'))
         query_to_identify = VersionQuery(query, config_path='tests/config_blazegraph.json')._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify_bds = """
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
@@ -1026,9 +1026,9 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         agnostic_query.relevant_entities_graphs = dict()
         agnostic_query.reconstructed_entities = set()
-        triple = (rdflib.term.Variable('a'), rdflib.term.URIRef('http://purl.org/spar/pro/isHeldBy'), rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
+        triple = (Variable('a'), URIRef('http://purl.org/spar/pro/isHeldBy'), URIRef('https://github.com/arcangelo7/time_agnostic/ra/15519'))
         expected_relevant_entities_graphs = {
-            rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
+            URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519'): {
                 '2021-05-07T09:59:15+00:00': [
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
@@ -1048,7 +1048,7 @@ class Test_VersionQuery(unittest.TestCase):
                     ]
                 }
             }
-        expected_reconstructed_entities = {rdflib.term.URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
+        expected_reconstructed_entities = {URIRef('https://github.com/arcangelo7/time_agnostic/ar/15519')}
         agnostic_query._find_entities_in_update_queries(triple, set())
         self.assertEqual(agnostic_query.reconstructed_entities, expected_reconstructed_entities)
         self.assertEqual(_to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs), expected_relevant_entities_graphs)

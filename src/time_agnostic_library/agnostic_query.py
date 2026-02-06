@@ -26,7 +26,7 @@ from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 from time_agnostic_library.agnostic_entity import (
-    AgnosticEntity, _filter_timestamps_by_interval)
+    AgnosticEntity, _filter_timestamps_by_interval, _parse_datetime)
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import convert_to_datetime
@@ -36,11 +36,16 @@ CONFIG_PATH = "./config.json"
 
 
 class AgnosticQuery(object):
-    def __init__(self, query: str, on_time: Tuple[Union[str, None]] = (None, None), other_snapshots: bool = False, config_path: str = CONFIG_PATH, config_dict: dict = None):
+    blazegraph_full_text_search: bool
+    fuseki_full_text_search: bool
+    virtuoso_full_text_search: bool
+    graphdb_connector_name: str
+
+    def __init__(self, query: str, on_time: Union[Tuple[Union[str, None], Union[str, None]], None] = (None, None), other_snapshots: bool = False, config_path: str = CONFIG_PATH, config_dict: Union[dict, None] = None):
         self.query = query
         self.other_snapshots = other_snapshots
         self.config_path = config_path
-        self.other_snapshots_metadata = dict()
+        self.other_snapshots_metadata: dict = dict()
         if config_dict is not None:
             self.config = config_dict
         else:
@@ -50,13 +55,13 @@ class AgnosticQuery(object):
         if on_time:
             after_time = convert_to_datetime(on_time[0], stringify=True)
             before_time = convert_to_datetime(on_time[1], stringify=True)
-            self.on_time = (after_time, before_time)
+            self.on_time: Union[Tuple[Union[str, None], Union[str, None]], None] = (after_time, before_time)  # type: ignore[assignment]
         else:
             self.on_time = None
-        self.reconstructed_entities = set()
-        self.vars_to_explicit_by_time:Dict[str, Set[Tuple]] = dict()
-        self.relevant_entities_graphs:Dict[URIRef, Dict[str, ConjunctiveGraph]] = dict()
-        self.relevant_graphs:Dict[str, Union[ConjunctiveGraph, Set]] = dict()
+        self.reconstructed_entities: set = set()
+        self.vars_to_explicit_by_time: dict = dict()
+        self.relevant_entities_graphs: dict = dict()
+        self.relevant_graphs: Dict[str, ConjunctiveGraph] = dict()
         self.cache_insert_queries = list()
         self._rebuild_relevant_graphs()
     
@@ -155,7 +160,7 @@ class AgnosticQuery(object):
                 if entity_history[0][entity]:
                     self.relevant_entities_graphs.update(entity_history[0]) 
 
-    def _get_query_to_identify(self, triple:list) -> str:
+    def _get_query_to_identify(self, triple: tuple) -> str:
         solvable_triple = [el.n3() for el in triple]
         if isinstance(triple[1], InvPath):
             predicate = solvable_triple[1].replace("^", "", 1)
@@ -168,6 +173,8 @@ class AgnosticQuery(object):
                 CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
                 WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
             """
+        else:
+            raise ValueError(f"Unsupported predicate type: {type(triple[1])}")
         return query_to_identify
 
     def _is_a_new_triple(self, triple:tuple, triples_checked:set) -> bool:
@@ -239,7 +246,7 @@ class AgnosticQuery(object):
             '''
         return query_to_identify
 
-    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set):
+    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set = set()):
         def _process_triple(processed_triple, uris_in_triple: set, relevant_entities_found: set):
             processed_triple = [el["string"] if "string" in el else el for el in processed_triple]
             relevant_entities = {processed_triple[0]} if len(uris_in_triple.intersection(processed_triple)) == len(uris_in_triple) else None
@@ -299,7 +306,7 @@ class AgnosticQuery(object):
                     return True
         return False
 
-    def _explicit_solvable_variables(self) -> Dict[str, Dict[str, str]]:
+    def _explicit_solvable_variables(self) -> dict:
         explicit_triples:Dict[str, Dict[str, set]] = dict()
         for se, triples in self.vars_to_explicit_by_time.items():
             for triple in triples:
@@ -319,7 +326,7 @@ class AgnosticQuery(object):
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(result)
                         with ThreadPoolExecutor() as executor:
-                            executor.map(self._rebuild_relevant_entity, [result[variable_index] for result in results]) 
+                            executor.map(self._rebuild_relevant_entity, [result[variable_index] for result in results])  # type: ignore[index]
         return explicit_triples
 
     def _align_snapshots(self) -> None:
@@ -352,13 +359,13 @@ class AgnosticQuery(object):
     def _sort_relevant_graphs(self):
         ordered_data: List[Tuple[str, ConjunctiveGraph]] = sorted(
             self.relevant_graphs.items(),
-            key=lambda x: convert_to_datetime(x[0]),
+            key=lambda x: _parse_datetime(x[0]),
             reverse=False # That is, from past to present, assuming that the past influences the present and not the opposite like in Dark
         )
         return ordered_data   
 
-    def _update_vars_to_explicit(self, solved_variables:Dict[str, Dict[Variable, Set[Tuple]]]):
-        vars_to_explicit_by_time:Dict[str, Dict[Variable, set]] = dict()
+    def _update_vars_to_explicit(self, solved_variables:dict):
+        vars_to_explicit_by_time: dict = dict()
         for se, triples in self.vars_to_explicit_by_time.items():
             vars_to_explicit_by_time.setdefault(se, set())
             new_triples = set()
@@ -408,12 +415,14 @@ class VersionQuery(AgnosticQuery):
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time:Tuple[Union[str, None]]="", other_snapshots=False, config_path:str=CONFIG_PATH, config_dict=None):
-        super(VersionQuery, self).__init__(query, on_time, other_snapshots, config_path, config_dict)    
+    def __init__(self, query:str, on_time: Union[Tuple[Union[str, None], Union[str, None]], None] = None, other_snapshots:bool=False, config_path:str=CONFIG_PATH, config_dict: Union[dict, None] = None):
+        super(VersionQuery, self).__init__(query, on_time, other_snapshots, config_path, config_dict)
 
     def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph) -> tuple:
         output = []
         query_results = graph.query(self.query)
+        # rdflib types vars as Optional, but it's always set for SELECT queries
+        assert query_results.vars is not None
         vars_list = [str(var) for var in query_results.vars]
         for result in query_results.bindings:
             binding = {}
@@ -446,14 +455,14 @@ class VersionQuery(AgnosticQuery):
 
     def _fill_timestamp_gaps(self, result: dict) -> dict:
         all_timestamps = self._get_all_provenance_timestamps()
-        sorted_result_ts = sorted(result.keys(), key=convert_to_datetime)
+        sorted_result_ts = sorted(result.keys(), key=_parse_datetime)
         if not sorted_result_ts:
             return result
-        min_ts = convert_to_datetime(sorted_result_ts[0])
-        max_ts = convert_to_datetime(sorted_result_ts[-1])
+        min_ts = _parse_datetime(sorted_result_ts[0])
+        max_ts = _parse_datetime(sorted_result_ts[-1])
         relevant_timestamps = sorted(
-            [t for t in all_timestamps if min_ts <= convert_to_datetime(t) <= max_ts],
-            key=convert_to_datetime
+            [t for t in all_timestamps if min_ts <= _parse_datetime(t) <= max_ts],
+            key=_parse_datetime
         )
         filled = dict(result)
         last_known = None
@@ -479,8 +488,8 @@ class DeltaQuery(AgnosticQuery):
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time:Tuple[Union[str, None]]=(), changed_properties:Set[str]=set(), config_path:str = CONFIG_PATH, config_dict=None):
-        super(DeltaQuery, self).__init__(query=query, on_time=on_time, config_path=config_path, config_dict=config_dict)    
+    def __init__(self, query:str, on_time: Union[Tuple[Union[str, None], Union[str, None]], None] = None, changed_properties:Set[str]=set(), config_path:str = CONFIG_PATH, config_dict: Union[dict, None] = None):
+        super(DeltaQuery, self).__init__(query=query, on_time=on_time, config_path=config_path, config_dict=config_dict)
         self.changed_properties = changed_properties
 
     def _rebuild_relevant_graphs(self) -> None:
@@ -507,7 +516,7 @@ class DeltaQuery(AgnosticQuery):
         # Then, the graphs of the entities obtained from the hooks are reconstructed
         self._solve_variables()
 
-    def _find_entities_in_update_queries(self, triple:tuple):
+    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set = set()):
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = set()
         query_to_identify = self._get_query_to_update_queries(triple)
@@ -521,7 +530,7 @@ class DeltaQuery(AgnosticQuery):
                     for request in update["request"]:
                         for quadsNotTriples in request["quads"]["quadsNotTriples"]:
                             for triple in quadsNotTriples["triples"]:
-                                triple = [el["string"] if "string" in el else el for el in triple]
+                                triple = tuple(el["string"] if "string" in el else el for el in triple)
                                 relevant_entities = set(triple).difference(uris_in_triple) if len(uris_in_triple.intersection(triple)) == len(uris_in_triple) else None
                                 if relevant_entities is not None:
                                     relevant_entities_found.update(relevant_entities)
@@ -529,7 +538,7 @@ class DeltaQuery(AgnosticQuery):
             if isinstance(relevant_entity_found, URIRef):
                 self.reconstructed_entities.add(relevant_entity_found)
 
-    def _get_query_to_identify(self, triple:list) -> str:
+    def _get_query_to_identify(self, triple: tuple) -> str:
         solvable_triple = [el.n3() for el in triple]
         if isinstance(triple[1], InvPath):
             predicate = solvable_triple[1].replace("^", "", 1)
@@ -542,6 +551,8 @@ class DeltaQuery(AgnosticQuery):
                 CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
                 WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
             """
+        else:
+            raise ValueError(f"Unsupported predicate type: {type(triple[1])}")
         return query_to_identify
 
     def _get_query_to_update_queries(self, triple:tuple) -> str:
@@ -581,7 +592,7 @@ class DeltaQuery(AgnosticQuery):
                     "deleted": None
                 }
                 # Sort the results by time
-                results_sorted = sorted(bindings, key=lambda x: convert_to_datetime(x['time']['value']))
+                results_sorted = sorted(bindings, key=lambda x: _parse_datetime(x['time']['value']))
                 creation_date = convert_to_datetime(results_sorted[0]['time']['value'], stringify=True)
                 # Check if the entity exists
                 exists = Sparql(query_existence, self.config).run_ask_query()
@@ -606,7 +617,7 @@ class DeltaQuery(AgnosticQuery):
                         output[identified_entity_str]["created"] = creation_date
         return output
         
-    def run_agnostic_query(self) -> Tuple[Dict[str, Dict[str, str]], dict]:
+    def run_agnostic_query(self) -> dict:
         """
         Queries the deltas relevant to the query and the properties set 
         in the specified time interval. If no property was indicated, 
