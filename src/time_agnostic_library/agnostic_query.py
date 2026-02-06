@@ -412,31 +412,21 @@ class VersionQuery(AgnosticQuery):
         super(VersionQuery, self).__init__(query, on_time, other_snapshots, config_path, config_dict)    
 
     def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph) -> tuple:
-        output = set()
+        output = []
         query_results = graph.query(self.query)
-        vars_list = query_results.vars
+        vars_list = [str(var) for var in query_results.vars]
         for result in query_results.bindings:
-            row = []
+            binding = {}
             for var in vars_list:
-                val = result.get(var)
+                val = result.get(Variable(var))
                 if val is not None:
-                    row.append(str(val) if not isinstance(val, Literal) else val.n3())
-                else:
-                    row.append(None)
-            output.add(tuple(row))
+                    binding[var] = Sparql._format_result_value(val)
+            output.append(binding)
         normalized_timestamp = convert_to_datetime(timestamp, stringify=True)
         return normalized_timestamp, output
         
-    def run_agnostic_query(self, include_all_timestamps: bool = False) -> Tuple[Dict[str, Set[Tuple]], dict]:
-        """
-        Run the query provided as a time-travel query.
-        If the **on_time** argument was specified, it runs on versions within the specified interval, on all versions otherwise.
-
-        :param include_all_timestamps: If True and running a cross-version query (no on_time), fill gaps between snapshot timestamps by carrying forward results from the nearest earlier timestamp. The full set of timestamps is derived from all prov:generatedAtTime values in the provenance store.
-        :type include_all_timestamps: bool
-        :returns Dict[str, Set[Tuple]] -- The output is a dictionary in which the keys are the snapshots relevant to that query. The values correspond to sets of tuples containing the query results at the time specified by the key. The positional value of the elements in the tuples is equivalent to the variables indicated in the query.
-        """
-        agnostic_result:dict[str, Set[Tuple]] = dict()
+    def run_agnostic_query(self, include_all_timestamps: bool = False) -> Tuple[Dict[str, List[Dict]], set]:
+        agnostic_result: dict[str, List[Dict]] = dict()
         with ThreadPoolExecutor() as executor:
             for future in [executor.submit(self._query_reconstructed_graph, timestamp, graph) for timestamp, graph in self.relevant_graphs.items()]:
                 normalized_timestamp, output = future.result()

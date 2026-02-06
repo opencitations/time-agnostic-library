@@ -15,6 +15,7 @@
 # SOFTWARE.
 
 
+import json
 import os
 import unittest
 
@@ -25,6 +26,10 @@ from time_agnostic_library.support import (_to_dict_of_datasets,
 
 CONFIG_PATH = os.path.join('tests', 'config.json')
 CONFIG_VIRTUOSO = os.path.join('tests', 'config_virtuoso.json')
+
+def _sort_bindings(bindings):
+    return sorted(bindings, key=lambda b: json.dumps(b, sort_keys=True))
+
 
 class Test_VersionQuery(unittest.TestCase):
     maxDiff = None
@@ -1061,9 +1066,20 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
-            {'2021-05-07T09:59:15+00:00': set(), '2021-05-31T18:19:47+00:00': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-06-01T18:46:41+00:00': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}},
+            {
+                '2021-05-07T09:59:15+00:00': [],
+                '2021-05-31T18:19:47+00:00': [
+                    {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'}}],
+                '2021-06-01T18:46:41+00:00': [
+                    {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/4'}}]
+            },
             set())
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_optional(self):
         query = """
@@ -1078,9 +1094,21 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
-            {'2021-06-01T18:46:41+00:00': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}, '2021-05-31T18:19:47+00:00': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}, '2021-05-07T09:59:15+00:00': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}},
+            {
+                '2021-06-01T18:46:41+00:00': [
+                    {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/4'}}],
+                '2021-05-31T18:19:47+00:00': [
+                    {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'}}],
+                '2021-05-07T09:59:15+00:00': [
+                    {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'}}]
+            },
             set())
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_more_variables_and_more_optionals(self):
         query = """
@@ -1099,23 +1127,25 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
-            '2021-05-31T18:19:47+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ra/15519', 
-                'https://github.com/arcangelo7/time_agnostic/id/85509', 
-                'http://orcid.org/0000-0002-3259-2309')
-            }, 
-            '2021-05-07T09:59:15+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ra/15519', 
-                'https://github.com/arcangelo7/time_agnostic/id/85509', 
-                'http://orcid.org/0000-0002-3259-2309')
-            }, 
-            '2021-06-01T18:46:41+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ra/4', 
-                'https://github.com/arcangelo7/time_agnostic/id/14', 
-                'http://orcid.org/0000-0002-3259-2309')
-            }
+            '2021-05-31T18:19:47+00:00': [
+                {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'},
+                 'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/85509'},
+                 'value': {'type': 'literal', 'value': 'http://orcid.org/0000-0002-3259-2309'}}],
+            '2021-05-07T09:59:15+00:00': [
+                {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'},
+                 'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/85509'},
+                 'value': {'type': 'literal', 'value': 'http://orcid.org/0000-0002-3259-2309'}}],
+            '2021-06-01T18:46:41+00:00': [
+                {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/4'},
+                 'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/14'},
+                 'value': {'type': 'literal', 'value': 'http://orcid.org/0000-0002-3259-2309'}}]
         }, set())
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_obj_var(self):
         query = """
@@ -1133,23 +1163,22 @@ class Test_VersionQuery(unittest.TestCase):
         """
         agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_VIRTUOSO)
         output = agnostic_query.run_agnostic_query()
-        ({
-            '2021-06-01T18:46:41+00:00': 
-                {(None, 'https://github.com/arcangelo7/time_agnostic/id/14')}, 
-            '2021-05-07T09:59:15+00:00': 
-                {(None, 'https://github.com/arcangelo7/time_agnostic/id/14')}}, set())
         expected_output = ({
-            '2021-05-07T09:59:15+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519', 'https://github.com/arcangelo7/time_agnostic/id/14')
-            },
-            '2021-05-31T18:19:47+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519', 'https://github.com/arcangelo7/time_agnostic/id/14')
-            },
-            '2021-06-01T18:46:41+00:00': {
-                (None, 'https://github.com/arcangelo7/time_agnostic/id/14')
-            }
+            '2021-05-07T09:59:15+00:00': [
+                {'a': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/14'}}],
+            '2021-05-31T18:19:47+00:00': [
+                {'a': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/14'}}],
+            '2021-06-01T18:46:41+00:00': [
+                {'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/14'}}]
         }, set())
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_p_obj_var(self):
         query = """
@@ -1168,15 +1197,20 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_VIRTUOSO)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
-            '2021-05-07T09:59:15+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519','http://purl.org/spar/pro/isHeldBy')
-            },
-            '2021-05-31T18:19:47+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519','http://purl.org/spar/pro/isHeldBy')
-            },
-            '2021-06-01T18:46:41+00:00': {(None, None)}
+            '2021-05-07T09:59:15+00:00': [
+                {'s': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'p': {'type': 'uri', 'value': 'http://purl.org/spar/pro/isHeldBy'}}],
+            '2021-05-31T18:19:47+00:00': [
+                {'s': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'p': {'type': 'uri', 'value': 'http://purl.org/spar/pro/isHeldBy'}}],
+            '2021-06-01T18:46:41+00:00': [{}]
         }, set())
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_subj_obj_var(self):
         query = """
@@ -1189,17 +1223,22 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
-            '2021-05-07T09:59:15+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519','https://github.com/arcangelo7/time_agnostic/ra/15519')
-            },
-            '2021-05-31T18:19:47+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519','https://github.com/arcangelo7/time_agnostic/ra/15519')
-            },
-            '2021-06-01T18:46:41+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519','https://github.com/arcangelo7/time_agnostic/ra/4')
-            }
+            '2021-05-07T09:59:15+00:00': [
+                {'s': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'}}],
+            '2021-05-31T18:19:47+00:00': [
+                {'s': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'}}],
+            '2021-06-01T18:46:41+00:00': [
+                {'s': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/4'}}]
         }, set())
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_var_multi_cont_values(self):
         query = """
@@ -1215,36 +1254,31 @@ class Test_VersionQuery(unittest.TestCase):
         """
         agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
+        br31830 = {'br': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/br/31830'},
+                    'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/4'},
+                    'value': {'type': 'literal', 'value': '10.1080/15216540701258751'}}
+        br33757 = {'br': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/br/33757'},
+                    'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/27139'},
+                    'value': {'type': 'literal', 'value': '10.1007/s11192-006-0133-x'}}
         expected_output = ({
-            '2021-05-07T09:59:15+00:00': set(),
-            '2021-05-30T16:42:28+00:00': set(),
-            '2021-05-30T18:15:04+00:00': set(),
-            '2021-05-30T19:41:57+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751')},
-            '2021-05-30T20:28:47+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751'),
-                ('https://github.com/arcangelo7/time_agnostic/br/33757','https://github.com/arcangelo7/time_agnostic/id/27139','10.1007/s11192-006-0133-x')},
-            '2021-05-30T21:29:54+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751'),
-                ('https://github.com/arcangelo7/time_agnostic/br/33757','https://github.com/arcangelo7/time_agnostic/id/27139','10.1007/s11192-006-0133-x')},
-            '2021-05-30T23:37:34+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751'),
-                ('https://github.com/arcangelo7/time_agnostic/br/33757','https://github.com/arcangelo7/time_agnostic/id/27139','10.1007/s11192-006-0133-x')},
-            '2021-05-31T20:31:01+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751'),
-                ('https://github.com/arcangelo7/time_agnostic/br/33757','https://github.com/arcangelo7/time_agnostic/id/27139','10.1007/s11192-006-0133-x')},
-            '2021-05-31T21:55:56+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751'),
-                ('https://github.com/arcangelo7/time_agnostic/br/33757','https://github.com/arcangelo7/time_agnostic/id/27139','10.1007/s11192-006-0133-x')},
-            '2021-06-01T01:02:01+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751'),
-                ('https://github.com/arcangelo7/time_agnostic/br/33757','https://github.com/arcangelo7/time_agnostic/id/27139','10.1007/s11192-006-0133-x')},
-            '2021-06-30T19:26:15+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751'),
-                ('https://github.com/arcangelo7/time_agnostic/br/33757','https://github.com/arcangelo7/time_agnostic/id/27139','10.1007/s11192-006-0133-x')
-            }
+            '2021-05-07T09:59:15+00:00': [],
+            '2021-05-30T16:42:28+00:00': [],
+            '2021-05-30T18:15:04+00:00': [],
+            '2021-05-30T19:41:57+00:00': [br31830],
+            '2021-05-30T20:28:47+00:00': [br31830, br33757],
+            '2021-05-30T21:29:54+00:00': [br31830, br33757],
+            '2021-05-30T23:37:34+00:00': [br31830, br33757],
+            '2021-05-31T20:31:01+00:00': [br31830, br33757],
+            '2021-05-31T21:55:56+00:00': [br31830, br33757],
+            '2021-06-01T01:02:01+00:00': [br31830, br33757],
+            '2021-06-30T19:26:15+00:00': [br31830, br33757]
         }, set())
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_easy_on_time(self):
         query = """
@@ -1259,9 +1293,15 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
-            {'2021-05-31T18:19:47+00:00': {('https://github.com/arcangelo7/time_agnostic/ra/15519',)}},
+            {'2021-05-31T18:19:47+00:00': [
+                {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'}}]},
             {'2021-06-01T18:46:41+00:00', '2021-05-07T09:59:15+00:00'})
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_easy_on_time_no_results(self):
         query = """
@@ -1293,9 +1333,15 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, on_time=("2021-06-01T18:46:41+00:00", "2021-06-01T18:46:41+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
-            {'2021-06-01T18:46:41+00:00': {('https://github.com/arcangelo7/time_agnostic/ra/4',)}},
+            {'2021-06-01T18:46:41+00:00': [
+                {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/4'}}]},
             {'2021-05-31T18:19:47+00:00', '2021-05-07T09:59:15+00:00'})
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_more_variables_and_more_optionals_on_time(self):
         query = """
@@ -1314,13 +1360,17 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
-            '2021-05-07T09:59:15+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ra/15519', 
-                'https://github.com/arcangelo7/time_agnostic/id/85509', 
-                'http://orcid.org/0000-0002-3259-2309')
-            }},
+            '2021-05-07T09:59:15+00:00': [
+                {'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'},
+                 'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/85509'},
+                 'value': {'type': 'literal', 'value': 'http://orcid.org/0000-0002-3259-2309'}}]},
             {'2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00'})
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_obj_var_on_time(self):
         query = """
@@ -1340,11 +1390,16 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
-            '2021-05-07T09:59:15+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519', 'https://github.com/arcangelo7/time_agnostic/id/14')
-            }},
+            '2021-05-07T09:59:15+00:00': [
+                {'a': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/14'}}]},
             {'2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00'})
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_p_obj_var_on_time(self):
         query = """
@@ -1363,11 +1418,16 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
-            '2021-05-07T09:59:15+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519','http://purl.org/spar/pro/isHeldBy')
-            }
+            '2021-05-07T09:59:15+00:00': [
+                {'s': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'p': {'type': 'uri', 'value': 'http://purl.org/spar/pro/isHeldBy'}}]
         }, set())
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_subj_obj_var_on_time(self):
         query = """
@@ -1380,11 +1440,16 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
-            '2021-05-31T18:19:47+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/ar/15519','https://github.com/arcangelo7/time_agnostic/ra/15519')
-            }},
+            '2021-05-31T18:19:47+00:00': [
+                {'s': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ar/15519'},
+                 'o': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/ra/15519'}}]},
             {'2021-06-01T18:46:41+00:00', '2021-05-07T09:59:15+00:00'})
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     def test_run_agnostic_query_var_multi_cont_values_on_time(self):
         query = """
@@ -1401,11 +1466,17 @@ class Test_VersionQuery(unittest.TestCase):
         agnostic_query = VersionQuery(query, on_time=("2021-05-30T19:41:57+00:00", "2021-05-30T19:41:57+00:00"), other_snapshots=False, config_path=CONFIG_PATH)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
-            '2021-05-30T19:41:57+00:00': {
-                ('https://github.com/arcangelo7/time_agnostic/br/31830','https://github.com/arcangelo7/time_agnostic/id/4','10.1080/15216540701258751')
-            }
+            '2021-05-30T19:41:57+00:00': [
+                {'br': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/br/31830'},
+                 'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/4'},
+                 'value': {'type': 'literal', 'value': '10.1080/15216540701258751'}}]
         }, set())
-        self.assertEqual(output, expected_output)
+        result, other = output
+        expected_result, expected_other = expected_output
+        self.assertEqual(other, expected_other)
+        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        for ts in expected_result:
+            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
 
     # def test_run_agnostic_query_updating_relevant_times(self):
     #     query = """

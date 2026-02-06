@@ -129,7 +129,8 @@ class Sparql:
             output['results']['bindings'].extend(results['results']['bindings'])
         return output
 
-    def _format_result_value(self, value):
+    @staticmethod
+    def _format_result_value(value):
         if isinstance(value, URIRef):
             return {'type': 'uri', 'value': str(value)}
         elif isinstance(value, Literal):
