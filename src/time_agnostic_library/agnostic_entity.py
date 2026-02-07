@@ -13,17 +13,162 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
+import re
 from datetime import datetime
 from functools import lru_cache
 
-from rdflib import RDF, Dataset, Graph, Literal, Namespace
-from rdflib.namespace import NamespaceManager
-from rdflib.plugins.sparql import parser
+from rdflib import RDF, Dataset, Literal
 from rdflib.term import BNode, URIRef
 
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import convert_to_datetime
+
+# Handles queries of the form:
+#   DELETE DATA { GRAPH <uri> { <s> <p> "o"^^<dt> . } }; INSERT DATA { ... }
+
+_OPERATION_RE = re.compile(r'(DELETE|INSERT)\s+DATA', re.IGNORECASE)
+_GRAPH_BLOCK_RE = re.compile(r'GRAPH\s*<([^>]+)>\s*\{', re.IGNORECASE)
+
+# Each alternative captures into different numbered groups:
+#   group 1: URI                    <http://example.org>
+#   group 2,3: typed literal        "value"^^<datatype>
+#   group 4,5: language literal     "value"@en
+#   group 6: plain double-quoted    "value"
+#   group 7: plain single-quoted    'value'
+#   group 8: blank node             _:name
+# Order matters: typed literals must precede plain literals.
+_RDF_TERM_RE = re.compile(
+    r'<([^>]+)>'
+    r'|"((?:[^"\\]|\\.)*)"\^\^<([^>]+)>'
+    r'|"((?:[^"\\]|\\.)*)"@([a-zA-Z][\w-]*)'
+    r'|"((?:[^"\\]|\\.)*)"'
+    r"|'((?:[^'\\]|\\.)*)'"
+    r'|(_:\S+)',
+    re.DOTALL,
+)
+
+_ESCAPE_CHAR_RE = re.compile(r'\\(.)')
+_ESCAPE_CHAR_MAP = {'n': '\n', 'r': '\r', 't': '\t'}
+
+
+def _unescape_literal(s: str) -> str:
+    # Single-pass substitution: \n -> newline, \r -> CR, \t -> tab,
+    # any other \X -> X (e.g. \\ -> \, \" -> ")
+    if '\\' not in s:
+        return s
+    return _ESCAPE_CHAR_RE.sub(
+        lambda m: _ESCAPE_CHAR_MAP.get(m.group(1), m.group(1)), s
+    )
+
+
+def _regex_match_to_rdf_term(match: re.Match):
+    uri = match.group(1)
+    if uri is not None:
+        return URIRef(uri)
+
+    typed_value = match.group(2)
+    if typed_value is not None:
+        datatype_uri = URIRef(match.group(3))
+        # Wrapping in Literal() first preserves the raw lexical form.
+        # Without this, rdflib normalizes certain values (e.g. "...Z"^^xsd:dateTime
+        # becomes "...+00:00"), breaking equality with values stored in the graph.
+        return Literal(Literal(_unescape_literal(typed_value)), datatype=datatype_uri)
+
+    lang_value = match.group(4)
+    if lang_value is not None:
+        return Literal(_unescape_literal(lang_value), lang=match.group(5))
+
+    double_quoted = match.group(6)
+    if double_quoted is not None:
+        return Literal(_unescape_literal(double_quoted))
+
+    single_quoted = match.group(7)
+    if single_quoted is not None:
+        return Literal(_unescape_literal(single_quoted))
+
+    blank_node_id = match.group(8)
+    return BNode(blank_node_id[2:])  # strip "_:" prefix
+
+
+def _find_matching_close_brace(text: str, start: int) -> int:
+    # Finds the closing '}' that matches the opening brace at start-1,
+    # skipping over braces that appear inside quoted string literals.
+    pos = start
+    length = len(text)
+    depth = 1
+    while pos < length:
+        char = text[pos]
+        if char == '{':
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0:
+                return pos
+        elif char in ('"', "'"):
+            # Skip the entire quoted string to avoid matching braces inside literals
+            # like "Roger Federer]}}"@en or "y}"@en
+            quote_char = char
+            pos += 1
+            while pos < length:
+                if text[pos] == '\\':
+                    pos += 2  # skip escape sequence
+                    continue
+                if text[pos] == quote_char:
+                    break
+                pos += 1
+        pos += 1
+    return length
+
+
+def _fast_parse_update(update_query: str) -> list[tuple[str, list[tuple]]]:
+    operations: list[tuple[str, list[tuple]]] = []
+    operation_matches = list(_OPERATION_RE.finditer(update_query))
+
+    for i, operation_match in enumerate(operation_matches):
+        operation_type = 'DeleteData' if operation_match.group(1).upper() == 'DELETE' else 'InsertData'
+
+        # Slice out the text belonging to this operation (up to the next operation or end)
+        op_start = operation_match.end()
+        op_end = operation_matches[i + 1].start() if i + 1 < len(operation_matches) else len(update_query)
+        operation_body = update_query[op_start:op_end]
+
+        quads: list[tuple] = []
+        for graph_match in _GRAPH_BLOCK_RE.finditer(operation_body):
+            graph_uri = URIRef(graph_match.group(1))
+            triples_start = graph_match.end()
+            triples_end = _find_matching_close_brace(operation_body, triples_start)
+            triples_text = operation_body[triples_start:triples_end]
+
+            # Tokenize all RDF terms, then group in threes (subject, predicate, object).
+            # The "." triple separator is not matched by _RDF_TERM_RE, so it's naturally skipped.
+            term_matches = list(_RDF_TERM_RE.finditer(triples_text))
+            for j in range(0, len(term_matches) - 2, 3):
+                subject = _regex_match_to_rdf_term(term_matches[j])
+                predicate = _regex_match_to_rdf_term(term_matches[j + 1])
+                obj = _regex_match_to_rdf_term(term_matches[j + 2])
+                quads.append((subject, predicate, obj, graph_uri))
+
+        operations.append((operation_type, quads))
+
+    return operations
+
+
+def _match_literal(graph_literal, query_literal) -> bool:
+    # Flexible literal comparison: allows a query literal without a datatype
+    # to match a graph literal that has one (comparing by parsed .value, not string)
+    if isinstance(graph_literal, Literal) and isinstance(query_literal, Literal):
+        if graph_literal.language != query_literal.language:
+            return False
+        datatypes_match = graph_literal.datatype == query_literal.datatype or query_literal.datatype is None
+        graph_value = graph_literal.value
+        query_value = query_literal.value
+        if graph_value is not None and query_value is not None:
+            return graph_value == query_value and datatypes_match
+        if graph_value is None and query_value is None:
+            return str(graph_literal) == str(query_literal) and datatypes_match
+        return False
+    return graph_literal == query_literal
 
 CONFIG_PATH = "./config.json"
 
@@ -757,95 +902,21 @@ class AgnosticEntity:
 
     @classmethod
     def _manage_update_queries(cls, graph: Dataset, update_query: str) -> None:
-        def extract_namespaces(parsed_query):
-            namespace_manager = NamespaceManager(Graph())
-            if hasattr(parsed_query, 'prologue') and parsed_query.prologue:
-                for prefix_decl in parsed_query.prologue[0]:
-                    if hasattr(prefix_decl, 'prefix') and hasattr(prefix_decl, 'iri'):
-                        prefix = prefix_decl.prefix
-                        iri = prefix_decl.iri
-                        namespace_manager.bind(prefix, Namespace(iri))
-            return namespace_manager
-
-        def extract_quads_from_update(parsed_query, namespace_manager):
-            operations = []
-
-            for update_request in parsed_query.request:
-                operation_type = update_request.name
-                if operation_type in ['DeleteData', 'InsertData']:
-                    quads = extract_quads(update_request, namespace_manager)
-                    operations.append((operation_type, quads))
-
-            return operations
-
-        def extract_quads(operation, namespace_manager):
-            quads = []
-            if hasattr(operation.quads, 'quadsNotTriples'):
-                for quad_not_triple in operation.quads.quadsNotTriples:
-                    context = quad_not_triple.term
-                    for triple in quad_not_triple.triples:
-                        s, p, o = triple
-                        s = _process_node(s, namespace_manager)
-                        p = _process_node(p, namespace_manager)
-                        o = _process_node(o, namespace_manager)
-                        quads.append((s, p, o, context))
-            return quads
-
-        def _process_node(node: dict | BNode | str, namespace_manager: NamespaceManager):
-            if isinstance(node, dict):
-                if 'prefix' in node and 'localname' in node:
-                    namespace = namespace_manager.store.namespace(node['prefix'])
-                    return URIRef(f"{namespace}{node['localname']}")
-                elif 'string' in node:
-                    if 'datatype' in node:
-                        return Literal(node['string'], datatype=node['datatype'])
-                    elif 'lang' in node:
-                        return Literal(node['string'], lang=node['lang'])
-                    else:
-                        return Literal(node['string'])
-            elif isinstance(node, BNode):
-                return node
-            return URIRef(str(node))
-
-        def match_literal(graph_literal, query_literal):
-            if isinstance(graph_literal, Literal) and isinstance(query_literal, Literal):
-                if graph_literal.language != query_literal.language:
-                    return False
-                datatypes_match = (graph_literal.datatype == query_literal.datatype or query_literal.datatype is None)
-                graph_value = graph_literal.value
-                query_value = query_literal.value
-                if graph_value is not None and query_value is not None:
-                    values_match = graph_value == query_value
-                elif graph_value is None and query_value is None:
-                    values_match = str(graph_literal) == str(query_literal)
-                else:
-                    values_match = False
-                return values_match and datatypes_match
-            return graph_literal == query_literal
-
-        try:
-            parsed_query = parser.parseUpdate(update_query)
-            namespace_manager = extract_namespaces(parsed_query)
-            operations = extract_quads_from_update(parsed_query, namespace_manager)
-
-            for operation_type, quads in operations:
-                if operation_type == 'DeleteData':
-                    for quad in quads:
-                        graph.add(quad)
-                elif operation_type == 'InsertData':
-                    for s, p, o, c in quads:
-                        quads_to_remove = []
-                        for graph_quad in graph.quads((s, p, None, c)):
-                            if match_literal(graph_quad[2], o):
-                                quads_to_remove.append(graph_quad)
-                            else:
-                                quads_to_remove.append((s, p, o, c))
-                        for quad in quads_to_remove:
-                            graph.remove(quad)
-
-        except Exception as e:
-            print(f"Error processing update query: {e}")
-            print(f"Problematic query: {update_query}")
+        operations = _fast_parse_update(update_query)
+        for operation_type, quads in operations:
+            if operation_type == 'DeleteData':
+                for quad in quads:
+                    graph.add(quad)
+            elif operation_type == 'InsertData':
+                for s, p, o, c in quads:
+                    quads_to_remove = []
+                    for graph_quad in graph.quads((s, p, None, c)):
+                        if _match_literal(graph_quad[2], o):
+                            quads_to_remove.append(graph_quad)
+                        else:
+                            quads_to_remove.append((s, p, o, c))
+                    for quad in quads_to_remove:
+                        graph.remove(quad)
 
     def _query_dataset(self, entity_uri: str | None = None) -> Dataset:
         # A SELECT hack can be used to return RDF quads in named graphs,
