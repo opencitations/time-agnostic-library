@@ -70,10 +70,7 @@ def _regex_match_to_rdf_term(match: re.Match):
     typed_value = match.group(2)
     if typed_value is not None:
         datatype_uri = URIRef(match.group(3))
-        # Wrapping in Literal() first preserves the raw lexical form.
-        # Without this, rdflib normalizes certain values (e.g. "...Z"^^xsd:dateTime
-        # becomes "...+00:00"), breaking equality with values stored in the graph.
-        return Literal(Literal(_unescape_literal(typed_value)), datatype=datatype_uri)
+        return Literal(_unescape_literal(typed_value), datatype=datatype_uri)
 
     lang_value = match.group(4)
     if lang_value is not None:
@@ -153,22 +150,6 @@ def _fast_parse_update(update_query: str) -> list[tuple[str, list[tuple]]]:
 
     return operations
 
-
-def _match_literal(graph_literal, query_literal) -> bool:
-    # Flexible literal comparison: allows a query literal without a datatype
-    # to match a graph literal that has one (comparing by parsed .value, not string)
-    if isinstance(graph_literal, Literal) and isinstance(query_literal, Literal):
-        if graph_literal.language != query_literal.language:
-            return False
-        datatypes_match = graph_literal.datatype == query_literal.datatype or query_literal.datatype is None
-        graph_value = graph_literal.value
-        query_value = query_literal.value
-        if graph_value is not None and query_value is not None:
-            return graph_value == query_value and datatypes_match
-        if graph_value is None and query_value is None:
-            return str(graph_literal) == str(query_literal) and datatypes_match
-        return False
-    return graph_literal == query_literal
 
 CONFIG_PATH = "./config.json"
 
@@ -908,15 +889,8 @@ class AgnosticEntity:
                 for quad in quads:
                     graph.add(quad)
             elif operation_type == 'InsertData':
-                for s, p, o, c in quads:
-                    quads_to_remove = []
-                    for graph_quad in graph.quads((s, p, None, c)):
-                        if _match_literal(graph_quad[2], o):
-                            quads_to_remove.append(graph_quad)
-                        else:
-                            quads_to_remove.append((s, p, o, c))
-                    for quad in quads_to_remove:
-                        graph.remove(quad)
+                for quad in quads:
+                    graph.remove(quad)
 
     def _query_dataset(self, entity_uri: str | None = None) -> Dataset:
         # A SELECT hack can be used to return RDF quads in named graphs,
