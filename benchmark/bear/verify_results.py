@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 from rich.console import Console
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 from rich.table import Table
 
 from time_agnostic_library.agnostic_query import VersionQuery
@@ -75,7 +76,6 @@ def version_to_timestamp(version: int) -> str:
 
 def run_vm_query(sparql: str, version: int, config: dict) -> int:
     ts = version_to_timestamp(version)
-    print(f"  [VM v{version}] {sparql}")
     vq = VersionQuery(sparql, on_time=(ts, ts), config_dict=config)
     result, _ = vq.run_agnostic_query()
     if not result:
@@ -85,14 +85,9 @@ def run_vm_query(sparql: str, version: int, config: dict) -> int:
 
 
 def run_vq_query(sparql: str, config: dict) -> Dict[str, int]:
-    try:
-        print(f"  [VQ] {sparql}")
-        vq = VersionQuery(sparql, config_dict=config)
-        result, _ = vq.run_agnostic_query(include_all_timestamps=True)
-        return {ts: len(bindings) for ts, bindings in result.items()}
-    except Exception as e:
-        console.print(f"  [red]VQ error: {e}")
-        return {}
+    vq = VersionQuery(sparql, config_dict=config)
+    result, _ = vq.run_agnostic_query(include_all_timestamps=True)
+    return {ts: len(bindings) for ts, bindings in result.items()}
 
 
 def verify_pattern_vm(
@@ -220,36 +215,62 @@ def main():
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         config = json.load(f)
 
-    all_results = []
-    passed = 0
-    failed = 0
-
+    all_patterns = []
     for pattern_type in ["p", "po"]:
         query_file = QUERIES_DIR / f"{pattern_type}.txt"
         if not query_file.exists():
             console.print(f"[yellow]Query file not found: {query_file}")
             continue
         patterns = parse_bear_query_file(query_file)
-        console.print(f"Loaded {len(patterns)} {pattern_type} patterns")
+        for idx, pattern in enumerate(patterns):
+            all_patterns.append((idx, pattern, pattern_type))
 
-        for pattern_idx, pattern in enumerate(patterns):
-            console.print(f"[bold]{pattern_type}[{pattern_idx}][/bold] VM...", end=" ")
+    all_results = []
+    passed = 0
+    failed = 0
+
+    total_steps = len(all_patterns) * 2
+    with Progress(
+        TextColumn("[bold]{task.fields[label]}"),
+        BarColumn(),
+        TextColumn("{task.fields[patterns]}"),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+        TextColumn("{task.fields[status]}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task(
+            "Verifying",
+            total=total_steps,
+            label="",
+            patterns=f"0/{len(all_patterns)}",
+            status="",
+        )
+
+        for pattern_idx, pattern, pattern_type in all_patterns:
+            status_text = f"[green]{passed}[/green] OK  [red]{failed}[/red] FAIL"
+            progress.update(task, label=f"{pattern_type}[{pattern_idx}] VM", status=status_text)
             vm_results = verify_pattern_vm(pattern_idx, pattern, pattern_type, config)
             vm_ok = all(r["match"] for r in vm_results) if vm_results else True
             all_results.extend(vm_results)
+            progress.advance(task)
 
-            console.print("VQ...", end=" ")
+            progress.update(task, label=f"{pattern_type}[{pattern_idx}] VQ")
             vq_results = verify_pattern_vq(pattern_idx, pattern, pattern_type, config)
             vq_ok = all(r["match"] for r in vq_results) if vq_results else True
             all_results.extend(vq_results)
+            progress.advance(task)
 
             if vm_ok and vq_ok:
                 passed += 1
-                console.print("[green]OK")
             else:
                 failed += 1
 
-            console.print(f"  Running total: {passed} OK, {failed} FAIL", style="dim")
+            progress.update(
+                task,
+                patterns=f"{passed + failed}/{len(all_patterns)}",
+                status=f"[green]{passed}[/green] OK  [red]{failed}[/red] FAIL",
+            )
 
     console.rule("[bold]Final results")
     print_summary(all_results)

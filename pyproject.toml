@@ -19,7 +19,6 @@ requires-python = ">=3.10, <3.14"
 dependencies = [
     "python-dateutil>=2.9.0.post0",
     "rdflib>=7.5.0",
-    "rich>=14.3.2",
     "sparqlite>=1.1.0",
 ]
 
@@ -34,6 +33,7 @@ dev = [
     "psutil>=7.2.2",
     "qlever>=0.5.45",
     "requests>=2.32.5",
+    "rich>=14.3.2",
     "ruff>=0.15.0",
     "wget>=3.2",
 ]
