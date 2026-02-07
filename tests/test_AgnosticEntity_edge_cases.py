@@ -196,7 +196,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         mock_sparql_class.return_value = mock_sparql_instance
 
         from rdflib import Dataset
-        mock_sparql_instance.run_construct_query.return_value = Dataset()
+        mock_sparql_instance.run_select_to_dataset.return_value = Dataset()
 
         # Call the method - should use non-quadstore query
         result = agnostic_entity._query_dataset(entity_uri)

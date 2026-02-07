@@ -949,7 +949,7 @@ class Test_VersionQuery(unittest.TestCase):
 
         self.assertEqual(agnostic_query.vars_to_explicit_by_time, expected_output)
 
-    def test__get_query_to_identify_inverse_property(self):
+    def test__get_present_entities_inverse_property(self):
         query = """
             PREFIX pro: <http://purl.org/spar/pro/>
             SELECT DISTINCT ?o ?id ?value
@@ -959,15 +959,8 @@ class Test_VersionQuery(unittest.TestCase):
         """
         agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
         triple = agnostic_query._process_query()[0]
-        query_to_identify = agnostic_query._get_query_to_identify(triple).replace(" ", "").replace("\n", "")
-        expected_query_to_identify = """
-            CONSTRUCT { 
-                <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> ?o 
-            } WHERE { 
-                ?o ^<http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ar/15519>
-            }
-        """.replace(" ", "").replace("\n", "")
-        self.assertEqual(query_to_identify, expected_query_to_identify)
+        present_entities = agnostic_query._get_present_entities(triple)
+        self.assertEqual(present_entities, {URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519")})
 
     def test__get_query_to_update_queries(self):
         query = """

@@ -97,37 +97,27 @@ class TestSparqlEdgeCases(unittest.TestCase):
         self.assertIn('results', results)
         self.assertIn('bindings', results['results'])
 
-    def test_construct_query_with_zip_file(self):
-        """
-        Test run_construct_query with a ZIP file containing JSON-LD data.
-        This should exercise the ZIP file handling at lines 180-182.
-        """
-        # Create a ZIP file with JSON-LD content
+    def test_select_to_dataset_with_zip_file(self):
         with zipfile.ZipFile(self.test_zip_path, 'w') as zf:
             zf.writestr("data.json", json.dumps(self.test_jsonld_data))
 
-        # Create config with ZIP file path
         zip_config = CONFIG.copy()
         zip_config["dataset"]["file_paths"] = [self.test_zip_path]
         zip_config["dataset"]["triplestore_urls"] = []
 
         query = """
-            CONSTRUCT {
-                ?person <http://xmlns.com/foaf/0.1/name> ?name .
-            }
+            SELECT ?person ?name
             WHERE {
                 ?person a <http://xmlns.com/foaf/0.1/Person> ;
                         <http://xmlns.com/foaf/0.1/name> ?name .
             }
         """
 
-        # Execute query - should handle ZIP file
         sparql = Sparql(query, config=zip_config)
-        result_graph = sparql.run_construct_query()
+        result = sparql.run_select_query()
 
-        # Verify result is a graph
-        from rdflib import Dataset
-        self.assertIsInstance(result_graph, Dataset)
+        self.assertIn('results', result)
+        self.assertIn('bindings', result['results'])
 
     def test_select_query_with_language_tagged_literals(self):
         """

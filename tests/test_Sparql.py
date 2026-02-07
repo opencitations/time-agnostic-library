@@ -243,15 +243,15 @@ class Test_Sparql(unittest.TestCase):
         )
         self.assertEqual(output, expected_output)
 
-    def test_run_construct_query(self):
+    def test_run_select_to_dataset(self):
         input = """
             SELECT ?s ?p ?o ?c
             WHERE {
                 BIND (<https://github.com/arcangelo7/time_agnostic/id/14> as ?s)
                 GRAPH ?c {?s ?p ?o}
-            }           
+            }
         """
-        output = _to_nt_sorted_list(Sparql(input, CONFIG).run_construct_query())
+        output = _to_nt_sorted_list(Sparql(input, CONFIG).run_select_to_dataset())
         expected_output = [
             "<https://github.com/arcangelo7/time_agnostic/id/14> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid>",
             '<https://github.com/arcangelo7/time_agnostic/id/14> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "http://orcid.org/0000-0002-3259-2309"',
@@ -259,41 +259,15 @@ class Test_Sparql(unittest.TestCase):
         ]
         self.assertEqual(output, expected_output)
 
-    def test__get_graph_from_files(self):
-        input_1 = f"""
-            CONSTRUCT {{
-                ?snapshot <{ProvEntity.iri_generated_at_time}> ?t;      
-                        <{ProvEntity.iri_has_update_query}> ?updateQuery.
-            }} 
-            WHERE {{
-                ?snapshot <{ProvEntity.iri_specialization_of}> <https://github.com/arcangelo7/time_agnostic/ar/15519>;
-                        <{ProvEntity.iri_generated_at_time}> ?t.
-            OPTIONAL {{
-                    ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                }}   
-            }}
+    def test_run_select_to_dataset_from_triplestore(self):
+        input = """
+            SELECT ?s ?p ?o
+            WHERE {
+                BIND (<https://github.com/arcangelo7/time_agnostic/ra/4> as ?s)
+                ?s ?p ?o.
+            }
         """
-        output = _to_nt_sorted_list(Sparql(input_1, CONFIG)._get_graph_from_files())
-        expected_output = [
-            '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-07T09:59:15+00:00"',
-            '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-05-31T18:19:47+00:00"',
-            '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }"',
-            '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <http://www.w3.org/ns/prov#generatedAtTime> "2021-06-01T18:46:41+00:00"',
-            '<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }"',
-        ]
-        self.assertEqual(output, expected_output)
-
-    def test__get_graph_from_triplestores(self):
-        input = f"""
-            CONSTRUCT {{
-                <https://github.com/arcangelo7/time_agnostic/ra/4> ?p ?o.     
-            }} 
-            WHERE {{
-                <https://github.com/arcangelo7/time_agnostic/ra/4> ?p ?o. 
-            }}
-        """
-        sparql = Sparql(input, CONFIG)
-        output = _to_nt_sorted_list(sparql._get_graph_from_triplestores())
+        output = _to_nt_sorted_list(Sparql(input, CONFIG).run_select_to_dataset())
         expected_output = [
             "<https://github.com/arcangelo7/time_agnostic/ra/4> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/14>",
             "<https://github.com/arcangelo7/time_agnostic/ra/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent>",

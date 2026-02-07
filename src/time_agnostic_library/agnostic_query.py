@@ -188,15 +188,12 @@ class AgnosticQuery:
                     values.extend(found)
 
     def _rebuild_relevant_graphs(self) -> None:
-        # First, the graphs of the hooks are reconstructed
         triples_checked = set()
         all_isolated = True
         self.triples = self._process_query()
         for triple in self.triples:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
-                query_to_identify = self._get_query_to_identify(triple)
-                present_results = Sparql(query_to_identify, self.config).run_construct_query()
-                present_entities = {result[0] for result in present_results}
+                present_entities = self._get_present_entities(triple)
                 self._rebuild_relevant_entity(triple[0])
                 self._find_entities_in_update_queries(triple, present_entities)
             else:
@@ -204,7 +201,6 @@ class AgnosticQuery:
                 self._rebuild_relevant_entity(triple[0])
             triples_checked.add(triple)
         self._align_snapshots()
-        # Then, the graphs of the entities obtained from the hooks are reconstructed
         if not all_isolated:
             self._solve_variables()
 
@@ -257,22 +253,20 @@ class AgnosticQuery:
             if entity_graphs.get(entity):
                 self.relevant_entities_graphs.update(entity_graphs)
 
-    def _get_query_to_identify(self, triple: tuple) -> str:
+    def _get_present_entities(self, triple: tuple) -> set:
         solvable_triple = [el.n3() for el in triple]
+        variables = [el for el in triple if isinstance(el, Variable)]
+        var_names_n3 = [el.n3() for el in variables]
+        query = f"SELECT DISTINCT {' '.join(var_names_n3)} WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}"
+        results = Sparql(query, self.config).run_select_query()
+        bindings = results['results']['bindings']
         if isinstance(triple[1], InvPath):
-            predicate = solvable_triple[1].replace("^", "", 1)
-            query_to_identify = f"""
-                CONSTRUCT {{{solvable_triple[2]} {predicate} {solvable_triple[0]}}}
-                WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
-            """
-        elif isinstance(triple[1], (URIRef, Variable)):
-            query_to_identify = f"""
-                CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
-                WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
-            """
-        else:
-            raise ValueError(f"Unsupported predicate type: {type(triple[1])}")
-        return query_to_identify
+            if isinstance(triple[2], Variable):
+                var_name = str(triple[2])
+                return {URIRef(b[var_name]['value']) for b in bindings if var_name in b and b[var_name]['type'] == 'uri'}
+            return {triple[2]} if bindings else set()
+        var_name = str(triple[0])
+        return {URIRef(b[var_name]['value']) for b in bindings if var_name in b and b[var_name]['type'] == 'uri'}
 
     def _is_a_new_triple(self, triple:tuple, triples_checked:set) -> bool:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
@@ -409,19 +403,18 @@ class AgnosticQuery:
                     variable = variables[0]
                     variable_index = triple.index(variable)
                     if variable_index == 2:
-                        query_to_identify = f"""
-                            CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
-                            WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}.}}
-                        """
-                        query_results = list(self.relevant_graphs[se].query(query_to_identify))
+                        var_n3 = solvable_triple[2]
+                        select_query = f"SELECT {var_n3} WHERE {{{solvable_triple[0]} {solvable_triple[1]} {var_n3}.}}"
+                        select_results = list(self.relevant_graphs[se].query(select_query))
+                        query_results = [(triple[0], triple[1], row[variable]) for row in select_results]
                         for row in query_results:
                             explicit_triples.setdefault(se, {})
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(row)
                         args_list = [
-                            (row[variable_index], self.config, self.on_time, self.other_snapshots)  # type: ignore[index]
+                            (row[2], self.config, self.on_time, self.other_snapshots)
                             for row in query_results
-                            if isinstance(row[variable_index], URIRef) and row[variable_index] not in self.reconstructed_entities  # type: ignore[index]
+                            if isinstance(row[2], URIRef) and row[2] not in self.reconstructed_entities
                         ]
                         for result_data in _run_in_parallel(_reconstruct_entity_worker, args_list):
                             if result_data is not None:
@@ -590,16 +583,12 @@ class DeltaQuery(AgnosticQuery):
         self.changed_properties = changed_properties
 
     def _rebuild_relevant_graphs(self) -> None:
-        # First, the graphs of the hooks are reconstructed
         triples_checked = set()
         self.triples = self._process_query()
         for triple in self.triples:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
-                query_to_identify = self._get_query_to_identify(triple)
-                present_results = Sparql(query_to_identify, self.config).run_construct_query()
-                for result in present_results:
-                    if isinstance(result[0], URIRef):
-                        self.reconstructed_entities.add(result[0])
+                present_entities = self._get_present_entities(triple)
+                self.reconstructed_entities.update(present_entities)
                 if isinstance(triple[0], URIRef):
                     self.reconstructed_entities.add(triple[0])
                 self._find_entities_in_update_queries(triple)
@@ -607,7 +596,6 @@ class DeltaQuery(AgnosticQuery):
                 self._rebuild_relevant_entity(triple[0])
             triples_checked.add(triple)
         self._align_snapshots()
-        # Then, the graphs of the entities obtained from the hooks are reconstructed
         self._solve_variables()
 
     def _find_entities_in_update_queries(self, triple:tuple, present_entities:set | None = None):
@@ -633,23 +621,6 @@ class DeltaQuery(AgnosticQuery):
         for relevant_entity_found in relevant_entities_found:
             if isinstance(relevant_entity_found, URIRef):
                 self.reconstructed_entities.add(relevant_entity_found)
-
-    def _get_query_to_identify(self, triple: tuple) -> str:
-        solvable_triple = [el.n3() for el in triple]
-        if isinstance(triple[1], InvPath):
-            predicate = solvable_triple[1].replace("^", "", 1)
-            query_to_identify = f"""
-                CONSTRUCT {{{solvable_triple[2]} {predicate} {solvable_triple[0]}}}
-                WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
-            """
-        elif isinstance(triple[1], (URIRef, Variable)):
-            query_to_identify = f"""
-                CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
-                WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
-            """
-        else:
-            raise ValueError(f"Unsupported predicate type: {type(triple[1])}")
-        return query_to_identify
 
     def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}

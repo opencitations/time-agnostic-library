@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 from rich.console import Console
-from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 from rich.table import Table
 
 from time_agnostic_library.agnostic_query import VersionQuery

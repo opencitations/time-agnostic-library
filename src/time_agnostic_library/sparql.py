@@ -14,10 +14,9 @@
 # SOFTWARE.
 
 
-import re
 import zipfile
 
-from rdflib import Dataset, Graph
+from rdflib import Dataset
 from rdflib.term import Literal, Node, URIRef
 from sparqlite import SPARQLClient
 
@@ -26,7 +25,6 @@ from time_agnostic_library.prov_entity import ProvEntity
 CONFIG_PATH = "./config.json"
 
 _PROV_PROPERTY_STRINGS: tuple[str, ...] = tuple(str(p) for p in ProvEntity.get_prov_properties())
-_SELECT_QUERY_RE = re.compile(r'^\s*SELECT\b', re.IGNORECASE)
 
 class Sparql:
     """
@@ -127,26 +125,29 @@ class Sparql:
         else:
             return {'type': 'literal', 'value': str(value)}
 
-    def run_construct_query(self) -> Dataset:
-        """
-        Given a CONSTRUCT query, it returns the results in a Dataset.
-
-        :returns:  Dataset -- A Dataset containing the results of the query.
-        """
-        has_files = bool(self.storer["file_paths"])
-        has_triplestores = bool(self.storer["triplestore_urls"])
-        if has_files and has_triplestores:
-            cg = Dataset(default_union=True)
-            for quad in self._get_graph_from_files().quads():
-                cg.add(quad)  # type: ignore[arg-type]
-            for quad in self._get_graph_from_triplestores().quads():
-                cg.add(quad)  # type: ignore[arg-type]
-            return cg
-        if has_triplestores:
-            return self._get_graph_from_triplestores()
-        if has_files:
-            return self._get_graph_from_files()
-        return Dataset(default_union=True)
+    def run_select_to_dataset(self) -> Dataset:
+        results = self.run_select_query()
+        ds = Dataset(default_union=True)
+        vars_list = results['head']['vars']
+        for binding in results['results']['bindings']:
+            components = []
+            skip = False
+            for var in vars_list:
+                if var not in binding:
+                    skip = True
+                    break
+                val = binding[var]
+                if val['type'] == 'uri':
+                    components.append(URIRef(val['value']))
+                elif 'datatype' in val:
+                    components.append(Literal(val['value'], datatype=val['datatype']))
+                elif 'xml:lang' in val:
+                    components.append(Literal(val['value'], lang=val['xml:lang']))
+                else:
+                    components.append(Literal(val['value']))
+            if not skip:
+                ds.add(tuple(components))  # type: ignore[arg-type]
+        return ds
 
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
@@ -154,50 +155,6 @@ class Sparql:
             with SPARQLClient(url) as client:
                 return client.ask(self.query)
         return False
-
-    def _get_graph_from_files(self) -> Dataset:
-        cg = Dataset(default_union=True)
-        storer = self.storer["file_paths"]
-        for file_path in storer:
-            file_cg = Dataset(default_union=True)
-            if file_path.endswith('.zip'):
-                with zipfile.ZipFile(file_path, 'r') as z, z.open(z.namelist()[0]) as file:
-                        file_cg.parse(file=file, format="json-ld")  # type: ignore[arg-type]
-            else:
-                file_cg.parse(location=file_path, format="json-ld")
-            results = file_cg.query(self.query)
-            for result in results:
-                cg.add(result)  # type: ignore[arg-type]
-        return cg
-
-    def _get_graph_from_triplestores(self) -> Dataset:
-        cg = Dataset(default_union=True)
-        storer = self.storer["triplestore_urls"]
-        is_select = bool(_SELECT_QUERY_RE.match(self.query))
-        for url in storer:
-            with SPARQLClient(url) as client:
-                if is_select:
-                    results = client.query(self.query)
-                    for quad in results["results"]["bindings"]:
-                        quad_to_add = []
-                        for var in results["head"]["vars"]:
-                            if quad[var]["type"] == "uri":
-                                quad_to_add.append(URIRef(quad[var]["value"]))
-                            else:
-                                if 'datatype' in quad[var]:
-                                    quad_to_add.append(Literal(quad[var]["value"], datatype=quad[var]['datatype']))
-                                elif 'xml:lang' in quad[var]:
-                                    quad_to_add.append(Literal(quad[var]["value"], lang=quad[var]['xml:lang']))
-                                else:
-                                    quad_to_add.append(Literal(quad[var]["value"]))
-                        cg.add(tuple(quad_to_add))  # type: ignore[arg-type]
-                else:
-                    raw_result = client.construct(self.query)
-                    result_graph = Graph()
-                    result_graph.parse(data=raw_result, format="turtle")
-                    for s, p, o in result_graph.triples((None, None, None)):
-                        cg.add((s, p, o))
-        return cg
 
     @classmethod
     def _get_tuples_set(cls, result_dict:dict, output:set, vars_list: list) -> None:

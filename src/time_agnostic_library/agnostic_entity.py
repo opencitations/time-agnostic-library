@@ -905,19 +905,6 @@ class AgnosticEntity:
                     graph.remove(quad)
 
     def _query_dataset(self, entity_uri: str | None = None) -> Dataset:
-        # A SELECT hack can be used to return RDF quads in named graphs,
-        # since the CONSTRUCT allows only to return triples in SPARQL 1.1.
-        # Here is an example of SELECT hack using VALUES:
-        #
-        # SELECT ?s ?p ?o ?c
-        # WHERE {
-        #     VALUES ?s {<resource_uri>}
-        #     GRAPH ?c {?s ?p ?o}
-        # }
-        #
-        # Afterwards, the rdflib add method can be used to add quads to a Conjunctive Graph,
-        # where the fourth element is the context.
-
         entity_uri = self.res if entity_uri is None else entity_uri
 
         is_quadstore = self.config['dataset']['is_quadstore']
@@ -941,48 +928,44 @@ class AgnosticEntity:
                 }}
             """
 
-        return Sparql(query_dataset, config=self.config).run_construct_query()
+        return Sparql(query_dataset, config=self.config).run_select_to_dataset()
 
     def _query_provenance(self, include_prov_metadata:bool=False) -> Dataset:
         if include_prov_metadata:
             query_provenance = f"""
-                CONSTRUCT {{
-                    ?snapshot <{ProvEntity.iri_generated_at_time}> ?t;
-                              <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent;
-                              <{ProvEntity.iri_had_primary_source}> ?source;
-                              <{ProvEntity.iri_description}> ?description;
-                              <{ProvEntity.iri_has_update_query}> ?updateQuery;
-                              <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime;
-                              <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot;
-                              <{ProvEntity.iri_specialization_of}> <{self.res}>.
-                }}
-                WHERE {{
-                    ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
-                              <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent;
-                              <{ProvEntity.iri_generated_at_time}> ?t;
-                              <{ProvEntity.iri_description}> ?description.
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_had_primary_source}> ?source. }}
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime. }}
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot. }}
+                SELECT ?s ?p ?o WHERE {{
+                    ?s <{ProvEntity.iri_specialization_of}> <{self.res}>;
+                       <{ProvEntity.iri_was_attributed_to}> ?_agent;
+                       <{ProvEntity.iri_generated_at_time}> ?_t;
+                       <{ProvEntity.iri_description}> ?_desc.
+                    ?s ?p ?o.
+                    VALUES ?p {{
+                        <{ProvEntity.iri_generated_at_time}>
+                        <{ProvEntity.iri_was_attributed_to}>
+                        <{ProvEntity.iri_had_primary_source}>
+                        <{ProvEntity.iri_description}>
+                        <{ProvEntity.iri_has_update_query}>
+                        <{ProvEntity.iri_invalidated_at_time}>
+                        <{ProvEntity.iri_was_derived_from}>
+                        <{ProvEntity.iri_specialization_of}>
+                    }}
                 }}
             """
         else:
             query_provenance = f"""
-                CONSTRUCT {{
-                    ?snapshot <{ProvEntity.iri_generated_at_time}> ?t;
-                              <{ProvEntity.iri_has_update_query}> ?updateQuery;
-                              <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot;
-                              <{ProvEntity.iri_specialization_of}> <{self.res}>.
-                }}
-                WHERE {{
-                    ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
-                              <{ProvEntity.iri_generated_at_time}> ?t.
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_was_derived_from}> ?derived_from_snapshot. }}
+                SELECT ?s ?p ?o WHERE {{
+                    ?s <{ProvEntity.iri_specialization_of}> <{self.res}>;
+                       <{ProvEntity.iri_generated_at_time}> ?_t.
+                    ?s ?p ?o.
+                    VALUES ?p {{
+                        <{ProvEntity.iri_generated_at_time}>
+                        <{ProvEntity.iri_has_update_query}>
+                        <{ProvEntity.iri_was_derived_from}>
+                        <{ProvEntity.iri_specialization_of}>
+                    }}
                 }}
             """
-        return Sparql(query_provenance, config=self.config).run_construct_query()
+        return Sparql(query_provenance, config=self.config).run_select_to_dataset()
 
     def _find_merged_entities(self, entity_uri: str) -> set[str]:
         """
