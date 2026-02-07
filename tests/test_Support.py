@@ -46,11 +46,7 @@ class Test_Support(unittest.TestCase):
             "blazegraph_full_text_search": "no",
             "fuseki_full_text_search": "no",
             "virtuoso_full_text_search": "no",
-            "graphdb_connector_name": "",
-            "cache_triplestore_url": {
-                "endpoint": "",
-                "update_endpoint": ""
-            }
+            "graphdb_connector_name": ""
         }
         with open(self.config_path, 'w', encoding='utf-8') as f:
             json.dump(self.initial_config, f)
@@ -84,11 +80,7 @@ class Test_Support(unittest.TestCase):
             'blazegraph_full_text_search': 'false',
             'fuseki_full_text_search': 'false',
             'virtuoso_full_text_search': 'false',
-            'graphdb_connector_name': '',
-            'cache_triplestore_url': {
-                'endpoint': '',
-                'update_endpoint': ''
-            }    
+            'graphdb_connector_name': ''
         }
         config = generate_config_file(self.config_path)
         with open(self.config_path, encoding='utf-8') as f:
@@ -113,11 +105,7 @@ class Test_Support(unittest.TestCase):
             'blazegraph_full_text_search': 'true',
             'fuseki_full_text_search': 'false',
             'virtuoso_full_text_search': 'true',
-            'graphdb_connector_name': 'test_connector',
-            'cache_triplestore_url': {
-                'endpoint': 'http://example.com/cache',
-                'update_endpoint': 'http://example.com/cache/update'
-            }    
+            'graphdb_connector_name': 'test_connector'
         }
         config = generate_config_file(
             config_path=self.config_path,
@@ -126,9 +114,7 @@ class Test_Support(unittest.TestCase):
             provenance_urls=test_provenance_urls,
             blazegraph_full_text_search=True,
             virtuoso_full_text_search=True,
-            graphdb_connector_name='test_connector',
-            cache_endpoint='http://example.com/cache',
-            cache_update_endpoint='http://example.com/cache/update'
+            graphdb_connector_name='test_connector'
         )
         with open(self.config_path, encoding='utf-8') as f:
             generated_config = json.load(f)
@@ -152,11 +138,7 @@ class Test_Support(unittest.TestCase):
             'blazegraph_full_text_search': 'false',
             'fuseki_full_text_search': 'true',
             'virtuoso_full_text_search': 'false',
-            'graphdb_connector_name': '',
-            'cache_triplestore_url': {
-                'endpoint': '',
-                'update_endpoint': ''
-            }    
+            'graphdb_connector_name': ''
         }
         config = generate_config_file(
             config_path=self.config_path,

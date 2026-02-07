@@ -14,6 +14,7 @@
 # SOFTWARE.
 
 from datetime import datetime
+from functools import lru_cache
 
 from rdflib import RDF, Dataset, Graph, Literal, Namespace
 from rdflib.namespace import NamespaceManager
@@ -27,6 +28,7 @@ from time_agnostic_library.support import convert_to_datetime
 CONFIG_PATH = "./config.json"
 
 
+@lru_cache(maxsize=4096)
 def _parse_datetime(time_string: str) -> datetime:
     result = convert_to_datetime(time_string)
     assert isinstance(result, datetime)
@@ -261,24 +263,28 @@ class AgnosticEntity:
 
         merged_histories = {self.res: {}}
 
+        related_sorted_times = {}
+        for entity_uri, entity_history in entity_histories.items():
+            if entity_uri == self.res:
+                continue
+            related_sorted_times[entity_uri] = sorted(
+                ((t, _parse_datetime(t)) for t in entity_history.keys()),
+                key=lambda x: x[1]
+            )
+
         for timestamp in main_entity_times:
             merged_graph = _copy_dataset(entity_histories[self.res][timestamp])
+            timestamp_dt = _parse_datetime(timestamp)
 
-            for entity_uri, entity_history in entity_histories.items():
-                if entity_uri == self.res:
-                    continue
-                entity_times = sorted(
-                    entity_history.keys(), key=lambda x: _parse_datetime(x)
-                )
-
+            for entity_uri, sorted_times in related_sorted_times.items():
                 relevant_time = None
-                for etime in entity_times:
-                    if _parse_datetime(etime) <= _parse_datetime(timestamp):
+                for etime, etime_dt in sorted_times:
+                    if etime_dt <= timestamp_dt:
                         relevant_time = etime
                     else:
                         break
                 if relevant_time:
-                    for quad in entity_history[relevant_time].quads():
+                    for quad in entity_histories[entity_uri][relevant_time].quads():
                         merged_graph.add(quad)
 
             merged_histories[self.res][timestamp] = merged_graph
@@ -500,21 +506,27 @@ class AgnosticEntity:
 
         merged_histories = {self.res: {}}
 
+        related_sorted_times = {}
+        for entity_uri, graphs_at_times in entity_histories.items():
+            if entity_uri == self.res:
+                continue
+            related_sorted_times[entity_uri] = sorted(
+                ((t, _parse_datetime(t)) for t in graphs_at_times.keys()),
+                key=lambda x: x[1]
+            )
+
         for timestamp in main_entity_times:
             merged_graph = _copy_dataset(entity_histories[self.res][timestamp])
+            timestamp_dt = _parse_datetime(timestamp)
 
-            for entity_uri, graphs_at_times in entity_histories.items():
-                if entity_uri == self.res:
-                    continue
+            for entity_uri, sorted_times in related_sorted_times.items():
+                graphs_at_times = entity_histories[entity_uri]
                 if timestamp in graphs_at_times:
                     related_graph = graphs_at_times[timestamp]
                 else:
-                    related_times = sorted(
-                        graphs_at_times.keys(), key=lambda x: _parse_datetime(x)
-                    )
                     relevant_time = None
-                    for rt in related_times:
-                        if _parse_datetime(rt) <= _parse_datetime(timestamp):
+                    for rt, rt_dt in sorted_times:
+                        if rt_dt <= timestamp_dt:
                             relevant_time = rt
                         else:
                             break
@@ -602,18 +614,18 @@ class AgnosticEntity:
         if not relevant_results:
             return entity_graphs, entity_snapshots, other_snapshots_metadata
         entity_cg = self._query_dataset(self.res)
+        sorted_parsed = [(r, _parse_datetime(r['time']['value'])) for r in sorted_results]
         for relevant_result in relevant_results:
-            sum_update_queries = ""
             relevant_result_time = relevant_result['time']['value']
-            for result in sorted_results:
-                result_time = result['time']['value']
-                if 'updateQuery' in result and 'value' in result['updateQuery'] and _parse_datetime(result_time) > _parse_datetime(relevant_result_time):
-                        if sum_update_queries:
-                            sum_update_queries += ";"
-                        sum_update_queries += result['updateQuery']['value']
+            relevant_result_dt = _parse_datetime(relevant_result_time)
+            update_parts = [
+                r['updateQuery']['value']
+                for r, r_dt in sorted_parsed
+                if 'updateQuery' in r and 'value' in r['updateQuery'] and r_dt > relevant_result_dt
+            ]
             entity_present_graph = _copy_dataset(entity_cg)
-            if sum_update_queries:
-                self._manage_update_queries(entity_present_graph, sum_update_queries)
+            if update_parts:
+                self._manage_update_queries(entity_present_graph, ";".join(update_parts))
             timestamp_key = convert_to_datetime(relevant_result_time, stringify=True)
             entity_graphs[timestamp_key] = entity_present_graph
             snapshot_uri = relevant_result['snapshot']['value']

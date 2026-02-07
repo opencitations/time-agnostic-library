@@ -16,9 +16,8 @@
 
 import json
 from concurrent.futures import ThreadPoolExecutor
-from copy import deepcopy
 
-from rdflib import ConjunctiveGraph, Graph, Literal, URIRef, Variable
+from rdflib import ConjunctiveGraph, Dataset, Graph, Literal, URIRef, Variable
 from rdflib.paths import InvPath
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
@@ -64,7 +63,6 @@ class AgnosticQuery:
         self.vars_to_explicit_by_time: dict = {}
         self.relevant_entities_graphs: dict = {}
         self.relevant_graphs: dict[str, ConjunctiveGraph] = {}
-        self.cache_insert_queries = []
         self._rebuild_relevant_graphs()
 
     def __init_text_index(self, config:dict):
@@ -180,11 +178,10 @@ class AgnosticQuery:
         return query_to_identify
 
     def _is_a_new_triple(self, triple:tuple, triples_checked:set) -> bool:
+        uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         for triple_checked in triples_checked:
-            uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
             uris_in_triple_checked = {el for el in triple_checked if isinstance(el, URIRef)}
-            new_uris = uris_in_triple.difference(uris_in_triple_checked)
-            if not new_uris:
+            if not uris_in_triple.difference(uris_in_triple_checked):
                 return False
         return True
 
@@ -341,7 +338,10 @@ class AgnosticQuery:
                     for quad in graph.quads():
                         self.relevant_graphs[snapshot].add(quad)
                 else:
-                    self.relevant_graphs[snapshot] = deepcopy(graph)
+                    new_ds = Dataset(default_union=True)
+                    for quad in graph.quads():
+                        new_ds.add(quad)
+                    self.relevant_graphs[snapshot] = new_ds
         # To copy the entity two conditions must be met:
         #   1) the entity is present in tn but not in tn+1;
         #   2) the entity is absent in tn+1 because it has not changed and not because it has been deleted.
@@ -390,12 +390,15 @@ class AgnosticQuery:
         self.vars_to_explicit_by_time = vars_to_explicit_by_time
 
     def _get_vars_to_explicit_by_time(self) -> None:
+        relevant_triples = None
         for se in self.relevant_graphs:
             if se not in self.vars_to_explicit_by_time:
-                self.vars_to_explicit_by_time[se] = set()
-                for triple in self.triples:
-                    if any(el for el in triple if isinstance(el, Variable) and not self._is_a_dead_end(el, triple)) and not self._is_isolated(triple):
-                        self.vars_to_explicit_by_time[se].add(triple)
+                if relevant_triples is None:
+                    relevant_triples = set()
+                    for triple in self.triples:
+                        if any(el for el in triple if isinstance(el, Variable) and not self._is_a_dead_end(el, triple)) and not self._is_isolated(triple):
+                            relevant_triples.add(triple)
+                self.vars_to_explicit_by_time[se] = set(relevant_triples)
 
     def _is_a_dead_end(self, el:URIRef | Variable | Literal, triple:tuple) -> bool:
         return isinstance(el, Variable) and triple.index(el) == 2 and not any(triple for triple in self.triples if el in triple if triple.index(el) == 0)

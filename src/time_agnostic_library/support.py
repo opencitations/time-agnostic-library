@@ -17,6 +17,7 @@
 import json
 import re
 from datetime import datetime, timezone
+from functools import lru_cache
 
 from dateutil import parser
 from rdflib import Dataset, Literal
@@ -28,36 +29,7 @@ def generate_config_file(
         config_path:str=CONFIG_PATH, dataset_urls:list | None=None, dataset_dirs:list | None=None, dataset_is_quadstore:bool=True,
         provenance_urls:list | None=None, provenance_dirs:list | None=None, provenance_is_quadstore:bool=True,
         blazegraph_full_text_search:bool=False, fuseki_full_text_search:bool=False, virtuoso_full_text_search:bool=False,
-        graphdb_connector_name:str='', cache_endpoint:str='', cache_update_endpoint:str='') -> dict:
-    '''
-    Given the configuration parameters, a file compliant with the syntax of the time-agnostic-library configuration files is generated.
-    :param config_path: The output configuration file path
-    :type config_path: str
-    :param dataset_urls: A list of triplestore URLs containing data
-    :type dataset_urls: list
-    :param dataset_dirs: A list of directories containing data
-    :type dataset_dirs: list
-    :param dataset_is_quadstore: Indicates if the dataset store is a quadstore
-    :type dataset_is_quadstore: bool
-    :param provenance_urls: A list of triplestore URLs containing provenance metadata
-    :type provenance_urls: list
-    :param provenance_dirs: A list of directories containing provenance metadata
-    :type provenance_dirs: list
-    :param provenance_is_quadstore: Indicates if the provenance store is a quadstore
-    :type provenance_is_quadstore: bool
-    :param blazegraph_full_text_search: True if Blazegraph was used as a triplestore, and a textual index was built to speed up queries
-    :type blazegraph_full_text_search: bool
-    :param fuseki_full_text_search: True if Fuseki was used as a triplestore, and a textual index was built to speed up queries
-    :type fuseki_full_text_search: bool
-    :param virtuoso_full_text_search: True if Virtuoso was used as a triplestore, and a textual index was built to speed up queries
-    :type virtuoso_full_text_search: bool
-    :param graphdb_connector_name: The name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built
-    :type graphdb_connector_name: str
-    :param cache_endpoint: A triplestore URL to use as a cache to make queries on provenance faster
-    :type cache_endpoint: str
-    :param cache_update_endpoint: If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for writing
-    :type cache_update_endpoint: str
-    '''
+        graphdb_connector_name:str='') -> dict:
     if provenance_dirs is None:
         provenance_dirs = []
     if provenance_urls is None:
@@ -81,23 +53,21 @@ def generate_config_file(
         'fuseki_full_text_search': str(fuseki_full_text_search).lower(),
         'virtuoso_full_text_search': str(virtuoso_full_text_search).lower(),
         'graphdb_connector_name': graphdb_connector_name,
-        'cache_triplestore_url': {
-            'endpoint': cache_endpoint,
-            'update_endpoint': cache_update_endpoint
-        }
     }
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(config, f)
     return config
 
+@lru_cache(maxsize=4096)
+def _cached_parse(time_string: str) -> datetime:
+    time = parser.parse(time_string)
+    if time.tzinfo is None:
+        return time.replace(tzinfo=timezone.utc)
+    return time.astimezone(timezone.utc)
+
 def convert_to_datetime(time_string: str | None, stringify: bool = False) -> datetime | str | None:
     if time_string and time_string != 'None':
-        time = parser.parse(time_string)
-        if time.tzinfo is None:
-            time = time.replace(tzinfo=timezone.utc)
-        else:
-            time = time.astimezone(timezone.utc)
-
+        time = _cached_parse(time_string)
         if stringify:
             return time.isoformat()
         return time

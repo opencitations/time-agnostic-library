@@ -36,11 +36,7 @@ CONFIG = {
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",
     "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": "",
-    "cache_triplestore_url": {
-        "endpoint": "",
-        "update_endpoint": ""
-    }
+    "graphdb_connector_name": ""
 }
 
 class TestSparqlEdgeCases(unittest.TestCase):

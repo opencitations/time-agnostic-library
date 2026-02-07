@@ -39,11 +39,14 @@ class ProvEntity:
     iri_description: ClassVar[URIRef] = DCTERMS.description
     iri_has_update_query: ClassVar[URIRef] = OCO.hasUpdateQuery
 
+    _prov_properties: ClassVar[tuple[URIRef, ...]] = ()
+
     @classmethod
-    def get_prov_properties(cls) -> list[URIRef]:
-        prov_properties = [
-            cls.iri_entity, cls.iri_generated_at_time, cls.iri_invalidated_at_time,
-            cls.iri_specialization_of, cls.iri_was_derived_from, cls.iri_had_primary_source,
-            cls.iri_was_attributed_to, cls.iri_description, cls.iri_has_update_query
-        ]
-        return prov_properties
+    def get_prov_properties(cls) -> tuple[URIRef, ...]:
+        if not cls._prov_properties:
+            cls._prov_properties = (
+                cls.iri_entity, cls.iri_generated_at_time, cls.iri_invalidated_at_time,
+                cls.iri_specialization_of, cls.iri_was_derived_from, cls.iri_had_primary_source,
+                cls.iri_was_attributed_to, cls.iri_description, cls.iri_has_update_query
+            )
+        return cls._prov_properties

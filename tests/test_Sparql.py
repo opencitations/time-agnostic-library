@@ -33,8 +33,7 @@ CONFIG = {
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",
     "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": "",
-    "cache_triplestore_url": {"endpoint": "", "update_endpoint": ""},
+    "graphdb_connector_name": ""
 }
 
 
@@ -303,39 +302,6 @@ class Test_Sparql(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://xmlns.com/foaf/0.1/name> "Giulio Marini"',
         ]
         self.assertEqual(output, expected_output)
-
-    def test__cut_by_limit(self):
-        input_1 = """
-            SELECT ?p ?o
-            WHERE {
-                BIND (<https://github.com/arcangelo7/time_agnostic/id/1/prov/se/1> AS ?s)
-                ?s ?p ?o
-            }
-            LIMIT 2
-        """
-        input_2 = [
-            (
-                "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
-                "http://www.w3.org/ns/prov#Entity",
-            ),
-            (
-                "http://purl.org/dc/terms/description",
-                "The entity 'https://github.com/arcangelo7/time_agnostic/id/1' has been created.",
-            ),
-            (
-                "http://www.w3.org/ns/prov#wasAttributedTo",
-                "https://orcid.org/0000-0002-8420-0696",
-            ),
-            (
-                "http://www.w3.org/ns/prov#specializationOf",
-                "https://github.com/arcangelo7/time_agnostic/id/1",
-            ),
-            ("http://www.w3.org/ns/prov#generatedAtTime", "2021-05-06T18:14:42"),
-        ]
-        output = len(Sparql(input_1, CONFIG)._cut_by_limit(input_2))  # type: ignore[arg-type]
-        expected_output = 2
-        self.assertEqual(output, expected_output)
-
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

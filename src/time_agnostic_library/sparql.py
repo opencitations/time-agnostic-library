@@ -16,16 +16,18 @@
 
 import zipfile
 
-from rdflib import XSD, Dataset, Graph
+from rdflib import Dataset, Graph
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.plugins.sparql.sparql import Query
-from rdflib.term import Literal, Node, URIRef, _toPythonMapping
+from rdflib.term import Literal, Node, URIRef
 from SPARQLWrapper import JSON, POST, TURTLE, SPARQLWrapper
 
 from time_agnostic_library.prov_entity import ProvEntity
 
 CONFIG_PATH = "./config.json"
+
+_PROV_PROPERTY_STRINGS: tuple[str, ...] = tuple(str(p) for p in ProvEntity.get_prov_properties())
 
 class Sparql:
     """
@@ -39,7 +41,6 @@ class Sparql:
 
     - **blazegraph_full_text_search**: Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure. The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
     - **graphdb_connector_name**: Specify the name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html.
-    - **cache_triplestore_url**: Specifies the triplestore URL to use as a cache to make queries faster. If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the endpoint for reading in the "endpoint" field and the endpoint for writing in the "update_endpoint" field. If there is only one endpoint (e.g. Blazegraph), specify it in both fields.
 
     Here is an example of the configuration file content: ::
 
@@ -53,11 +54,7 @@ class Sparql:
                 "file_paths": ["./prov.json"]
             },
             "blazegraph_full_text_search": "no",
-            "graphdb_connector_name": "fts",
-            "cache_triplestore_url": {
-                "endpoint": "http://127.0.0.1:7200/repositories/cache",
-                "update_endpoint": "http://127.0.0.1:7200/repositories/cache/statements"
-            }
+            "graphdb_connector_name": "fts"
         }
 
     :param config_path: The path to the configuration file.
@@ -66,19 +63,10 @@ class Sparql:
     def __init__(self, query:str, config:dict):
         self.query = query
         self.config = config
-        prov_properties = ProvEntity.get_prov_properties()
-        if any(uri in query for uri in prov_properties):
+        if any(uri in query for uri in _PROV_PROPERTY_STRINGS):
             self.storer:dict = config["provenance"]
         else:
             self.storer:dict = config["dataset"]
-        self._hack_dates()
-
-    @classmethod
-    def _hack_dates(cls) -> None:
-        if XSD.gYear in _toPythonMapping:
-            _toPythonMapping.pop(XSD.gYear)
-        if XSD.gYearMonth in _toPythonMapping:
-            _toPythonMapping.pop(XSD.gYearMonth)
 
     def run_select_query(self) -> dict:
         """
@@ -158,7 +146,7 @@ class Sparql:
             results = self._get_graph_from_triplestores()
             for quad in results.quads():
                 cg.add(quad)  # type: ignore[arg-type]
-        return self._cut_by_limit(cg)
+        return cg
 
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
@@ -196,18 +184,6 @@ class Sparql:
             sparql.setMethod(POST)
             sparql.setQuery(self.query)
             sparql.setOnlyConneg(True)
-            # A SELECT hack can be used to return RDF quads in named graphs,
-            # since the CONSTRUCT allows only to return triples in SPARQL 1.1.
-            # Here is an exemple of SELECT hack
-            #
-            # SELECT DISTINCT ?s ?p ?o ?c
-            # WHERE {{
-            #     BIND (<{self.res}> AS ?s)
-            #     GRAPH ?c {{?s ?p ?o}}
-            # }}
-            #
-            # Aftwerwards, the rdflib add method can be used to add quads to a Conjunctive Graph,
-            # where the fourth element is the context.
             if algebra.name == "SelectQuery":
                 sparql.setReturnFormat(JSON)
                 sparql.setOnlyConneg(True)
@@ -251,10 +227,3 @@ class Sparql:
             else:
                 results_list.append(None)
         output.add(tuple(results_list))
-
-    def _cut_by_limit(self, input: Dataset) -> Dataset:
-        algebra:CompValue = prepareQuery(self.query).algebra
-        if "length" in algebra["p"]:
-            limit = int(algebra["p"]["length"])
-            input = input[:limit]  # type: ignore[assignment]
-        return input

@@ -19,7 +19,6 @@ The configuration tells the library where to find data and provenance. `Agnostic
 - **fuseki_full_text_search** (optional): same as above, for Apache Jena Fuseki
 - **virtuoso_full_text_search** (optional): same as above, for OpenLink Virtuoso
 - **graphdb_connector_name** (optional): name of the Lucene connector if GraphDB was used. See [GraphDB full-text search documentation](https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html)
-- **cache_triplestore_url** (optional): triplestore URL to use as a cache. If your triplestore uses different endpoints for reading and writing (e.g. GraphDB), specify the read endpoint in `endpoint` and the write endpoint in `update_endpoint`. If there is only one endpoint (e.g. Blazegraph), use it in both fields
 
 ## Example configuration file
 
@@ -38,11 +37,7 @@ The configuration tells the library where to find data and provenance. `Agnostic
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",
     "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": "CONNECTOR_NAME",
-    "cache_triplestore_url": {
-        "endpoint": "READ_ENDPOINT",
-        "update_endpoint": "UPDATE_ENDPOINT"
-    }
+    "graphdb_connector_name": "CONNECTOR_NAME"
 }
 ```
 
