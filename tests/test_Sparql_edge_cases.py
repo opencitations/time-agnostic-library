@@ -195,12 +195,8 @@ class TestSparqlEdgeCases(unittest.TestCase):
             if os.path.exists(temp_jsonld_path):
                 os.remove(temp_jsonld_path)
 
-    @patch('time_agnostic_library.sparql.SPARQLWrapper')
-    def test_ask_query_with_triplestore_url(self, mock_sparql_wrapper):
-        """
-        Test run_ask_query with triplestore URL configuration.
-        This should exercise the triplestore query path at line 172.
-        """
+    @patch('time_agnostic_library.sparql.SPARQLClient')
+    def test_ask_query_with_triplestore_url(self, mock_sparql_client):
         ask_config = CONFIG.copy()
         ask_config["dataset"]["triplestore_urls"] = ["http://127.0.0.1:9999/sparql"]
         ask_config["dataset"]["file_paths"] = []
@@ -211,21 +207,18 @@ class TestSparqlEdgeCases(unittest.TestCase):
             }
         """
 
-        # Mock the SPARQLWrapper instance
-        mock_wrapper_instance = MagicMock()
-        mock_wrapper_instance.queryAndConvert.return_value = {'boolean': True}
-        mock_sparql_wrapper.return_value = mock_wrapper_instance
+        mock_client_instance = MagicMock()
+        mock_client_instance.ask.return_value = True
+        mock_client_instance.__enter__ = MagicMock(return_value=mock_client_instance)
+        mock_client_instance.__exit__ = MagicMock(return_value=False)
+        mock_sparql_client.return_value = mock_client_instance
 
-        # Execute ASK query
         sparql = Sparql(query, config=ask_config)
         result = sparql.run_ask_query()
 
-        # Verify result is boolean
         self.assertIsInstance(result, bool)
         self.assertTrue(result)
-
-        # Verify SPARQLWrapper was called
-        mock_sparql_wrapper.assert_called()
+        mock_sparql_client.assert_called()
 
     def test_ask_query_with_only_file_paths_no_triplestore(self):
         """

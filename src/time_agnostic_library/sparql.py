@@ -19,7 +19,7 @@ import zipfile
 
 from rdflib import Dataset, Graph
 from rdflib.term import Literal, Node, URIRef
-from SPARQLWrapper import JSON, POST, TURTLE, SPARQLWrapper
+from sparqlite import SPARQLClient
 
 from time_agnostic_library.prov_entity import ProvEntity
 
@@ -106,11 +106,8 @@ class Sparql:
     def _get_results_from_triplestores(self, output: dict) -> dict:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            sparql = SPARQLWrapper(url)
-            sparql.setMethod(POST)
-            sparql.setQuery(self.query)
-            sparql.setReturnFormat(JSON)
-            results: dict = sparql.queryAndConvert()  # type: ignore[assignment]
+            with SPARQLClient(url) as client:
+                results = client.query(self.query)
             if not output['head']['vars']:
                 output['head']['vars'] = results['head']['vars']
             output['results']['bindings'].extend(results['results']['bindings'])
@@ -154,12 +151,8 @@ class Sparql:
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            sparql = SPARQLWrapper(url)
-            sparql.setMethod(POST)
-            sparql.setQuery(self.query)
-            sparql.setReturnFormat(JSON)
-            results: dict = sparql.queryAndConvert()  # type: ignore[assignment]
-            return results.get('boolean', False)
+            with SPARQLClient(url) as client:
+                return client.ask(self.query)
         return False
 
     def _get_graph_from_files(self) -> Dataset:
@@ -182,38 +175,28 @@ class Sparql:
         storer = self.storer["triplestore_urls"]
         is_select = bool(_SELECT_QUERY_RE.match(self.query))
         for url in storer:
-            sparql = SPARQLWrapper(url)
-            sparql.setMethod(POST)
-            sparql.setQuery(self.query)
-            sparql.setOnlyConneg(True)
-            if is_select:
-                sparql.setReturnFormat(JSON)
-                sparql.setOnlyConneg(True)
-                results: dict = sparql.queryAndConvert()  # type: ignore[assignment]
-                for quad in results["results"]["bindings"]:
-                    quad_to_add = []
-                    for var in results["head"]["vars"]:
-                        if quad[var]["type"] == "uri":
-                            quad_to_add.append(URIRef(quad[var]["value"]))
-                        else:
-                            if 'datatype' in quad[var]:
-                                quad_to_add.append(Literal(quad[var]["value"], datatype=quad[var]['datatype']))
-                            elif 'xml:lang' in quad[var]:
-                                quad_to_add.append(Literal(quad[var]["value"], lang=quad[var]['xml:lang']))
+            with SPARQLClient(url) as client:
+                if is_select:
+                    results = client.query(self.query)
+                    for quad in results["results"]["bindings"]:
+                        quad_to_add = []
+                        for var in results["head"]["vars"]:
+                            if quad[var]["type"] == "uri":
+                                quad_to_add.append(URIRef(quad[var]["value"]))
                             else:
-                                quad_to_add.append(Literal(quad[var]["value"]))
-                    cg.add(tuple(quad_to_add))  # type: ignore[arg-type]
-            else:
-                sparql.setReturnFormat(TURTLE)
-                sparql.setOnlyConneg(True)
-                raw_result = sparql.queryAndConvert()
-                result_graph = Graph()
-                if isinstance(raw_result, bytes):
-                    result_graph.parse(data=raw_result, format="turtle")
-                elif isinstance(raw_result, Graph):
-                    result_graph = raw_result
-                for s, p, o in result_graph.triples((None, None, None)):
-                    cg.add((s, p, o))
+                                if 'datatype' in quad[var]:
+                                    quad_to_add.append(Literal(quad[var]["value"], datatype=quad[var]['datatype']))
+                                elif 'xml:lang' in quad[var]:
+                                    quad_to_add.append(Literal(quad[var]["value"], lang=quad[var]['xml:lang']))
+                                else:
+                                    quad_to_add.append(Literal(quad[var]["value"]))
+                        cg.add(tuple(quad_to_add))  # type: ignore[arg-type]
+                else:
+                    raw_result = client.construct(self.query)
+                    result_graph = Graph()
+                    result_graph.parse(data=raw_result, format="nt")
+                    for s, p, o in result_graph.triples((None, None, None)):
+                        cg.add((s, p, o))
         return cg
 
     @classmethod

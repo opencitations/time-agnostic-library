@@ -20,7 +20,7 @@ dependencies = [
     "python-dateutil>=2.9.0.post0",
     "rdflib>=7.5.0",
     "rich>=14.3.2",
-    "sparqlwrapper>=2.0.0",
+    "sparqlite>=1.1.0",
     "tqdm>=4.67.3",
 ]
 

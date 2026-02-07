@@ -19,7 +19,6 @@ import json
 import unittest
 from datetime import datetime, timezone
 
-from SPARQLWrapper import JSON, SPARQLWrapper
 from time_agnostic_library.support import (convert_to_datetime,
                                            generate_config_file)
 
