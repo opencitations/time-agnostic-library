@@ -88,33 +88,44 @@ def _regex_match_to_rdf_term(match: re.Match):
     return BNode(blank_node_id[2:])  # strip "_:" prefix
 
 
+_BRACE_OR_QUOTE_RE = re.compile(r'[{}\'"]')
+
+
 def _find_matching_close_brace(text: str, start: int) -> int:
-    # Finds the closing '}' that matches the opening brace at start-1,
-    # skipping over braces that appear inside quoted string literals.
     pos = start
     length = len(text)
     depth = 1
     while pos < length:
+        m = _BRACE_OR_QUOTE_RE.search(text, pos)
+        if m is None:
+            return length
+        pos = m.start()
         char = text[pos]
         if char == '{':
             depth += 1
+            pos += 1
         elif char == '}':
             depth -= 1
             if depth == 0:
                 return pos
-        elif char in ('"', "'"):
-            # Skip the entire quoted string to avoid matching braces inside literals
-            # like "Roger Federer]}}"@en or "y}"@en
+            pos += 1
+        else:
             quote_char = char
             pos += 1
             while pos < length:
-                if text[pos] == '\\':
-                    pos += 2  # skip escape sequence
-                    continue
-                if text[pos] == quote_char:
+                q = text.find(quote_char, pos)
+                if q == -1:
+                    pos = length
                     break
-                pos += 1
-        pos += 1
+                num_backslashes = 0
+                check = q - 1
+                while check >= start and text[check] == '\\':
+                    num_backslashes += 1
+                    check -= 1
+                if num_backslashes % 2 == 0:
+                    pos = q + 1
+                    break
+                pos = q + 1
     return length
 
 
@@ -741,7 +752,8 @@ class AgnosticEntity:
             return entity_graphs, entity_snapshots, other_snapshots_metadata
         entity_cg = self._query_dataset(self.res)
         sorted_parsed = [(r, _parse_datetime(r['time']['value'])) for r in sorted_results]
-        for relevant_result in relevant_results:
+        last_idx = len(relevant_results) - 1
+        for i, relevant_result in enumerate(relevant_results):
             relevant_result_time = relevant_result['time']['value']
             relevant_result_dt = _parse_datetime(relevant_result_time)
             update_parts = [
@@ -749,7 +761,7 @@ class AgnosticEntity:
                 for r, r_dt in sorted_parsed
                 if 'updateQuery' in r and 'value' in r['updateQuery'] and r_dt > relevant_result_dt
             ]
-            entity_present_graph = _copy_dataset(entity_cg)
+            entity_present_graph = entity_cg if i == last_idx else _copy_dataset(entity_cg)
             if update_parts:
                 self._manage_update_queries(entity_present_graph, ";".join(update_parts))
             timestamp_key = convert_to_datetime(relevant_result_time, stringify=True)

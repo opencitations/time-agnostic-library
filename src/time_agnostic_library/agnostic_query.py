@@ -15,7 +15,7 @@
 
 
 import json
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from rdflib import ConjunctiveGraph, Dataset, Graph, Literal, URIRef, Variable
 from rdflib.paths import InvPath
@@ -147,18 +147,28 @@ class AgnosticQuery:
     def _rebuild_relevant_entity(self, entity:URIRef | Literal) -> None:
         if isinstance(entity, URIRef) and entity not in self.reconstructed_entities:
             self.reconstructed_entities.add(entity)
-            agnostic_entity = AgnosticEntity(entity, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-            if self.on_time:
-                entity_graphs, _entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
-                if other_snapshots:
-                    self.other_snapshots_metadata.update(other_snapshots)
-                if entity_graphs:
-                    for relevant_timestamp, cg in entity_graphs.items():
-                        self.relevant_entities_graphs.setdefault(entity, {})[relevant_timestamp] = cg
-            else:
-                entity_history = agnostic_entity.get_history(include_prov_metadata=True)
-                if entity_history[0][entity]:
-                    self.relevant_entities_graphs.update(entity_history[0])
+            result = self._reconstruct_entity_state(entity)
+            if result is not None:
+                self._merge_entity_result(entity, *result)
+
+    def _reconstruct_entity_state(self, entity: URIRef) -> tuple[dict, dict] | None:
+        agnostic_entity = AgnosticEntity(entity, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+        if self.on_time:
+            entity_graphs, _entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
+            return entity_graphs, other_snapshots
+        entity_history = agnostic_entity.get_history(include_prov_metadata=True)
+        return entity_history[0], {}
+
+    def _merge_entity_result(self, entity: URIRef, entity_graphs: dict, other_snapshots: dict) -> None:
+        if other_snapshots:
+            self.other_snapshots_metadata.update(other_snapshots)
+        if self.on_time:
+            if entity_graphs:
+                for relevant_timestamp, cg in entity_graphs.items():
+                    self.relevant_entities_graphs.setdefault(entity, {})[relevant_timestamp] = cg
+        else:
+            if entity_graphs.get(entity):
+                self.relevant_entities_graphs.update(entity_graphs)
 
     def _get_query_to_identify(self, triple: tuple) -> str:
         solvable_triple = [el.n3() for el in triple]
@@ -279,13 +289,19 @@ class AgnosticQuery:
         if relevant_entities_found:
             print("[VersionQuery:INFO] Rebuilding relevant entities' history.")
             pbar = tqdm(total=len(relevant_entities_found))
-            for new_entity_found in relevant_entities_found:
-                self._rebuild_relevant_entity(new_entity_found)
-                pbar.update()
-            # with ThreadPoolExecutor() as executor:
-            #     results = [executor.submit(self._rebuild_relevant_entity, new_entity_found) for new_entity_found in relevant_entities_found]
-            #     for _ in as_completed(results):
-            #         pbar.update()
+            with ThreadPoolExecutor() as executor:
+                futures = {
+                    executor.submit(self._reconstruct_entity_state, entity): entity
+                    for entity in relevant_entities_found
+                    if isinstance(entity, URIRef)
+                }
+                for future in as_completed(futures):
+                    entity = futures[future]
+                    self.reconstructed_entities.add(entity)
+                    result = future.result()
+                    if result is not None:
+                        self._merge_entity_result(entity, *result)
+                    pbar.update()
             pbar.close()
 
     def _solve_variables(self) -> None:
@@ -338,10 +354,7 @@ class AgnosticQuery:
                     for quad in graph.quads():
                         self.relevant_graphs[snapshot].add(quad)
                 else:
-                    new_ds = Dataset(default_union=True)
-                    for quad in graph.quads():
-                        new_ds.add(quad)
-                    self.relevant_graphs[snapshot] = new_ds
+                    self.relevant_graphs[snapshot] = graph
         # To copy the entity two conditions must be met:
         #   1) the entity is present in tn but not in tn+1;
         #   2) the entity is absent in tn+1 because it has not changed and not because it has been deleted.

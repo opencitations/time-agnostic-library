@@ -14,12 +14,10 @@
 # SOFTWARE.
 
 
+import re
 import zipfile
 
 from rdflib import Dataset, Graph
-from rdflib.plugins.sparql.parserutils import CompValue
-from rdflib.plugins.sparql.processor import prepareQuery
-from rdflib.plugins.sparql.sparql import Query
 from rdflib.term import Literal, Node, URIRef
 from SPARQLWrapper import JSON, POST, TURTLE, SPARQLWrapper
 
@@ -28,6 +26,7 @@ from time_agnostic_library.prov_entity import ProvEntity
 CONFIG_PATH = "./config.json"
 
 _PROV_PROPERTY_STRINGS: tuple[str, ...] = tuple(str(p) for p in ProvEntity.get_prov_properties())
+_SELECT_QUERY_RE = re.compile(r'^\s*SELECT\b', re.IGNORECASE)
 
 class Sparql:
     """
@@ -137,16 +136,20 @@ class Sparql:
 
         :returns:  Dataset -- A Dataset containing the results of the query.
         """
-        cg = Dataset(default_union=True)
-        if self.storer["file_paths"]:
-            results = self._get_graph_from_files()
-            for quad in results.quads():
+        has_files = bool(self.storer["file_paths"])
+        has_triplestores = bool(self.storer["triplestore_urls"])
+        if has_files and has_triplestores:
+            cg = Dataset(default_union=True)
+            for quad in self._get_graph_from_files().quads():
                 cg.add(quad)  # type: ignore[arg-type]
-        if self.storer["triplestore_urls"]:
-            results = self._get_graph_from_triplestores()
-            for quad in results.quads():
+            for quad in self._get_graph_from_triplestores().quads():
                 cg.add(quad)  # type: ignore[arg-type]
-        return cg
+            return cg
+        if has_triplestores:
+            return self._get_graph_from_triplestores()
+        if has_files:
+            return self._get_graph_from_files()
+        return Dataset(default_union=True)
 
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
@@ -177,14 +180,13 @@ class Sparql:
     def _get_graph_from_triplestores(self) -> Dataset:
         cg = Dataset(default_union=True)
         storer = self.storer["triplestore_urls"]
-        prepare_query:Query = prepareQuery(self.query)
-        algebra:CompValue = prepare_query.algebra
+        is_select = bool(_SELECT_QUERY_RE.match(self.query))
         for url in storer:
             sparql = SPARQLWrapper(url)
             sparql.setMethod(POST)
             sparql.setQuery(self.query)
             sparql.setOnlyConneg(True)
-            if algebra.name == "SelectQuery":
+            if is_select:
                 sparql.setReturnFormat(JSON)
                 sparql.setOnlyConneg(True)
                 results: dict = sparql.queryAndConvert()  # type: ignore[assignment]
@@ -201,7 +203,7 @@ class Sparql:
                             else:
                                 quad_to_add.append(Literal(quad[var]["value"]))
                     cg.add(tuple(quad_to_add))  # type: ignore[arg-type]
-            elif algebra.name == "ConstructQuery":
+            else:
                 sparql.setReturnFormat(TURTLE)
                 sparql.setOnlyConneg(True)
                 raw_result = sparql.queryAndConvert()
