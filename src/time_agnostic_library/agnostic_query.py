@@ -15,9 +15,12 @@
 
 
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
+import os
+import sys
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
-from rdflib import ConjunctiveGraph, Dataset, Graph, Literal, URIRef, Variable
+from rdflib import ConjunctiveGraph, Graph, Literal, URIRef, Variable
 from rdflib.paths import InvPath
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
@@ -34,6 +37,91 @@ from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import convert_to_datetime
 
 CONFIG_PATH = "./config.json"
+
+_MP_CONTEXT = multiprocessing.get_context('forkserver') if sys.platform != 'win32' else None
+_PARALLEL_THRESHOLD = os.cpu_count()
+
+
+def _create_executor(max_workers=None):
+    if _MP_CONTEXT is not None:
+        return ProcessPoolExecutor(max_workers=max_workers, mp_context=_MP_CONTEXT)
+    return ThreadPoolExecutor(max_workers=max_workers)
+
+
+def _run_in_parallel(worker_fn, args_list):
+    if len(args_list) < _PARALLEL_THRESHOLD:
+        for args in args_list:
+            yield worker_fn(*args)
+        return
+    with _create_executor() as executor:
+        futures = {executor.submit(worker_fn, *args): i for i, args in enumerate(args_list)}
+        for future in as_completed(futures):
+            yield future.result()
+
+
+def _reconstruct_entity_worker(entity, config, on_time, other_snapshots_flag):
+    agnostic_entity = AgnosticEntity(
+        entity, config=config,
+        include_related_objects=False,
+        include_merged_entities=False,
+        include_reverse_relations=False,
+    )
+    if on_time:
+        entity_graphs, _, other_snapshots = agnostic_entity.get_state_at_time(
+            time=on_time, include_prov_metadata=other_snapshots_flag,
+        )
+        return entity, entity_graphs, other_snapshots
+    entity_history = agnostic_entity.get_history(include_prov_metadata=True)
+    return entity, entity_history[0], {}
+
+
+def _identify_changed_entity_worker(entity, config, on_time, changed_properties):
+    output = {}
+    query = f"""
+        SELECT DISTINCT ?time ?updateQuery ?description
+        WHERE {{
+            ?se <{ProvEntity.iri_specialization_of}> <{entity}>;
+                <{ProvEntity.iri_generated_at_time}> ?time;
+                <{ProvEntity.iri_description}> ?description.
+            OPTIONAL {{
+                ?se <{ProvEntity.iri_has_update_query}> ?updateQuery.
+            }}
+        }}
+    """
+    query_existence = f"""
+        ASK WHERE {{
+            <{entity}> ?p ?o.
+        }}
+    """
+    results = Sparql(query, config).run_select_query()
+    bindings = results['results']['bindings']
+    if bindings:
+        relevant_results = _filter_timestamps_by_interval(on_time, bindings, time_index='time')
+        if relevant_results:
+            entity_str = str(entity)
+            output[entity_str] = {"created": None, "modified": {}, "deleted": None}
+            results_sorted = sorted(bindings, key=lambda x: _parse_datetime(x['time']['value']))
+            creation_date = convert_to_datetime(results_sorted[0]['time']['value'], stringify=True)
+            exists = Sparql(query_existence, config).run_ask_query()
+            if not exists:
+                deletion_time = convert_to_datetime(results_sorted[-1]['time']['value'], stringify=True)
+                output[entity_str]["deleted"] = deletion_time
+            for result_binding in relevant_results:
+                time_val = convert_to_datetime(result_binding['time']['value'], stringify=True)
+                if time_val != creation_date:
+                    update_query = result_binding.get('updateQuery', {}).get('value')
+                    description = result_binding.get('description', {}).get('value')
+                    if update_query and changed_properties:
+                        for changed_property in changed_properties:
+                            if changed_property in update_query:
+                                output[entity_str]["modified"][time_val] = update_query
+                    elif update_query and not changed_properties:
+                        output[entity_str]["modified"][time_val] = update_query
+                    elif not update_query and not changed_properties:
+                        output[entity_str]["modified"][time_val] = description
+                else:
+                    output[entity_str]["created"] = creation_date
+    return output
 
 
 class AgnosticQuery:
@@ -289,19 +377,17 @@ class AgnosticQuery:
         if relevant_entities_found:
             print("[VersionQuery:INFO] Rebuilding relevant entities' history.")
             pbar = tqdm(total=len(relevant_entities_found))
-            with ThreadPoolExecutor() as executor:
-                futures = {
-                    executor.submit(self._reconstruct_entity_state, entity): entity
-                    for entity in relevant_entities_found
-                    if isinstance(entity, URIRef)
-                }
-                for future in as_completed(futures):
-                    entity = futures[future]
+            args_list = [
+                (entity, self.config, self.on_time, self.other_snapshots)
+                for entity in relevant_entities_found
+                if isinstance(entity, URIRef)
+            ]
+            for result in _run_in_parallel(_reconstruct_entity_worker, args_list):
+                if result is not None:
+                    entity, entity_graphs, other_snapshots = result
                     self.reconstructed_entities.add(entity)
-                    result = future.result()
-                    if result is not None:
-                        self._merge_entity_result(entity, *result)
-                    pbar.update()
+                    self._merge_entity_result(entity, entity_graphs, other_snapshots)
+                pbar.update()
             pbar.close()
 
     def _solve_variables(self) -> None:
@@ -337,13 +423,21 @@ class AgnosticQuery:
                             CONSTRUCT {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}
                             WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}.}}
                         """
-                        results = self.relevant_graphs[se].query(query_to_identify)
-                        for result in results:
+                        query_results = list(self.relevant_graphs[se].query(query_to_identify))
+                        for row in query_results:
                             explicit_triples.setdefault(se, {})
                             explicit_triples[se].setdefault(variable, set())
-                            explicit_triples[se][variable].add(result)
-                        with ThreadPoolExecutor() as executor:
-                            executor.map(self._rebuild_relevant_entity, [result[variable_index] for result in results])  # type: ignore[index]
+                            explicit_triples[se][variable].add(row)
+                        args_list = [
+                            (row[variable_index], self.config, self.on_time, self.other_snapshots)  # type: ignore[index]
+                            for row in query_results
+                            if isinstance(row[variable_index], URIRef) and row[variable_index] not in self.reconstructed_entities  # type: ignore[index]
+                        ]
+                        for result_data in _run_in_parallel(_reconstruct_entity_worker, args_list):
+                            if result_data is not None:
+                                entity, entity_graphs, other_snapshots = result_data
+                                self.reconstructed_entities.add(entity)
+                                self._merge_entity_result(entity, entity_graphs, other_snapshots)
         return explicit_triples
 
     def _align_snapshots(self) -> None:
@@ -449,10 +543,9 @@ class VersionQuery(AgnosticQuery):
 
     def run_agnostic_query(self, include_all_timestamps: bool = False) -> tuple[dict[str, list[dict]], set]:
         agnostic_result: dict[str, list[dict]] = {}
-        with ThreadPoolExecutor() as executor:
-            for future in [executor.submit(self._query_reconstructed_graph, timestamp, graph) for timestamp, graph in self.relevant_graphs.items()]:
-                normalized_timestamp, output = future.result()
-                agnostic_result[normalized_timestamp] = output
+        for timestamp, graph in self.relevant_graphs.items():
+            normalized_timestamp, output = self._query_reconstructed_graph(timestamp, graph)
+            agnostic_result[normalized_timestamp] = output
         if include_all_timestamps and self.on_time is None:
             agnostic_result = self._fill_timestamp_gaps(agnostic_result)
         return agnostic_result, {data["generatedAtTime"] for _, data in self.other_snapshots_metadata.items()}
@@ -576,63 +669,6 @@ class DeltaQuery(AgnosticQuery):
         query_to_identify = self.get_full_text_search(uris_in_triple)
         return query_to_identify
 
-    def __identify_changed_entities(self, identified_entity: URIRef):
-        output = {}
-        query = f"""
-            SELECT DISTINCT ?time ?updateQuery ?description
-            WHERE {{
-                ?se <{ProvEntity.iri_specialization_of}> <{identified_entity}>;
-                    <{ProvEntity.iri_generated_at_time}> ?time;
-                    <{ProvEntity.iri_description}> ?description.
-                OPTIONAL {{
-                    ?se <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                }}
-            }}
-        """
-        query_existence = f"""
-            ASK WHERE {{
-                <{identified_entity}> ?p ?o.
-            }}
-        """
-        # Run the query and get the bindings
-        results = Sparql(query, self.config).run_select_query()
-        bindings = results['results']['bindings']
-        if bindings:
-            # Filter timestamps by interval
-            relevant_results = _filter_timestamps_by_interval(self.on_time, bindings, time_index='time')
-            if relevant_results:
-                identified_entity_str = str(identified_entity)
-                output[identified_entity_str] = {
-                    "created": None,
-                    "modified": {},
-                    "deleted": None
-                }
-                # Sort the results by time
-                results_sorted = sorted(bindings, key=lambda x: _parse_datetime(x['time']['value']))
-                creation_date = convert_to_datetime(results_sorted[0]['time']['value'], stringify=True)
-                # Check if the entity exists
-                exists = Sparql(query_existence, self.config).run_ask_query()
-                if not exists:
-                    # Entity has been deleted
-                    deletion_time = convert_to_datetime(results_sorted[-1]['time']['value'], stringify=True)
-                    output[identified_entity_str]["deleted"] = deletion_time
-                for result_binding in relevant_results:
-                    time = convert_to_datetime(result_binding['time']['value'], stringify=True)
-                    if time != creation_date:
-                        update_query = result_binding.get('updateQuery', {}).get('value')
-                        description = result_binding.get('description', {}).get('value')
-                        if update_query and self.changed_properties:
-                            for changed_property in self.changed_properties:
-                                if changed_property in update_query:
-                                    output[identified_entity_str]["modified"][time] = update_query
-                        elif update_query and not self.changed_properties:
-                            output[identified_entity_str]["modified"][time] = update_query
-                        elif not update_query and not self.changed_properties:
-                            output[identified_entity_str]["modified"][time] = description
-                    else:
-                        output[identified_entity_str]["created"] = creation_date
-        return output
-
     def run_agnostic_query(self) -> dict:
         """
         Queries the deltas relevant to the query and the properties set
@@ -676,11 +712,13 @@ class DeltaQuery(AgnosticQuery):
         output = {}
         print("[DeltaQuery:INFO] Identifying changed entities.")
         pbar = tqdm(total=len(self.reconstructed_entities))
-        with ThreadPoolExecutor() as executor:
-            futures = executor.map(self.__identify_changed_entities, self.reconstructed_entities)
-            for future in futures:
-                output.update(future)
-                pbar.update()
+        args_list = [
+            (entity, self.config, self.on_time, self.changed_properties)
+            for entity in self.reconstructed_entities
+        ]
+        for result in _run_in_parallel(_identify_changed_entity_worker, args_list):
+            output.update(result)
+            pbar.update()
         pbar.close()
         return output
 
