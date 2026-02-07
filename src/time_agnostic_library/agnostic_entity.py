@@ -13,7 +13,6 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import copy
 from datetime import datetime
 
 from rdflib import RDF, Dataset, Graph, Literal, Namespace
@@ -32,6 +31,13 @@ def _parse_datetime(time_string: str) -> datetime:
     result = convert_to_datetime(time_string)
     assert isinstance(result, datetime)
     return result
+
+
+def _copy_dataset(source: Dataset) -> Dataset:
+    new_ds = Dataset(default_union=True)
+    for quad in source.quads((None, None, None, None)):
+        new_ds.add(quad)  # type: ignore[arg-type]
+    return new_ds
 
 
 class AgnosticEntity:
@@ -256,7 +262,7 @@ class AgnosticEntity:
         merged_histories = {self.res: {}}
 
         for timestamp in main_entity_times:
-            merged_graph = copy.deepcopy(entity_histories[self.res][timestamp])
+            merged_graph = _copy_dataset(entity_histories[self.res][timestamp])
 
             for entity_uri, entity_history in entity_histories.items():
                 if entity_uri == self.res:
@@ -495,7 +501,7 @@ class AgnosticEntity:
         merged_histories = {self.res: {}}
 
         for timestamp in main_entity_times:
-            merged_graph = copy.deepcopy(entity_histories[self.res][timestamp])
+            merged_graph = _copy_dataset(entity_histories[self.res][timestamp])
 
             for entity_uri, graphs_at_times in entity_histories.items():
                 if entity_uri == self.res:
@@ -605,7 +611,7 @@ class AgnosticEntity:
                         if sum_update_queries:
                             sum_update_queries += ";"
                         sum_update_queries += result['updateQuery']['value']
-            entity_present_graph = copy.deepcopy(entity_cg)
+            entity_present_graph = _copy_dataset(entity_cg)
             if sum_update_queries:
                 self._manage_update_queries(entity_present_graph, sum_update_queries)
             timestamp_key = convert_to_datetime(relevant_result_time, stringify=True)
@@ -708,7 +714,7 @@ class AgnosticEntity:
         for index, date_graph in enumerate(ordered_data):
             if index > 0:
                 next_snapshot = ordered_data[index-1][0]
-                previous_graph: Dataset = copy.deepcopy(entity_current_state[0][self.res][next_snapshot])
+                previous_graph: Dataset = _copy_dataset(entity_current_state[0][self.res][next_snapshot])
                 snapshot_uri = previous_graph.value(
                     predicate=ProvEntity.iri_generated_at_time,
                     object=Literal(next_snapshot)
