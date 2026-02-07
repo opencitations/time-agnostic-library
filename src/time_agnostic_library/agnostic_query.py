@@ -25,7 +25,6 @@ from rdflib.paths import InvPath
 from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
-from tqdm import tqdm
 
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity,
@@ -38,7 +37,7 @@ from time_agnostic_library.support import convert_to_datetime
 
 CONFIG_PATH = "./config.json"
 
-_MP_CONTEXT = multiprocessing.get_context('forkserver') if sys.platform != 'win32' else None
+_MP_CONTEXT = multiprocessing.get_context('fork') if sys.platform != 'win32' else None
 _PARALLEL_THRESHOLD = os.cpu_count()
 
 
@@ -360,12 +359,7 @@ class AgnosticQuery:
             for result in bindings:
                 update_query = result.get('updateQuery')
                 if update_query and update_query.get('value'):
-                    try:
-                        update = parseUpdate(update_query['value'])
-                    except Exception as e:
-                        print(e)
-                        print(update_query['value'])
-                        raise
+                    update = parseUpdate(update_query['value'])
                     for request in update["request"]:
                         if "quadsNotTriples" in request["quads"]:
                             for quadsNotTriples in request["quads"]["quadsNotTriples"]:
@@ -375,8 +369,6 @@ class AgnosticQuery:
                             for inner_triple in request["quads"]["triples"]:
                                 _process_triple(inner_triple, uris_in_triple, relevant_entities_found)
         if relevant_entities_found:
-            print("[VersionQuery:INFO] Rebuilding relevant entities' history.")
-            pbar = tqdm(total=len(relevant_entities_found))
             args_list = [
                 (entity, self.config, self.on_time, self.other_snapshots)
                 for entity in relevant_entities_found
@@ -387,8 +379,6 @@ class AgnosticQuery:
                     entity, entity_graphs, other_snapshots = result
                     self.reconstructed_entities.add(entity)
                     self._merge_entity_result(entity, entity_graphs, other_snapshots)
-                pbar.update()
-            pbar.close()
 
     def _solve_variables(self) -> None:
         self.vars_to_explicit_by_time = {}
@@ -607,12 +597,9 @@ class DeltaQuery(AgnosticQuery):
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 query_to_identify = self._get_query_to_identify(triple)
                 present_results = Sparql(query_to_identify, self.config).run_construct_query()
-                pbar = tqdm(total=len(present_results))
                 for result in present_results:
                     if isinstance(result[0], URIRef):
                         self.reconstructed_entities.add(result[0])
-                    pbar.update()
-                pbar.close()
                 if isinstance(triple[0], URIRef):
                     self.reconstructed_entities.add(triple[0])
                 self._find_entities_in_update_queries(triple)
@@ -710,16 +697,12 @@ class DeltaQuery(AgnosticQuery):
         :returns Dict[str, Set[Tuple]] -- The output is a dictionary that reports the modified entities, when they were created, modified, and deleted. Changes are reported as SPARQL UPDATE queries. If the entity was not created or deleted within the indicated range, the "created" or "deleted" value is None. On the other hand, if the entity does not exist within the input interval, the "modified" value is an empty dictionary.
         """
         output = {}
-        print("[DeltaQuery:INFO] Identifying changed entities.")
-        pbar = tqdm(total=len(self.reconstructed_entities))
         args_list = [
             (entity, self.config, self.on_time, self.changed_properties)
             for entity in self.reconstructed_entities
         ]
         for result in _run_in_parallel(_identify_changed_entity_worker, args_list):
             output.update(result)
-            pbar.update()
-        pbar.close()
         return output
 
 def get_insert_query(graph_iri: URIRef, data: Graph) -> tuple[str, int]:

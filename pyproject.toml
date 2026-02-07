@@ -21,7 +21,6 @@ dependencies = [
     "rdflib>=7.5.0",
     "rich>=14.3.2",
     "sparqlite>=1.1.0",
-    "tqdm>=4.67.3",
 ]
 
 [dependency-groups]

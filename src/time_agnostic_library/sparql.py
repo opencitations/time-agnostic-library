@@ -194,7 +194,7 @@ class Sparql:
                 else:
                     raw_result = client.construct(self.query)
                     result_graph = Graph()
-                    result_graph.parse(data=raw_result, format="nt")
+                    result_graph.parse(data=raw_result, format="turtle")
                     for s, p, o in result_graph.triples((None, None, None)):
                         cg.add((s, p, o))
         return cg

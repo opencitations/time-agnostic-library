@@ -555,7 +555,6 @@ dependencies = [
     { name = "rdflib" },
     { name = "rich" },
     { name = "sparqlite" },
-    { name = "tqdm" },
 ]
 
 [package.dev-dependencies]
@@ -579,7 +578,6 @@ requires-dist = [
     { name = "rdflib", specifier = ">=7.5.0" },
     { name = "rich", specifier = ">=14.3.2" },
     { name = "sparqlite", specifier = ">=1.1.0" },
-    { name = "tqdm", specifier = ">=4.67.3" },
 ]
 
 [package.metadata.requires-dev]
