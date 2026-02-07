@@ -456,9 +456,8 @@ class VersionQuery(AgnosticQuery):
         if not sorted_result_ts:
             return result
         min_ts = _parse_datetime(sorted_result_ts[0])
-        max_ts = _parse_datetime(sorted_result_ts[-1])
         relevant_timestamps = sorted(
-            [t for t in all_timestamps if min_ts <= _parse_datetime(t) <= max_ts],
+            [t for t in all_timestamps if min_ts <= _parse_datetime(t)],
             key=_parse_datetime
         )
         filled = dict(result)

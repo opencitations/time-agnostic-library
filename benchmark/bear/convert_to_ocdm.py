@@ -25,6 +25,10 @@ DCTERMS_NS = "http://purl.org/dc/terms/"
 XSD_NS = "http://www.w3.org/2001/XMLSchema#"
 AGENT_URI = "http://bear-benchmark.org/converter"
 
+QLEVER_DATATYPE_NORMALIZATIONS = {
+    f"^^<{XSD_NS}integer>": f"^^<{XSD_NS}int>",
+}
+
 BASE_TIMESTAMP = datetime(2015, 8, 1, 0, 0, 0, tzinfo=timezone.utc)
 INTERVAL = timedelta(days=1)
 
@@ -38,6 +42,13 @@ PROGRESS_COLUMNS = (
     TimeElapsedColumn(),
     TimeRemainingColumn(),
 )
+
+
+def normalize_object(obj: str) -> str:
+    for old, new in QLEVER_DATATYPE_NORMALIZATIONS.items():
+        if obj.endswith(old):
+            return obj[:-len(old)] + new
+    return obj
 
 
 def parse_ntriples_line(line: str) -> Optional[Tuple[str, str, str]]:
@@ -111,7 +122,7 @@ def parse_ntriples_line(line: str) -> Optional[Tuple[str, str, str]]:
                 parts.append(line[i:space])
                 i = space
     if len(parts) == 3:
-        return tuple(parts)
+        return (parts[0], parts[1], normalize_object(parts[2]))
     return None
 
 

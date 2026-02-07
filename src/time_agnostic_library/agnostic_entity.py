@@ -605,7 +605,7 @@ class AgnosticEntity:
         for relevant_result in relevant_results:
             sum_update_queries = ""
             relevant_result_time = relevant_result['time']['value']
-            for result in bindings:
+            for result in sorted_results:
                 result_time = result['time']['value']
                 if 'updateQuery' in result and 'value' in result['updateQuery'] and _parse_datetime(result_time) > _parse_datetime(relevant_result_time):
                         if sum_update_queries:
