@@ -208,7 +208,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
 
         # Verify the query doesn't contain GRAPH clause (non-quadstore)
         self.assertNotIn("GRAPH ?g", query)
-        self.assertIn("SELECT DISTINCT ?s ?p ?o", query)
+        self.assertIn("SELECT ?s ?p ?o", query)
         self.assertNotIn("?g", query)  # No graph variable in non-quadstore query
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
@@ -252,7 +252,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
 
         # Verify the query doesn't contain GRAPH clause (non-quadstore)
         self.assertNotIn("GRAPH", query)
-        self.assertIn("SELECT DISTINCT ?subject", query)
+        self.assertIn("SELECT ?subject", query)
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_filter_timestamps_with_missing_time_value(self, mock_sparql_class):

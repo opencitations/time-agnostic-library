@@ -973,7 +973,7 @@ class Test_VersionQuery(unittest.TestCase):
         triple = (Variable('a'), URIRef('http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue'), Variable('b'))
         query_to_identify = VersionQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify = """
-            SELECT DISTINCT ?updateQuery 
+            SELECT ?updateQuery
             WHERE {
                 ?snapshot <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
                 FILTER CONTAINS (?updateQuery, 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue').
@@ -993,7 +993,7 @@ class Test_VersionQuery(unittest.TestCase):
         query_to_identify = VersionQuery(query, config_path='tests/config_blazegraph.json')._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify_bds = """
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
-            SELECT DISTINCT ?updateQuery
+            SELECT ?updateQuery
             WHERE {
                 ?snapshot <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
                 ?updateQuery bds:search "http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue";

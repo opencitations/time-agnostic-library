@@ -22,12 +22,12 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 
 from rdflib import ConjunctiveGraph, Graph, Literal, URIRef, Variable
 from rdflib.paths import InvPath
-from rdflib.plugins.sparql.parser import parseUpdate
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity,
+    _fast_parse_update,
     _filter_timestamps_by_interval,
     _parse_datetime,
 )
@@ -38,7 +38,7 @@ from time_agnostic_library.support import convert_to_datetime
 CONFIG_PATH = "./config.json"
 
 _MP_CONTEXT = multiprocessing.get_context('fork') if sys.platform != 'win32' else None
-_PARALLEL_THRESHOLD = os.cpu_count()
+_PARALLEL_THRESHOLD = os.cpu_count() or 1
 
 
 def _create_executor(max_workers=None):
@@ -77,7 +77,7 @@ def _reconstruct_entity_worker(entity, config, on_time, other_snapshots_flag):
 def _identify_changed_entity_worker(entity, config, on_time, changed_properties):
     output = {}
     query = f"""
-        SELECT DISTINCT ?time ?updateQuery ?description
+        SELECT ?time ?updateQuery ?description
         WHERE {{
             ?se <{ProvEntity.iri_specialization_of}> <{entity}>;
                 <{ProvEntity.iri_generated_at_time}> ?time;
@@ -257,7 +257,7 @@ class AgnosticQuery:
         solvable_triple = [el.n3() for el in triple]
         variables = [el for el in triple if isinstance(el, Variable)]
         var_names_n3 = [el.n3() for el in variables]
-        query = f"SELECT DISTINCT {' '.join(var_names_n3)} WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}"
+        query = f"SELECT {' '.join(var_names_n3)} WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}"
         results = Sparql(query, self.config).run_select_query()
         bindings = results['results']['bindings']
         if isinstance(triple[1], InvPath):
@@ -286,7 +286,7 @@ class AgnosticQuery:
         if self.blazegraph_full_text_search:
             query_to_identify = f'''
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
-            SELECT DISTINCT ?updateQuery
+            SELECT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 ?updateQuery bds:search "{' '.join(uris_in_triple)}";
@@ -297,7 +297,7 @@ class AgnosticQuery:
             query_obj = '\\" AND \\"'.join(uris_in_triple)
             query_to_identify = f'''
                 PREFIX text: <http://jena.apache.org/text#>
-                SELECT DISTINCT ?updateQuery WHERE {{
+                SELECT ?updateQuery WHERE {{
                     ?se text:query "\\"{query_obj}\\"";
                         <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 }}
@@ -306,7 +306,7 @@ class AgnosticQuery:
             query_obj = "' AND '".join(uris_in_triple)
             query_to_identify = f'''
             PREFIX bif: <bif:>
-            SELECT DISTINCT ?updateQuery
+            SELECT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 ?updateQuery bif:contains "'{query_obj}'".
@@ -318,7 +318,7 @@ class AgnosticQuery:
             query_to_identify = f'''
             PREFIX con: <http://www.ontotext.com/connectors/lucene#>
             PREFIX con-inst: <http://www.ontotext.com/connectors/lucene/instance#>
-            SELECT DISTINCT ?updateQuery
+            SELECT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 [] a con-inst:{self.graphdb_connector_name};
@@ -328,7 +328,7 @@ class AgnosticQuery:
             '''
         else:
             query_to_identify = f'''
-            SELECT DISTINCT ?updateQuery
+            SELECT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 {').'.join([f"FILTER CONTAINS (?updateQuery, '{uri}'" for uri in uris_in_triple])}).
@@ -339,11 +339,6 @@ class AgnosticQuery:
     def _find_entities_in_update_queries(self, triple:tuple, present_entities:set | None = None):
         if present_entities is None:
             present_entities = set()
-        def _process_triple(processed_triple, uris_in_triple: set, relevant_entities_found: set):
-            processed_triple = [el["string"] if "string" in el else el for el in processed_triple]
-            relevant_entities = {processed_triple[0]} if len(uris_in_triple.intersection(processed_triple)) == len(uris_in_triple) else None
-            if relevant_entities is not None:
-                relevant_entities_found.update(relevant_entities)
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = present_entities
         query_to_identify = self._get_query_to_update_queries(triple)
@@ -353,15 +348,12 @@ class AgnosticQuery:
             for result in bindings:
                 update_query = result.get('updateQuery')
                 if update_query and update_query.get('value'):
-                    update = parseUpdate(update_query['value'])
-                    for request in update["request"]:
-                        if "quadsNotTriples" in request["quads"]:
-                            for quadsNotTriples in request["quads"]["quadsNotTriples"]:
-                                for inner_triple in quadsNotTriples["triples"]:
-                                    _process_triple(inner_triple, uris_in_triple, relevant_entities_found)
-                        elif "triples" in request["quads"]:
-                            for inner_triple in request["quads"]["triples"]:
-                                _process_triple(inner_triple, uris_in_triple, relevant_entities_found)
+                    operations = _fast_parse_update(update_query['value'])
+                    for _, quads in operations:
+                        for quad in quads:
+                            triple_uris = {el for el in quad[:3] if isinstance(el, URIRef)}
+                            if uris_in_triple.issubset(triple_uris):
+                                relevant_entities_found.add(quad[0])
         if relevant_entities_found:
             args_list = [
                 (entity, self.config, self.on_time, self.other_snapshots)
@@ -406,7 +398,7 @@ class AgnosticQuery:
                         var_n3 = solvable_triple[2]
                         select_query = f"SELECT {var_n3} WHERE {{{solvable_triple[0]} {solvable_triple[1]} {var_n3}.}}"
                         select_results = list(self.relevant_graphs[se].query(select_query))
-                        query_results = [(triple[0], triple[1], row[variable]) for row in select_results]
+                        query_results = [(triple[0], triple[1], row[variable]) for row in select_results]  # type: ignore[call-overload]
                         for row in query_results:
                             explicit_triples.setdefault(se, {})
                             explicit_triples[se].setdefault(variable, set())
@@ -535,7 +527,7 @@ class VersionQuery(AgnosticQuery):
 
     def _get_all_provenance_timestamps(self) -> set:
         query = f"""
-            SELECT DISTINCT ?time WHERE {{
+            SELECT ?time WHERE {{
                 ?snapshot <{ProvEntity.iri_generated_at_time}> ?time .
             }}
         """
@@ -610,17 +602,16 @@ class DeltaQuery(AgnosticQuery):
             for result in bindings:
                 update_query = result.get('updateQuery')
                 if update_query and update_query.get('value'):
-                    update = parseUpdate(update_query['value'])
-                    for request in update["request"]:
-                        for quadsNotTriples in request["quads"]["quadsNotTriples"]:
-                            for triple in quadsNotTriples["triples"]:
-                                triple = tuple(el["string"] if "string" in el else el for el in triple)
-                                relevant_entities = set(triple).difference(uris_in_triple) if len(uris_in_triple.intersection(triple)) == len(uris_in_triple) else None
-                                if relevant_entities is not None:
-                                    relevant_entities_found.update(relevant_entities)
+                    operations = _fast_parse_update(update_query['value'])
+                    for _, quads in operations:
+                        for quad in quads:
+                            quad_uris = {el for el in quad[:3] if isinstance(el, URIRef)}
+                            if uris_in_triple.issubset(quad_uris):
+                                for el in quad[:3]:
+                                    if isinstance(el, URIRef) and el not in uris_in_triple:
+                                        relevant_entities_found.add(el)
         for relevant_entity_found in relevant_entities_found:
-            if isinstance(relevant_entity_found, URIRef):
-                self.reconstructed_entities.add(relevant_entity_found)
+            self.reconstructed_entities.add(relevant_entity_found)
 
     def _get_query_to_update_queries(self, triple:tuple) -> str:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}

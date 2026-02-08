@@ -683,39 +683,47 @@ class AgnosticEntity:
         time: tuple[str | None, str | None],
         include_prov_metadata: bool
     ) -> tuple:
-        """
-        Get the state of the entity at the given time(s).
-
-        :param time: A time interval.
-        :param include_prov_metadata: Whether to include provenance metadata.
-        :return: A tuple containing the entity graphs at times, snapshots metadata, and other snapshots metadata.
-        """
         other_snapshots_metadata = {}
         is_quadstore = self.config["provenance"]["is_quadstore"]
         graph_statement = f"GRAPH <{self.res}/prov/>" if is_quadstore else ""
-        query_snapshots = f"""
-            SELECT ?snapshot ?time ?responsibleAgent ?updateQuery ?primarySource ?description ?invalidatedAtTime
-            WHERE {{
-                {graph_statement}
-                {{
-                    ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
-                        <{ProvEntity.iri_generated_at_time}> ?time;
-                        <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent.
-                    OPTIONAL {{
-                        ?snapshot <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime.
-                    }}
-                    OPTIONAL {{
-                        ?snapshot <{ProvEntity.iri_description}> ?description.
-                    }}
-                    OPTIONAL {{
-                        ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                    }}
-                    OPTIONAL {{
-                        ?snapshot <{ProvEntity.iri_had_primary_source}> ?primarySource.
+        if include_prov_metadata:
+            query_snapshots = f"""
+                SELECT ?snapshot ?time ?responsibleAgent ?updateQuery ?primarySource ?description ?invalidatedAtTime
+                WHERE {{
+                    {graph_statement}
+                    {{
+                        ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
+                            <{ProvEntity.iri_generated_at_time}> ?time;
+                            <{ProvEntity.iri_was_attributed_to}> ?responsibleAgent.
+                        OPTIONAL {{
+                            ?snapshot <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime.
+                        }}
+                        OPTIONAL {{
+                            ?snapshot <{ProvEntity.iri_description}> ?description.
+                        }}
+                        OPTIONAL {{
+                            ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                        }}
+                        OPTIONAL {{
+                            ?snapshot <{ProvEntity.iri_had_primary_source}> ?primarySource.
+                        }}
                     }}
                 }}
-            }}
-        """
+            """
+        else:
+            query_snapshots = f"""
+                SELECT ?snapshot ?time ?updateQuery
+                WHERE {{
+                    {graph_statement}
+                    {{
+                        ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
+                            <{ProvEntity.iri_generated_at_time}> ?time.
+                        OPTIONAL {{
+                            ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                        }}
+                    }}
+                }}
+            """
         results = Sparql(query_snapshots, config=self.config).run_select_query()
         bindings = results['results']['bindings']
         if not bindings:
@@ -766,15 +774,16 @@ class AgnosticEntity:
                 self._manage_update_queries(entity_present_graph, ";".join(update_parts))
             timestamp_key = convert_to_datetime(relevant_result_time, stringify=True)
             entity_graphs[timestamp_key] = entity_present_graph
-            snapshot_uri = relevant_result['snapshot']['value']
-            entity_snapshots[snapshot_uri] = {
-                "generatedAtTime": relevant_result_time,
-                "invalidatedAtTime": relevant_result.get('invalidatedAtTime', {}).get('value'),
-                "wasAttributedTo": relevant_result['responsibleAgent']['value'],
-                "hasUpdateQuery": relevant_result.get('updateQuery', {}).get('value'),
-                "hadPrimarySource": relevant_result.get('primarySource', {}).get('value'),
-                "description": relevant_result.get('description', {}).get('value')
-            }
+            if include_prov_metadata:
+                snapshot_uri = relevant_result['snapshot']['value']
+                entity_snapshots[snapshot_uri] = {
+                    "generatedAtTime": relevant_result_time,
+                    "invalidatedAtTime": relevant_result.get('invalidatedAtTime', {}).get('value'),
+                    "wasAttributedTo": relevant_result['responsibleAgent']['value'],
+                    "hasUpdateQuery": relevant_result.get('updateQuery', {}).get('value'),
+                    "hadPrimarySource": relevant_result.get('primarySource', {}).get('value'),
+                    "description": relevant_result.get('description', {}).get('value')
+                }
         return entity_graphs, entity_snapshots, other_snapshots_metadata
 
     def _include_prov_metadata(self, triples_generated_at_time:list, current_state:Dataset) -> dict:
@@ -911,7 +920,7 @@ class AgnosticEntity:
 
         if is_quadstore:
             query_dataset = f"""
-                SELECT DISTINCT ?s ?p ?o ?g
+                SELECT ?s ?p ?o ?g
                 WHERE {{
                     GRAPH ?g {{
                         VALUES ?s {{<{entity_uri}>}}
@@ -921,7 +930,7 @@ class AgnosticEntity:
             """
         else:
             query_dataset = f"""
-                SELECT DISTINCT ?s ?p ?o
+                SELECT ?s ?p ?o
                 WHERE {{
                     VALUES ?s {{<{entity_uri}>}}
                     ?s ?p ?o
@@ -975,7 +984,7 @@ class AgnosticEntity:
         """
         merged_entity_uris = set()
         query_simple = f"""
-            SELECT DISTINCT ?merged_entity_uri
+            SELECT ?merged_entity_uri
             WHERE {{
                 ?snapshot <{ProvEntity.iri_specialization_of}> <{entity_uri}> .
                 ?snapshot <{ProvEntity.iri_was_derived_from}> ?derived_snapshot .
@@ -1005,7 +1014,7 @@ class AgnosticEntity:
 
         if is_quadstore:
             query = f"""
-                SELECT DISTINCT ?subject
+                SELECT ?subject
                 WHERE {{
                     GRAPH ?g {{
                         ?subject ?predicate <{entity_uri}> .
@@ -1015,7 +1024,7 @@ class AgnosticEntity:
             """
         else:
             query = f"""
-                SELECT DISTINCT ?subject
+                SELECT ?subject
                 WHERE {{
                     ?subject ?predicate <{entity_uri}> .
                     FILTER(?predicate != <{RDF.type}> && !strstarts(str(?predicate), "{ProvEntity.PROV}"))

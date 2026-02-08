@@ -64,7 +64,7 @@ The output is a tuple of three elements:
 ```
 
 1. A dictionary mapping entity URIs to their graphs at timestamps within the specified interval
-2. Snapshots metadata for the returned states, grouped by entity URI
+2. Snapshots metadata for the returned states if `include_prov_metadata` is `True`, empty dictionary if `False`
 3. Other snapshots' provenance metadata if `include_prov_metadata` is `True`, empty dictionary if `False`
 
 ## Get full history
