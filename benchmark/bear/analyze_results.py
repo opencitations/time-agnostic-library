@@ -11,6 +11,9 @@ console = Console()
 
 DATA_DIR = Path(__file__).parent / "data"
 RESULTS_FILE = DATA_DIR / "benchmark_results.json"
+OSTRICH_RESULTS_FILE = DATA_DIR / "ostrich_benchmark_results.json"
+OCDM_TIMING_FILE = DATA_DIR / "ocdm_conversion_time.json"
+QLEVER_TIMING_FILE = DATA_DIR / "qlever_indexing_time.json"
 OUTPUT_DIR = DATA_DIR / "analysis"
 
 PUBLISHED_RESULTS = {
@@ -48,11 +51,11 @@ PUBLISHED_RESULTS = {
     },
     "OSTRICH": {
         "source": "Taelman et al., JWS 2018",
-        "vm_ms": {"avg": 1.0},
-        "dm_ms": {"avg": 1.0},
-        "vq_ms": {"avg": 0.1},
-        "ingestion_s": 3600,
-        "notes": "Hours to days for BEAR-B-hourly (>3 days)",
+        "vm_ms": {"avg": 0.71},
+        "dm_ms": {"avg": 0.38},
+        "vq_ms": {"avg": 0.90},
+        "ingestion_s": 742,
+        "notes": "C++ native storage engine",
     },
     "v-RDFCSA": {
         "source": "Cerdeira-Pena et al., KAIS 2024",
@@ -152,16 +155,17 @@ def generate_comparison_table(tal_results: dict) -> List[dict]:
 
         rows.append(row)
 
+    tal_ingestion = load_tal_ingestion_time()
     tal_row = {
         "system": "TAL (ours)",
         "source": "this work",
         "vm_ms": tal_results.get("vm", {}).get("mean_ms"),
         "dm_ms": tal_results.get("dm", {}).get("mean_ms"),
         "vq_ms": tal_results.get("vq", {}).get("mean_ms"),
-        "ingestion_s": 0,
+        "ingestion_s": tal_ingestion or 0,
         "break_even_vm": None,
         "break_even_vq": None,
-        "notes": "No pre-indexing",
+        "notes": "OCDM conversion + QLever indexing",
     }
     rows.append(tal_row)
     return rows
@@ -316,8 +320,45 @@ def print_comparison_table(rows: List[dict]) -> None:
     console.print(table)
 
 
+def load_measured_ostrich_results() -> None:
+    if not OSTRICH_RESULTS_FILE.exists():
+        return
+    console.print("[bold]Loading measured OSTRICH results[/bold]")
+    with open(OSTRICH_RESULTS_FILE, "r", encoding="utf-8") as f:
+        ostrich_data = json.load(f)
+    results = ostrich_data["results"]
+    measured: dict = {"source": "measured (this hardware)"}
+    for qt in ["vm", "dm", "vq"]:
+        qt_data = results.get(qt)
+        if qt_data:
+            by_pattern = qt_data.get("by_pattern", {})
+            if by_pattern:
+                measured[f"{qt}_ms"] = {pt: v["mean_ms"] for pt, v in by_pattern.items()}
+            else:
+                measured[f"{qt}_ms"] = {"avg": qt_data["mean_ms"]}
+    ingestion_s = ostrich_data.get("ingestion_s")
+    measured["ingestion_s"] = ingestion_s if ingestion_s else PUBLISHED_RESULTS["OSTRICH"]["ingestion_s"]
+    measured["notes"] = "measured on this hardware"
+    PUBLISHED_RESULTS["OSTRICH"] = measured
+
+
+def load_tal_ingestion_time() -> Optional[float]:
+    total = 0.0
+    found = False
+    if OCDM_TIMING_FILE.exists():
+        with open(OCDM_TIMING_FILE, "r", encoding="utf-8") as f:
+            total += json.load(f)["ocdm_conversion_s"]
+            found = True
+    if QLEVER_TIMING_FILE.exists():
+        with open(QLEVER_TIMING_FILE, "r", encoding="utf-8") as f:
+            total += json.load(f)["qlever_indexing_s"]
+            found = True
+    return total if found else None
+
+
 def main():
     data = load_results(RESULTS_FILE)
+    load_measured_ostrich_results()
 
     tal_aggregates = {}
     for query_type in ["vm", "dm", "vq"]:

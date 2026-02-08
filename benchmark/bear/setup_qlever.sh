@@ -46,6 +46,7 @@ echo "  Merged file: ${MERGED_NQ} ($(wc -l < "${MERGED_NQ}") lines)"
 cd "${QLEVER_DIR}"
 
 echo "Building QLever index..."
+INDEX_START=$(date +%s)
 ${QLEVER} index \
     --name bear-benchmark \
     --format nq \
@@ -54,6 +55,10 @@ ${QLEVER} index \
     --settings-json '{ "prefixes-external": ["http://dbpedia.org/", "http://bear-benchmark.org/"] }' \
     --system docker \
     --overwrite-existing
+INDEX_END=$(date +%s)
+INDEX_ELAPSED=$((INDEX_END - INDEX_START))
+echo "  Indexing time: ${INDEX_ELAPSED}s"
+echo "{\"qlever_indexing_s\": ${INDEX_ELAPSED}}" > "${DATA_DIR}/qlever_indexing_time.json"
 
 echo "Starting QLever server on port ${PORT}..."
 ${QLEVER} start \

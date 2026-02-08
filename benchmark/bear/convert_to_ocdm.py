@@ -1,5 +1,7 @@
 import gzip
+import json
 import re
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -301,10 +303,18 @@ def main():
     if not ic_dir.exists():
         raise FileNotFoundError(f"IC directory not found: {ic_dir}. Run download.py first.")
 
+    start = time.perf_counter()
     convert_bear_to_ocdm(
         ic_dir=ic_dir,
         output_dir=DATA_DIR,
     )
+    elapsed_s = time.perf_counter() - start
+
+    timing_file = DATA_DIR.parent / "data" / "ocdm_conversion_time.json"
+    timing_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(timing_file, "w", encoding="utf-8") as f:
+        json.dump({"ocdm_conversion_s": round(elapsed_s, 2)}, f, indent=2)
+    console.print(f"Conversion time: {elapsed_s:.2f}s (saved to {timing_file})")
 
 
 if __name__ == "__main__":
