@@ -1,4 +1,6 @@
+import argparse
 import json
+import multiprocessing
 import os
 import platform
 import resource
@@ -28,7 +30,7 @@ sys.setrecursionlimit(5000)
 console = Console()
 
 NUM_RUNS = 5
-QUERY_TYPES = ["vm", "dm", "vq"]
+ALL_QUERY_TYPES = ["vm", "dm", "vq"]
 
 DATA_DIR = Path(__file__).parent / "data"
 QUERIES_FILE = DATA_DIR / "parsed_queries.json"
@@ -49,8 +51,8 @@ def get_peak_rss_kb() -> int:
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 
 
-def get_hardware_info() -> dict:
-    info = {
+def get_hardware_info() -> dict[str, str | int]:
+    info: dict[str, str | int] = {
         "platform": platform.platform(),
         "processor": platform.processor(),
         "python_version": platform.python_version(),
@@ -59,7 +61,7 @@ def get_hardware_info() -> dict:
         result = subprocess.run(["nproc"], capture_output=True, text=True, check=True)
         info["cpu_cores"] = int(result.stdout.strip())
     except Exception:
-        info["cpu_cores"] = os.cpu_count()
+        info["cpu_cores"] = os.cpu_count() or 1
     try:
         with open("/proc/meminfo", "r") as f:
             for line in f:
@@ -99,6 +101,23 @@ def run_vq_query(sparql: str, config: dict) -> dict:
     return {"time_s": elapsed, "num_results": num_results, "num_versions": num_versions}
 
 
+def _subprocess_vq_worker(sparql: str, config: dict, result_dict: dict) -> None:
+    sys.setrecursionlimit(5000)
+    r = run_vq_query(sparql, config)
+    result_dict.update(r)
+
+
+def run_vq_query_isolated(sparql: str, config: dict) -> dict:
+    manager = multiprocessing.Manager()
+    result_dict = manager.dict()
+    p = multiprocessing.Process(target=_subprocess_vq_worker, args=(sparql, config, result_dict))
+    p.start()
+    p.join()
+    if p.exitcode != 0:
+        raise RuntimeError(f"VQ subprocess exited with code {p.exitcode}")
+    return dict(result_dict)
+
+
 def benchmark_queries(queries: List[dict], config: dict) -> List[dict]:
     results = []
 
@@ -107,7 +126,7 @@ def benchmark_queries(queries: List[dict], config: dict) -> List[dict]:
         for query_spec in queries:
             query_type = query_spec["type"]
             sparql = query_spec["sparql"]
-            on_time = query_spec.get("on_time")
+            on_time = query_spec["on_time"]
 
             # Warmup
             try:
@@ -116,12 +135,12 @@ def benchmark_queries(queries: List[dict], config: dict) -> List[dict]:
                 elif query_type == "dm":
                     run_dm_query(sparql, tuple(on_time), config)
                 elif query_type == "vq":
-                    run_vq_query(sparql, config)
+                    run_vq_query_isolated(sparql, config)
             except Exception as e:
                 console.print(f"    [yellow]Warmup error: {e}")
 
             times = []
-            last_result = None
+            last_result: dict | None = None
             for run_idx in range(NUM_RUNS):
                 try:
                     if query_type == "vm":
@@ -129,8 +148,9 @@ def benchmark_queries(queries: List[dict], config: dict) -> List[dict]:
                     elif query_type == "dm":
                         last_result = run_dm_query(sparql, tuple(on_time), config)
                     elif query_type == "vq":
-                        last_result = run_vq_query(sparql, config)
-                    times.append(last_result["time_s"])
+                        last_result = run_vq_query_isolated(sparql, config)
+                    if last_result:
+                        times.append(last_result["time_s"])
                 except Exception as e:
                     console.print(f"    [red]Run {run_idx + 1} error: {e}")
                     times.append(None)
@@ -153,6 +173,12 @@ def benchmark_queries(queries: List[dict], config: dict) -> List[dict]:
     return results
 
 
+def save_results(all_results: dict) -> None:
+    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(all_results, f, indent=2)
+
+
 def print_summary_table(all_results: dict) -> None:
     table = Table(title="Benchmark summary")
     table.add_column("Query type", style="bold")
@@ -160,7 +186,7 @@ def print_summary_table(all_results: dict) -> None:
     table.add_column("Mean (ms)", justify="right")
     table.add_column("Median (ms)", justify="right")
 
-    for query_type in QUERY_TYPES:
+    for query_type in ALL_QUERY_TYPES:
         results = all_results["results"].get(query_type, [])
         valid_means = [r["mean_s"] for r in results if r["mean_s"] is not None]
         if valid_means:
@@ -175,7 +201,21 @@ def print_summary_table(all_results: dict) -> None:
     console.print(table)
 
 
+def load_existing_results() -> dict | None:
+    if OUTPUT_FILE.exists():
+        with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--only", choices=ALL_QUERY_TYPES, nargs="+", help="Run only specified query types (e.g. --only vq)")
+    parser.add_argument("--resume", action="store_true", help="Resume from existing results, skip already completed query types")
+    args = parser.parse_args()
+
+    query_types = args.only if args.only else ALL_QUERY_TYPES
+
     with open(QUERIES_FILE, "r", encoding="utf-8") as f:
         all_queries = json.load(f)
 
@@ -185,19 +225,21 @@ def main():
     hardware = get_hardware_info()
     console.print(f"[bold]Hardware:[/bold] {hardware}")
 
-    all_results = {"hardware": hardware, "config_path": str(CONFIG_FILE), "results": {}}
+    existing = load_existing_results() if args.resume else None
+    all_results = existing or {"hardware": hardware, "config_path": str(CONFIG_FILE), "results": {}}
 
-    for query_type in QUERY_TYPES:
+    for query_type in query_types:
+        if args.resume and query_type in all_results["results"]:
+            console.print(f"[dim]Skipping {query_type.upper()} (already completed)[/dim]")
+            continue
         queries = all_queries.get(query_type, [])
         console.rule(f"[bold]{query_type.upper()} queries[/bold] ({len(queries)} queries, {NUM_RUNS} runs each)")
         results = benchmark_queries(queries, config)
         all_results["results"][query_type] = results
+        save_results(all_results)
+        console.print(f"[green]Saved {query_type.upper()} results to {OUTPUT_FILE}[/green]")
 
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(all_results, f, indent=2)
-    console.print(f"\nResults saved to {OUTPUT_FILE}")
-
+    console.print(f"\nAll results saved to {OUTPUT_FILE}")
     print_summary_table(all_results)
 
 

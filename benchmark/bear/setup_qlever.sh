@@ -61,7 +61,8 @@ ${QLEVER} start \
     --description "BEAR-B ${GRANULARITY} benchmark" \
     --port "${PORT}" \
     --access-token "" \
-    --memory-for-queries 4G \
+    --memory-for-queries 16G \
+    --cache-max-size 8G \
     --timeout 120s \
     --kill-existing-with-same-port \
     --system docker
