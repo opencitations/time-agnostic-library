@@ -902,6 +902,30 @@ class AgnosticEntity:
             entity_current_state[0][self.res][time_str] = cg_no_pro
         return entity_current_state
 
+    def iter_versions(self):
+        prov_ds = self._query_provenance(include_prov_metadata=False)
+        if len(prov_ds) == 0:
+            return
+        dataset_ds = self._query_dataset(self.res)
+        working = Dataset(default_union=True)
+        for quad in prov_ds.quads():
+            working.add(quad)  # type: ignore[arg-type]
+        for quad in dataset_ds.quads():
+            working.add(quad)  # type: ignore[arg-type]
+        snapshots = {}
+        for s, _, o in prov_ds.triples((None, ProvEntity.iri_generated_at_time, None)):
+            time_str = str(o)
+            update_query = prov_ds.value(subject=s, predicate=ProvEntity.iri_has_update_query, object=None)
+            snapshots[time_str] = str(update_query) if update_query is not None else None
+        ordered = sorted(snapshots.items(), key=lambda x: _parse_datetime(x[0]), reverse=True)
+        for i, (time_str, update_query) in enumerate(ordered):
+            if i > 0:
+                prev_update = ordered[i - 1][1]
+                if prev_update is not None:
+                    self._manage_update_queries(working, prev_update)
+            normalized = str(convert_to_datetime(time_str, stringify=True))
+            yield normalized, working
+
     @classmethod
     def _manage_update_queries(cls, graph: Dataset, update_query: str) -> None:
         operations = _fast_parse_update(update_query)

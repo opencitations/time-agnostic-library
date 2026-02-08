@@ -336,24 +336,24 @@ class AgnosticQuery:
             '''
         return query_to_identify
 
+    def _find_entity_uris_in_update_queries(self, triple: tuple, entities: set) -> None:
+        uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
+        query_to_identify = self._get_query_to_update_queries(triple)
+        results = Sparql(query_to_identify, self.config).run_select_query()
+        for binding in results['results']['bindings']:
+            uq = binding.get('updateQuery')
+            if uq and uq.get('value'):
+                for _, quads in _fast_parse_update(uq['value']):
+                    for quad in quads:
+                        triple_uris = {el for el in quad[:3] if isinstance(el, URIRef)}
+                        if uris_in_triple.issubset(triple_uris):
+                            entities.add(quad[0])
+
     def _find_entities_in_update_queries(self, triple:tuple, present_entities:set | None = None):
         if present_entities is None:
             present_entities = set()
-        uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         relevant_entities_found = present_entities
-        query_to_identify = self._get_query_to_update_queries(triple)
-        results = Sparql(query_to_identify, self.config).run_select_query()
-        bindings = results['results']['bindings']
-        if bindings:
-            for result in bindings:
-                update_query = result.get('updateQuery')
-                if update_query and update_query.get('value'):
-                    operations = _fast_parse_update(update_query['value'])
-                    for _, quads in operations:
-                        for quad in quads:
-                            triple_uris = {el for el in quad[:3] if isinstance(el, URIRef)}
-                            if uris_in_triple.issubset(triple_uris):
-                                relevant_entities_found.add(quad[0])
+        self._find_entity_uris_in_update_queries(triple, relevant_entities_found)
         if relevant_entities_found:
             args_list = [
                 (entity, self.config, self.on_time, self.other_snapshots)
@@ -498,14 +498,28 @@ class VersionQuery(AgnosticQuery):
     :type config_path: str, optional
     """
     def __init__(self, query:str, on_time: tuple[str | None, str | None] | None = None, other_snapshots:bool=False, config_path:str=CONFIG_PATH, config_dict: dict | None = None):
+        self._streaming_results: dict[str, list[dict]] = {}
         super().__init__(query, on_time, other_snapshots, config_path, config_dict)
 
-    def _query_reconstructed_graph(self, timestamp:str, graph:ConjunctiveGraph) -> tuple:
-        output = []
+    def _rebuild_relevant_graphs(self) -> None:
+        if self.on_time is not None:
+            super()._rebuild_relevant_graphs()
+            return
+        self.triples = self._process_query()
+        if not all(self._is_isolated(t) for t in self.triples):
+            super()._rebuild_relevant_graphs()
+            self._streaming_results = {
+                str(convert_to_datetime(ts, stringify=True)): self._extract_bindings(g)
+                for ts, g in self.relevant_graphs.items()
+            }
+            return
+        self._rebuild_streaming()
+
+    def _extract_bindings(self, graph) -> list[dict]:
         query_results = graph.query(self.query)
-        # rdflib types vars as Optional, but it's always set for SELECT queries
         assert query_results.vars is not None
         vars_list = [str(var) for var in query_results.vars]
+        output = []
         for result in query_results.bindings:
             binding = {}
             for var in vars_list:
@@ -513,16 +527,52 @@ class VersionQuery(AgnosticQuery):
                 if val is not None:
                     binding[var] = Sparql._format_result_value(val)
             output.append(binding)
-        normalized_timestamp = convert_to_datetime(timestamp, stringify=True)
-        return normalized_timestamp, output
+        return output
+
+    def _rebuild_streaming(self) -> None:
+        triples_checked = set()
+        all_entities: set[URIRef] = set()
+        for triple in self.triples:
+            if isinstance(triple[0], URIRef):
+                all_entities.add(triple[0])
+            elif self._is_a_new_triple(triple, triples_checked):
+                present_entities = self._get_present_entities(triple)
+                self._find_entity_uris_in_update_queries(triple, present_entities)
+                all_entities.update(e for e in present_entities if isinstance(e, URIRef))
+            triples_checked.add(triple)
+        entity_bindings: dict[URIRef, dict[str, list[dict]]] = {}
+        for entity_uri in all_entities:
+            ae = AgnosticEntity(entity_uri, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+            per_ts: dict[str, list[dict]] = {}
+            for ts, graph in ae.iter_versions():
+                per_ts[ts] = self._extract_bindings(graph)
+            entity_bindings[entity_uri] = per_ts
+        all_timestamps: set[str] = set()
+        for per_ts in entity_bindings.values():
+            all_timestamps.update(per_ts.keys())
+        sorted_timestamps = sorted(all_timestamps, key=_parse_datetime)
+        result: dict[str, list[dict]] = {}
+        last_known: dict[URIRef, list[dict]] = {}
+        for ts in sorted_timestamps:
+            merged: list[dict] = []
+            for entity_uri, per_ts in entity_bindings.items():
+                if ts in per_ts:
+                    last_known[entity_uri] = per_ts[ts]
+                if entity_uri in last_known:
+                    merged.extend(last_known[entity_uri])
+            result[ts] = merged
+        self._streaming_results = result
 
     def run_agnostic_query(self, include_all_timestamps: bool = False) -> tuple[dict[str, list[dict]], set]:
+        if self.on_time is None:
+            agnostic_result = self._streaming_results
+            if include_all_timestamps:
+                agnostic_result = self._fill_timestamp_gaps(agnostic_result)
+            return agnostic_result, set()
         agnostic_result: dict[str, list[dict]] = {}
         for timestamp, graph in self.relevant_graphs.items():
-            normalized_timestamp, output = self._query_reconstructed_graph(timestamp, graph)
-            agnostic_result[normalized_timestamp] = output
-        if include_all_timestamps and self.on_time is None:
-            agnostic_result = self._fill_timestamp_gaps(agnostic_result)
+            normalized = str(convert_to_datetime(timestamp, stringify=True))
+            agnostic_result[normalized] = self._extract_bindings(graph)
         return agnostic_result, {data["generatedAtTime"] for _, data in self.other_snapshots_metadata.items()}
 
     def _get_all_provenance_timestamps(self) -> set:
