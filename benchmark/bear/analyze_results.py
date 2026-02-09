@@ -9,6 +9,8 @@ from typing import Dict, List, Optional
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter, NullFormatter
 from rich.console import Console
 from rich.table import Table
@@ -236,17 +238,18 @@ def _ms_formatter(val: float, _pos: int) -> str:
     return f"{val:.2g}"
 
 
-def _format_log_axis(ax: plt.Axes) -> None:
+def _format_log_axis(ax: Axes) -> None:
     ax.set_yscale("log")
     ax.yaxis.set_major_formatter(FuncFormatter(_ms_formatter))
     ax.yaxis.set_minor_formatter(NullFormatter())
 
 
-def _save_plot(fig: plt.Figure, plot_dir: Path, name: str) -> None:
+def _save_plot(fig: Figure, plot_dir: Path, name: str) -> None:
     plot_dir.mkdir(parents=True, exist_ok=True)
-    fig.savefig(plot_dir / f"{name}.pdf", bbox_inches="tight")
+    for ext in ("pdf", "jpg"):
+        fig.savefig(plot_dir / f"{name}.{ext}", bbox_inches="tight", dpi=300)
     plt.close(fig)
-    console.print(f"  Saved: {plot_dir / name}.pdf")
+    console.print(f"  Saved: {plot_dir / name}.{{pdf,jpg}}")
 
 
 def plot_vm_comparison(tal_vm: List[dict], ostrich_raw_files: List[Path], plot_dir: Path) -> None:
@@ -638,7 +641,7 @@ def main():
     print_comparison_table(comparison)
 
     console.rule("[bold]Generating plots")
-    ostrich_raw_files = [DATA_DIR / f"ostrich_raw_{pt}.txt" for pt in ["p", "po"]]
+    ostrich_raw_files = [DATA_DIR / f"ostrich_raw_{pt}_{args.granularity}.txt" for pt in ["p", "po"]]
     plot_dir = output_dir / "plots"
     generate_plots(data, ostrich_raw_files, plot_dir)
 

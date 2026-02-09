@@ -1,32 +1,19 @@
 import argparse
-import gzip
 import json
 import re
 import time
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
 
 from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
+
+from time_agnostic_library.ocdm_converter import OCDMConverter
 
 console = Console()
 
 DATA_GRAPH = "http://bear-benchmark.org/data/"
-PROV_NS = "http://www.w3.org/ns/prov#"
-OCO_NS = "https://w3id.org/oc/ontology/"
-DCTERMS_NS = "http://purl.org/dc/terms/"
-XSD_NS = "http://www.w3.org/2001/XMLSchema#"
 AGENT_URI = "http://bear-benchmark.org/converter"
+XSD_NS = "http://www.w3.org/2001/XMLSchema#"
 
 QLEVER_DATATYPE_NORMALIZATIONS = {
     f"^^<{XSD_NS}integer>": f"^^<{XSD_NS}int>",
@@ -42,15 +29,6 @@ GRANULARITY_INTERVALS = {
 
 SCRIPT_DIR = Path(__file__).parent
 
-PROGRESS_COLUMNS = (
-    SpinnerColumn(),
-    TextColumn("[bold blue]{task.description}"),
-    BarColumn(),
-    MofNCompleteColumn(),
-    TimeElapsedColumn(),
-    TimeRemainingColumn(),
-)
-
 
 def normalize_object(obj: str) -> str:
     for old, new in QLEVER_DATATYPE_NORMALIZATIONS.items():
@@ -59,110 +37,7 @@ def normalize_object(obj: str) -> str:
     return obj
 
 
-def parse_ntriples_line(line: str) -> Optional[Tuple[str, str, str]]:
-    line = line.strip()
-    if not line or line.startswith("#"):
-        return None
-    if line.endswith(" ."):
-        line = line[:-2]
-    elif line.endswith("."):
-        line = line[:-1]
-    line = line.strip()
-    parts = []
-    i = 0
-    while i < len(line) and len(parts) < 3:
-        if line[i] == "<":
-            end = line.index(">", i)
-            parts.append(line[i:end + 1])
-            i = end + 1
-        elif line[i] == '"':
-            j = i + 1
-            while j < len(line):
-                if line[j] == "\\" and j + 1 < len(line):
-                    j += 2
-                    continue
-                if line[j] == '"':
-                    break
-                j += 1
-            end_quote = j
-            rest_start = end_quote + 1
-            if rest_start < len(line) and line[rest_start:rest_start + 2] == "^^":
-                dt_start = rest_start + 2
-                if dt_start < len(line) and line[dt_start] == "<":
-                    dt_end = line.index(">", dt_start)
-                    parts.append(line[i:dt_end + 1])
-                    i = dt_end + 1
-                else:
-                    space = line.find(" ", dt_start)
-                    if space == -1:
-                        parts.append(line[i:])
-                        i = len(line)
-                    else:
-                        parts.append(line[i:space])
-                        i = space
-            elif rest_start < len(line) and line[rest_start] == "@":
-                space = line.find(" ", rest_start)
-                if space == -1:
-                    parts.append(line[i:])
-                    i = len(line)
-                else:
-                    parts.append(line[i:space])
-                    i = space
-            else:
-                parts.append(line[i:end_quote + 1])
-                i = end_quote + 1
-        elif line[i] == "_":
-            space = line.find(" ", i)
-            if space == -1:
-                parts.append(line[i:])
-                i = len(line)
-            else:
-                parts.append(line[i:space])
-                i = space
-        elif line[i] == " " or line[i] == "\t":
-            i += 1
-        else:
-            space = line.find(" ", i)
-            if space == -1:
-                parts.append(line[i:])
-                i = len(line)
-            else:
-                parts.append(line[i:space])
-                i = space
-    if len(parts) == 3:
-        return (parts[0], parts[1], normalize_object(parts[2]))
-    return None
-
-
-def extract_subject_uri(s_term: str) -> str:
-    if s_term.startswith("<") and s_term.endswith(">"):
-        return s_term[1:-1]
-    return s_term
-
-
-def read_ntriples_file(filepath: Path) -> List[Tuple[str, str, str]]:
-    triples = []
-    if filepath.suffix == ".gz":
-        opener = lambda: gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
-    else:
-        opener = lambda: open(filepath, "r", encoding="utf-8", errors="replace")
-    with opener() as f:
-        for line in f:
-            parsed = parse_ntriples_line(line)
-            if parsed:
-                triples.append(parsed)
-    return triples
-
-
-def group_triples_by_subject(triples: List[Tuple[str, str, str]]) -> Dict[str, Set[Tuple[str, str]]]:
-    by_subject = defaultdict(set)
-    for s, p, o in triples:
-        uri = extract_subject_uri(s)
-        by_subject[uri].add((p, o))
-    return by_subject
-
-
-def find_ic_files(ic_dir: Path) -> List[Path]:
+def find_ic_files(ic_dir: Path) -> list[Path]:
     files = sorted(ic_dir.rglob(pattern="*.nt")) + sorted(ic_dir.rglob("*.nt.gz"))
     if not files:
         files = sorted(ic_dir.rglob("*.ntriples"))
@@ -176,158 +51,88 @@ def find_ic_files(ic_dir: Path) -> List[Path]:
     return [f for _, f in version_files]
 
 
-def format_timestamp(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
-
-
-def build_update_query(
-    entity_uri: str,
-    deleted_po: Set[Tuple[str, str]],
-    added_po: Set[Tuple[str, str]],
-) -> str:
-    parts = []
-    if deleted_po:
-        triples = " ".join(f"<{entity_uri}> {p} {o} ." for p, o in deleted_po)
-        parts.append(f"DELETE DATA {{ GRAPH <{DATA_GRAPH}> {{ {triples} }} }}")
-    if added_po:
-        triples = " ".join(f"<{entity_uri}> {p} {o} ." for p, o in added_po)
-        parts.append(f"INSERT DATA {{ GRAPH <{DATA_GRAPH}> {{ {triples} }} }}")
-    return "; ".join(parts)
-
-
-def escape_sparql_for_nquads(query: str) -> str:
-    escaped = query.replace("\\", "\\\\")
-    escaped = escaped.replace('"', '\\"')
-    escaped = escaped.replace("\n", "\\n")
-    escaped = escaped.replace("\r", "\\r")
-    escaped = escaped.replace("\t", "\\t")
-    return escaped
-
-
-def convert_bear_to_ocdm(
-    ic_dir: Path,
-    output_dir: Path,
-    interval: timedelta = timedelta(days=1),
-) -> Tuple[Path, Path]:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    dataset_path = output_dir / "dataset.nq"
-    provenance_path = output_dir / "provenance.nq"
-
-    ic_files = find_ic_files(ic_dir)
-    num_versions = len(ic_files)
-    console.print(f"Found {num_versions} IC versions")
-
-    console.print("Reading all IC files and computing diffs...")
-    all_entities: Set[str] = set()
-    entity_changes: Dict[str, List[Tuple[int, Set[Tuple[str, str]], Set[Tuple[str, str]]]]] = defaultdict(list)
-
-    prev_by_subject: Dict[str, Set[Tuple[str, str]]] = {}
-    latest_by_subject: Dict[str, Set[Tuple[str, str]]] = {}
-
-    with Progress(*PROGRESS_COLUMNS, console=console) as progress:
-        task = progress.add_task("Processing IC versions", total=num_versions)
-        for version_idx, ic_file in enumerate(ic_files):
-            triples = read_ntriples_file(ic_file)
-            cur_by_subject = group_triples_by_subject(triples)
-            all_entities.update(cur_by_subject.keys())
-
-            if version_idx > 0:
-                changed_entities = set(prev_by_subject.keys()) | set(cur_by_subject.keys())
-                for entity_uri in changed_entities:
-                    prev_po = prev_by_subject.get(entity_uri, set())
-                    cur_po = cur_by_subject.get(entity_uri, set())
-                    deleted_po = prev_po - cur_po
-                    added_po = cur_po - prev_po
-                    if deleted_po or added_po:
-                        entity_changes[entity_uri].append((version_idx, deleted_po, added_po))
-
-            prev_by_subject = cur_by_subject
-            if version_idx == num_versions - 1:
-                latest_by_subject = cur_by_subject
-            progress.advance(task)
-
-    sorted_entities = sorted(all_entities)
-
-    with Progress(*PROGRESS_COLUMNS, console=console) as progress:
-        task = progress.add_task("Writing dataset.nq", total=len(sorted_entities))
-        with open(dataset_path, "w", encoding="utf-8") as f:
-            for entity_uri in sorted_entities:
-                po_set = latest_by_subject.get(entity_uri, set())
-                for p, o in sorted(po_set):
-                    f.write(f"<{entity_uri}> {p} {o} <{DATA_GRAPH}> .\n")
-                progress.advance(task)
-
-    with Progress(*PROGRESS_COLUMNS, console=console) as progress:
-        task = progress.add_task("Writing provenance.nq", total=len(sorted_entities))
-        with open(provenance_path, "w", encoding="utf-8") as f:
-            for entity_uri in sorted_entities:
-                prov_graph = f"<{entity_uri}/prov/>"
-                changes = entity_changes.get(entity_uri, [])
-
-                se1_uri = f"<{entity_uri}/prov/se/1>"
-                t0 = format_timestamp(BASE_TIMESTAMP)
-
-                f.write(f'{se1_uri} <{PROV_NS}specializationOf> <{entity_uri}> {prov_graph} .\n')
-                f.write(f'{se1_uri} <{PROV_NS}generatedAtTime> "{t0}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
-                f.write(f'{se1_uri} <{PROV_NS}wasAttributedTo> <{AGENT_URI}> {prov_graph} .\n')
-                f.write(f'{se1_uri} <{DCTERMS_NS}description> "The entity has been created." {prov_graph} .\n')
-
-                last_state_empty = False
-                for change_idx, (version_idx, deleted_po, added_po) in enumerate(changes):
-                    se_num = change_idx + 2
-                    se_uri = f"<{entity_uri}/prov/se/{se_num}>"
-                    timestamp = format_timestamp(BASE_TIMESTAMP + interval * version_idx)
-
-                    f.write(f'{se_uri} <{PROV_NS}specializationOf> <{entity_uri}> {prov_graph} .\n')
-                    f.write(f'{se_uri} <{PROV_NS}generatedAtTime> "{timestamp}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
-                    f.write(f'{se_uri} <{PROV_NS}wasAttributedTo> <{AGENT_URI}> {prov_graph} .\n')
-
-                    update_query = build_update_query(entity_uri, deleted_po, added_po)
-                    escaped_query = escape_sparql_for_nquads(update_query)
-                    f.write(f'{se_uri} <{OCO_NS}hasUpdateQuery> "{escaped_query}" {prov_graph} .\n')
-                    f.write(f'{se_uri} <{DCTERMS_NS}description> "The entity has been modified." {prov_graph} .\n')
-
-                    prev_se_uri = f"<{entity_uri}/prov/se/{se_num - 1}>"
-                    f.write(f'{se_uri} <{PROV_NS}wasDerivedFrom> {prev_se_uri} {prov_graph} .\n')
-
-                    if change_idx == len(changes) - 1 and entity_uri not in latest_by_subject:
-                        last_state_empty = True
-                        f.write(f'{se_uri} <{PROV_NS}invalidatedAtTime> "{timestamp}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
-
-                progress.advance(task)
-
-    console.print(f"\nConversion complete:")
-    console.print(f"  Entities: {len(all_entities)}")
-    console.print(f"  Dataset: {dataset_path} ({dataset_path.stat().st_size / 1024:.1f} KB)")
-    console.print(f"  Provenance: {provenance_path} ({provenance_path.stat().st_size / 1024:.1f} KB)")
-
-    return dataset_path, provenance_path
+def find_cb_files(cb_dir: Path) -> list[tuple[Path, Path]]:
+    added_files: dict[int, Path] = {}
+    deleted_files: dict[int, Path] = {}
+    for f in cb_dir.iterdir():
+        match = re.match(r'data-(added|deleted)_(\d+)-(\d+)\.nt(?:\.gz)?$', f.name)
+        if not match:
+            continue
+        change_type = match.group(1)
+        source_version = int(match.group(2))
+        if change_type == "added":
+            added_files[source_version] = f
+        else:
+            deleted_files[source_version] = f
+    versions = sorted(set(added_files.keys()) & set(deleted_files.keys()))
+    return [(added_files[v], deleted_files[v]) for v in versions]
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    parser.add_argument("--strategy", choices=["ic", "cb"], default="ic")
     args = parser.parse_args()
 
     interval = GRANULARITY_INTERVALS[args.granularity]
     data_dir = SCRIPT_DIR / "data" / args.granularity
-    ic_dir = data_dir / "IC"
 
-    if not ic_dir.exists():
-        raise FileNotFoundError(f"IC directory not found: {ic_dir}. Run download.py first.")
+    converter = OCDMConverter(
+        data_graph_uri=DATA_GRAPH,
+        agent_uri=AGENT_URI,
+        object_normalizer=normalize_object,
+    )
+
+    dataset_output = data_dir / "dataset.nq"
+    provenance_output = data_dir / "provenance.nq"
 
     start = time.perf_counter()
-    convert_bear_to_ocdm(
-        ic_dir=ic_dir,
-        output_dir=data_dir,
-        interval=interval,
-    )
+
+    if args.strategy == "ic":
+        ic_dir = data_dir / "IC"
+        if not ic_dir.exists():
+            raise FileNotFoundError(f"IC directory not found: {ic_dir}. Run download.py first.")
+        ic_files = find_ic_files(ic_dir)
+        num_versions = len(ic_files)
+        console.print(f"Found {num_versions} IC versions")
+        timestamps = [BASE_TIMESTAMP + interval * i for i in range(num_versions)]
+        converter.convert_from_ic(
+            ic_files=ic_files,
+            timestamps=timestamps,
+            dataset_output=dataset_output,
+            provenance_output=provenance_output,
+        )
+    else:
+        ic_dir = data_dir / "IC"
+        cb_dir = data_dir / "CB"
+        if not cb_dir.exists():
+            raise FileNotFoundError(f"CB directory not found: {cb_dir}. Run download.py first.")
+        ic_files = find_ic_files(ic_dir)
+        if not ic_files:
+            raise FileNotFoundError(f"No IC files found in {ic_dir}. Need initial snapshot.")
+        initial_snapshot = ic_files[0]
+        changesets = find_cb_files(cb_dir)
+        num_versions = len(changesets) + 1
+        console.print(f"Found initial snapshot + {len(changesets)} CB changesets ({num_versions} versions)")
+        timestamps = [BASE_TIMESTAMP + interval * i for i in range(num_versions)]
+        converter.convert_from_cb(
+            initial_snapshot=initial_snapshot,
+            changesets=changesets,
+            timestamps=timestamps,
+            dataset_output=dataset_output,
+            provenance_output=provenance_output,
+        )
+
     elapsed_s = time.perf_counter() - start
+
+    console.print(f"\nConversion complete ({args.strategy.upper()} strategy):")
+    console.print(f"  Dataset: {dataset_output} ({dataset_output.stat().st_size / 1024:.1f} KB)")
+    console.print(f"  Provenance: {provenance_output} ({provenance_output.stat().st_size / 1024:.1f} KB)")
 
     timing_file = SCRIPT_DIR / "data" / f"ocdm_conversion_time_{args.granularity}.json"
     timing_file.parent.mkdir(parents=True, exist_ok=True)
     with open(timing_file, "w", encoding="utf-8") as f:
-        json.dump({"ocdm_conversion_s": round(elapsed_s, 2)}, f, indent=2)
+        json.dump({"ocdm_conversion_s": round(elapsed_s, 2), "strategy": args.strategy}, f, indent=2)
     console.print(f"Conversion time: {elapsed_s:.2f}s (saved to {timing_file})")
 
 

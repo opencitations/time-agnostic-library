@@ -239,7 +239,7 @@ def main():
         pattern_type = query_file.replace(".txt", "")
         raw_output = run_ostrich_queries(query_file, evalrun_dir)
 
-        raw_path = DATA_DIR / f"ostrich_raw_{pattern_type}.txt"
+        raw_path = DATA_DIR / f"ostrich_raw_{pattern_type}_{args.granularity}.txt"
         with open(raw_path, "w", encoding="utf-8") as f:
             f.write(raw_output)
         console.print(f"  Raw output saved to {raw_path}")

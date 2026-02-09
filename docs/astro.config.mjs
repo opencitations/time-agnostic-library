@@ -28,6 +28,7 @@ export default defineConfig({
 						{ label: 'Version materialization', slug: 'version_materialization' },
 						{ label: 'Structured queries', slug: 'structured_queries' },
 						{ label: 'Delta queries', slug: 'delta_queries' },
+						{ label: 'OCDM conversion', slug: 'ocdm_conversion' },
 						{ label: 'Configuration', slug: 'configuration' },
 						{ label: 'Contributing', slug: 'contributing' },
 					],
