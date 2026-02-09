@@ -3,14 +3,22 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="$SCRIPT_DIR/data"
+GRANULARITY="${1:-daily}"
 OSTRICH_DIR="$DATA_DIR/ostrich"
-PATCHES_DIR="$OSTRICH_DIR/patches"
-EVALRUN_DIR="$OSTRICH_DIR/evalrun"
+PATCHES_DIR="$OSTRICH_DIR/patches_${GRANULARITY}"
+EVALRUN_DIR="$OSTRICH_DIR/evalrun_${GRANULARITY}"
 QUERIES_DIR="$OSTRICH_DIR/queries"
 OSTRICH_REPO="$OSTRICH_DIR/ostrich-repo"
 IMAGE_NAME="ostrich-bear"
 
-echo "=== OSTRICH benchmark setup ==="
+case "$GRANULARITY" in
+    daily)   NUM_VERSIONS=89 ;;
+    hourly)  NUM_VERSIONS=1299 ;;
+    instant) NUM_VERSIONS=21046 ;;
+    *) echo "Error: unknown granularity '$GRANULARITY'. Use 'daily', 'hourly', or 'instant'."; exit 1 ;;
+esac
+
+echo "=== OSTRICH benchmark setup (${GRANULARITY}, ${NUM_VERSIONS} versions) ==="
 
 # Check Docker
 if ! docker info > /dev/null 2>&1; then
@@ -31,11 +39,11 @@ else
 fi
 
 # Prepare data in OSTRICH's expected directory structure
-IC_SRC="$DATA_DIR/daily/IC"
-CB_SRC="$DATA_DIR/daily/CB"
+IC_SRC="$DATA_DIR/${GRANULARITY}/IC"
+CB_SRC="$DATA_DIR/${GRANULARITY}/CB"
 
 if [ ! -d "$IC_SRC" ] || [ ! -d "$CB_SRC" ]; then
-    echo "Error: BEAR-B-daily data not found. Run 'python benchmark/bear/download.py' first."
+    echo "Error: BEAR-B-${GRANULARITY} data not found. Run 'python benchmark/bear/download.py --granularity ${GRANULARITY}' first."
     exit 1
 fi
 
@@ -72,16 +80,16 @@ cp -n "$DATA_DIR/queries/po.txt" "$QUERIES_DIR/" 2>/dev/null || true
 echo "Query files ready in $QUERIES_DIR"
 
 # Run OSTRICH ingestion
-INGESTION_LOG="$OSTRICH_DIR/ingestion_output.txt"
+INGESTION_LOG="$OSTRICH_DIR/ingestion_output_${GRANULARITY}.txt"
 if [ -d "$EVALRUN_DIR" ] && [ "$(ls -A "$EVALRUN_DIR" 2>/dev/null)" ]; then
     echo "OSTRICH store already exists in $EVALRUN_DIR, skipping ingestion"
 else
     mkdir -p "$EVALRUN_DIR"
-    echo "Running OSTRICH ingestion (89 versions, strategy=never)..."
+    echo "Running OSTRICH ingestion (${NUM_VERSIONS} versions, strategy=never)..."
     docker run --rm \
         -v "$EVALRUN_DIR":/var/evalrun \
         -v "$PATCHES_DIR":/var/patches \
-        "$IMAGE_NAME" ingest never 0 /var/patches 1 89 2>&1 | tee "$INGESTION_LOG"
+        "$IMAGE_NAME" ingest never 0 /var/patches 1 "${NUM_VERSIONS}" 2>&1 | tee "$INGESTION_LOG"
     echo "Ingestion complete (log saved to $INGESTION_LOG)"
 fi
 
@@ -91,4 +99,4 @@ echo "  OSTRICH store: $EVALRUN_DIR"
 echo "  Patches: $PATCHES_DIR"
 echo "  Queries: $QUERIES_DIR"
 echo ""
-echo "Next: python benchmark/bear/run_ostrich_benchmark.py"
+echo "Next: python benchmark/bear/run_ostrich_benchmark.py --granularity ${GRANULARITY}"

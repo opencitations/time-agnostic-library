@@ -1,3 +1,4 @@
+import argparse
 import gzip
 import json
 import re
@@ -32,9 +33,14 @@ QLEVER_DATATYPE_NORMALIZATIONS = {
 }
 
 BASE_TIMESTAMP = datetime(2015, 8, 1, 0, 0, 0, tzinfo=timezone.utc)
-INTERVAL = timedelta(days=1)
 
-DATA_DIR = Path(__file__).parent / "data" / "daily"
+GRANULARITY_INTERVALS = {
+    "daily": timedelta(days=1),
+    "hourly": timedelta(hours=1),
+    "instant": timedelta(minutes=1),
+}
+
+SCRIPT_DIR = Path(__file__).parent
 
 PROGRESS_COLUMNS = (
     SpinnerColumn(),
@@ -201,6 +207,7 @@ def escape_sparql_for_nquads(query: str) -> str:
 def convert_bear_to_ocdm(
     ic_dir: Path,
     output_dir: Path,
+    interval: timedelta = timedelta(days=1),
 ) -> Tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     dataset_path = output_dir / "dataset.nq"
@@ -269,7 +276,7 @@ def convert_bear_to_ocdm(
                 for change_idx, (version_idx, deleted_po, added_po) in enumerate(changes):
                     se_num = change_idx + 2
                     se_uri = f"<{entity_uri}/prov/se/{se_num}>"
-                    timestamp = format_timestamp(BASE_TIMESTAMP + INTERVAL * version_idx)
+                    timestamp = format_timestamp(BASE_TIMESTAMP + interval * version_idx)
 
                     f.write(f'{se_uri} <{PROV_NS}specializationOf> <{entity_uri}> {prov_graph} .\n')
                     f.write(f'{se_uri} <{PROV_NS}generatedAtTime> "{timestamp}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
@@ -298,7 +305,13 @@ def convert_bear_to_ocdm(
 
 
 def main():
-    ic_dir = DATA_DIR / "IC"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    args = parser.parse_args()
+
+    interval = GRANULARITY_INTERVALS[args.granularity]
+    data_dir = SCRIPT_DIR / "data" / args.granularity
+    ic_dir = data_dir / "IC"
 
     if not ic_dir.exists():
         raise FileNotFoundError(f"IC directory not found: {ic_dir}. Run download.py first.")
@@ -306,11 +319,12 @@ def main():
     start = time.perf_counter()
     convert_bear_to_ocdm(
         ic_dir=ic_dir,
-        output_dir=DATA_DIR,
+        output_dir=data_dir,
+        interval=interval,
     )
     elapsed_s = time.perf_counter() - start
 
-    timing_file = DATA_DIR.parent / "data" / "ocdm_conversion_time.json"
+    timing_file = SCRIPT_DIR / "data" / f"ocdm_conversion_time_{args.granularity}.json"
     timing_file.parent.mkdir(parents=True, exist_ok=True)
     with open(timing_file, "w", encoding="utf-8") as f:
         json.dump({"ocdm_conversion_s": round(elapsed_s, 2)}, f, indent=2)

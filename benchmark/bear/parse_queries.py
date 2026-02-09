@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Tuple
@@ -7,13 +6,16 @@ from rich.console import Console
 
 console = Console()
 
-NUM_VERSIONS = 89
+GRANULARITY_CONFIG = {
+    "daily": {"num_versions": 89, "interval": timedelta(days=1)},
+    "hourly": {"num_versions": 1299, "interval": timedelta(hours=1)},
+    "instant": {"num_versions": 21046, "interval": timedelta(minutes=1)},
+}
+
 BASE_TIMESTAMP = datetime.fromisoformat("2015-08-01T00:00:00+00:00")
-INTERVAL = timedelta(days=1)
 
 DATA_DIR = Path(__file__).parent / "data"
 QUERIES_DIR = DATA_DIR / "queries"
-OUTPUT_FILE = DATA_DIR / "parsed_queries.json"
 
 
 def parse_bear_query_file(filepath: Path) -> List[Tuple[str, str, str]]:
@@ -43,8 +45,8 @@ def bear_pattern_to_sparql(pattern: Tuple[str, str, str], pattern_type: str) -> 
     raise ValueError(f"Unknown pattern type: {pattern_type}")
 
 
-def generate_timestamps() -> List[str]:
-    return [(BASE_TIMESTAMP + INTERVAL * i).strftime("%Y-%m-%dT%H:%M:%S+00:00") for i in range(NUM_VERSIONS)]
+def generate_timestamps(num_versions: int, interval: timedelta) -> List[str]:
+    return [(BASE_TIMESTAMP + interval * i).strftime("%Y-%m-%dT%H:%M:%S+00:00") for i in range(num_versions)]
 
 
 def generate_vm_queries(
@@ -72,8 +74,9 @@ def generate_dm_queries(
     patterns: List[Tuple[str, str, str]],
     pattern_type: str,
     timestamps: List[str],
+    dm_step: int,
 ) -> List[dict]:
-    diff_versions = list(range(5, min(56, len(timestamps)), 5))
+    diff_versions = list(range(dm_step, min(len(timestamps), dm_step * 11 + 1), dm_step))
     if len(timestamps) - 1 not in diff_versions:
         diff_versions.append(len(timestamps) - 1)
 
@@ -116,9 +119,9 @@ def generate_vq_queries(
     return queries
 
 
-def parse_and_generate() -> dict:
-    timestamps = generate_timestamps()
-    all_queries = {"vm": [], "dm": [], "vq": []}
+def parse_and_generate(num_versions: int, interval: timedelta, dm_step: int) -> dict:
+    timestamps = generate_timestamps(num_versions, interval)
+    all_queries: dict[str, list] = {"vm": [], "dm": [], "vq": []}
 
     for pattern_type in ["p", "po"]:
         query_file = QUERIES_DIR / f"{pattern_type}.txt"
@@ -129,25 +132,10 @@ def parse_and_generate() -> dict:
         console.print(f"  Parsed {len(patterns)} {pattern_type} patterns")
 
         all_queries["vm"].extend(generate_vm_queries(patterns, pattern_type, timestamps))
-        all_queries["dm"].extend(generate_dm_queries(patterns, pattern_type, timestamps))
+        all_queries["dm"].extend(generate_dm_queries(patterns, pattern_type, timestamps, dm_step))
         all_queries["vq"].extend(generate_vq_queries(patterns, pattern_type))
 
     return all_queries
 
 
-def main():
-    console.print("[bold]Parsing BEAR query files...")
-    queries = parse_and_generate()
-
-    console.print(f"  VM queries: {len(queries['vm'])}")
-    console.print(f"  DM queries: {len(queries['dm'])}")
-    console.print(f"  VQ queries: {len(queries['vq'])}")
-
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(queries, f, indent=2)
-    console.print(f"  Saved to {OUTPUT_FILE}")
-
-
-if __name__ == "__main__":
-    main()
+DM_STEPS = {"daily": 5, "hourly": 100, "instant": 1500}

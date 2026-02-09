@@ -1,3 +1,4 @@
+import argparse
 import json
 import re
 import sys
@@ -17,15 +18,28 @@ sys.setrecursionlimit(5000)
 console = Console()
 
 DATA_DIR = Path(__file__).parent / "data"
-RESULTS_DIR = DATA_DIR / "daily" / "results"
 QUERIES_DIR = DATA_DIR / "queries"
 CONFIG_FILE = Path(__file__).parent / "config_benchmark.json"
 
-NUM_VERSIONS = 89
-BASE_TIMESTAMP = datetime.fromisoformat("2015-08-01T00:00:00+00:00")
-INTERVAL = timedelta(days=1)
+GRANULARITY_CONFIG = {
+    "daily": {
+        "num_versions": 89,
+        "interval": timedelta(days=1),
+        "sample_versions": [0, 44, 88],
+    },
+    "hourly": {
+        "num_versions": 1299,
+        "interval": timedelta(hours=1),
+        "sample_versions": [0, 649, 1298],
+    },
+    "instant": {
+        "num_versions": 21046,
+        "interval": timedelta(minutes=1),
+        "sample_versions": [0, 10522, 21045],
+    },
+}
 
-SAMPLE_VERSIONS = [0, 44, 88]
+BASE_TIMESTAMP = datetime.fromisoformat("2015-08-01T00:00:00+00:00")
 
 VERSION_LINE_RE = re.compile(r"^\[Solution in version (\d+)\]")
 
@@ -70,12 +84,12 @@ def bear_pattern_to_sparql(pattern: Tuple[str, str, str], pattern_type: str) -> 
     raise ValueError(f"Unknown pattern type: {pattern_type}")
 
 
-def version_to_timestamp(version: int) -> str:
-    return (BASE_TIMESTAMP + INTERVAL * version).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+def version_to_timestamp(version: int, interval: timedelta) -> str:
+    return (BASE_TIMESTAMP + interval * version).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
 
-def run_vm_query(sparql: str, version: int, config: dict) -> int:
-    ts = version_to_timestamp(version)
+def run_vm_query(sparql: str, version: int, interval: timedelta, config: dict) -> int:
+    ts = version_to_timestamp(version, interval)
     vq = VersionQuery(sparql, on_time=(ts, ts), config_dict=config)
     result, _ = vq.run_agnostic_query()
     if not result:
@@ -95,9 +109,12 @@ def verify_pattern_vm(
     pattern: Tuple[str, str, str],
     pattern_type: str,
     config: dict,
+    results_dir: Path,
+    sample_versions: list[int],
+    interval: timedelta,
 ) -> List[dict]:
     result_prefix = f"mat-{pattern_type}-queries"
-    result_dir = RESULTS_DIR / pattern_type / "mat" / result_prefix
+    result_dir = results_dir / pattern_type / "mat" / result_prefix
     file_idx = pattern_idx + 1
     result_file = result_dir / f"{result_prefix}-{file_idx}.txt"
 
@@ -109,9 +126,9 @@ def verify_pattern_vm(
     sparql = bear_pattern_to_sparql(pattern, pattern_type)
     results = []
 
-    for version in SAMPLE_VERSIONS:
+    for version in sample_versions:
         expected = expected_counts.get(version, 0)
-        actual = run_vm_query(sparql, version, config)
+        actual = run_vm_query(sparql, version, interval, config)
         match = expected == actual
         results.append({
             "query_type": "vm",
@@ -136,9 +153,12 @@ def verify_pattern_vq(
     pattern: Tuple[str, str, str],
     pattern_type: str,
     config: dict,
+    results_dir: Path,
+    num_versions: int,
+    interval: timedelta,
 ) -> List[dict]:
     result_prefix = f"ver-{pattern_type}-queries"
-    result_dir = RESULTS_DIR / pattern_type / "ver" / result_prefix
+    result_dir = results_dir / pattern_type / "ver" / result_prefix
     file_idx = pattern_idx + 1
     result_file = result_dir / f"{result_prefix}-{file_idx}.txt"
 
@@ -153,14 +173,14 @@ def verify_pattern_vq(
     actual_by_version = {}
     for ts, count in actual_by_ts.items():
         ts_dt = datetime.fromisoformat(ts)
-        version = int((ts_dt - BASE_TIMESTAMP) / INTERVAL)
+        version = int((ts_dt - BASE_TIMESTAMP) / interval)
         actual_by_version[version] = count
 
     results = []
     all_versions = set(expected_counts.keys()) | set(actual_by_version.keys())
     mismatches = 0
     for version in sorted(all_versions):
-        if version >= NUM_VERSIONS:
+        if version >= num_versions:
             continue
         expected = expected_counts.get(version, 0)
         actual = actual_by_version.get(version, 0)
@@ -212,6 +232,16 @@ def print_summary(results: List[dict]) -> None:
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    args = parser.parse_args()
+
+    config_g = GRANULARITY_CONFIG[args.granularity]
+    num_versions = config_g["num_versions"]
+    interval = config_g["interval"]
+    sample_versions = config_g["sample_versions"]
+    results_dir = DATA_DIR / args.granularity / "results"
+
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         config = json.load(f)
 
@@ -250,13 +280,19 @@ def main():
         for pattern_idx, pattern, pattern_type in all_patterns:
             status_text = f"[green]{passed}[/green] OK  [red]{failed}[/red] FAIL"
             progress.update(task, label=f"{pattern_type}[{pattern_idx}] VM", status=status_text)
-            vm_results = verify_pattern_vm(pattern_idx, pattern, pattern_type, config)
+            vm_results = verify_pattern_vm(
+                pattern_idx, pattern, pattern_type, config,
+                results_dir, sample_versions, interval,
+            )
             vm_ok = all(r["match"] for r in vm_results) if vm_results else True
             all_results.extend(vm_results)
             progress.advance(task)
 
             progress.update(task, label=f"{pattern_type}[{pattern_idx}] VQ")
-            vq_results = verify_pattern_vq(pattern_idx, pattern, pattern_type, config)
+            vq_results = verify_pattern_vq(
+                pattern_idx, pattern, pattern_type, config,
+                results_dir, num_versions, interval,
+            )
             vq_ok = all(r["match"] for r in vq_results) if vq_results else True
             all_results.extend(vq_results)
             progress.advance(task)

@@ -1,20 +1,21 @@
+import argparse
 import csv
 import json
+import re
 import statistics
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter, NullFormatter
 from rich.console import Console
 from rich.table import Table
 
 console = Console()
 
 DATA_DIR = Path(__file__).parent / "data"
-RESULTS_FILE = DATA_DIR / "benchmark_results.json"
-OSTRICH_RESULTS_FILE = DATA_DIR / "ostrich_benchmark_results.json"
-OCDM_TIMING_FILE = DATA_DIR / "ocdm_conversion_time.json"
-QLEVER_TIMING_FILE = DATA_DIR / "qlever_indexing_time.json"
-OUTPUT_DIR = DATA_DIR / "analysis"
 
 PUBLISHED_RESULTS = {
     "Jena-IC": {
@@ -115,7 +116,239 @@ def compute_break_even(
     return ingestion_ms / diff_ms
 
 
-def generate_comparison_table(tal_results: dict) -> List[dict]:
+def _median_ms(entries: List[dict], key: str = "median_s", scale: float = 1000) -> float:
+    return statistics.median(r[key] * scale for r in entries if r[key] is not None)
+
+
+def _group_by(entries: List[dict], field: str) -> Dict:
+    groups: Dict = {}
+    for r in entries:
+        groups.setdefault(r[field], []).append(r)
+    return groups
+
+
+def load_tal_vm_by_version(vm_results: List[dict], pattern_filter: str | None = None) -> Dict[int, float]:
+    filtered = [r for r in vm_results if r["median_s"] is not None]
+    if pattern_filter:
+        filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
+    by_version = _group_by(filtered, "version_index")
+    return {v: _median_ms(entries) for v, entries in sorted(by_version.items())}
+
+
+def load_tal_dm_by_version(dm_results: List[dict], pattern_filter: str | None = None) -> Dict[int, float]:
+    filtered = [r for r in dm_results if r["median_s"] is not None]
+    if pattern_filter:
+        filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
+    by_end = _group_by(filtered, "version_end")
+    return {v: _median_ms(entries) for v, entries in sorted(by_end.items())}
+
+
+def load_tal_vq_median(vq_results: List[dict], pattern_filter: str | None = None) -> float:
+    filtered = [r for r in vq_results if r["median_s"] is not None]
+    if pattern_filter:
+        filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
+    return _median_ms(filtered)
+
+
+# --- OSTRICH raw file parsing ---
+
+def _parse_ostrich_raw_files(raw_files: List[Path]) -> List[dict]:
+    patterns = []
+    for raw_file in raw_files:
+        if not raw_file.exists():
+            continue
+        pattern_type = raw_file.stem.replace("ostrich_raw_", "")
+        current_pattern = None
+        current_section = None
+        for line in raw_file.read_text().splitlines():
+            line = line.strip()
+            match = re.match(r"---PATTERN START:\s*(.+)", line)
+            if match:
+                current_pattern = {"pattern_type": pattern_type, "vm": [], "dm": [], "vq": []}
+                patterns.append(current_pattern)
+                current_section = None
+                continue
+            if "---VERSION MATERIALIZED" in line:
+                current_section = "vm"
+                continue
+            if "---DELTA MATERIALIZED" in line:
+                current_section = "dm"
+                continue
+            if line.startswith("--- ---VERSION"):
+                current_section = "vq"
+                continue
+            if line.startswith("---") or line.startswith("patch,") or line.startswith("patch_start,") or line.startswith("offset,"):
+                continue
+            if current_pattern is None or current_section is None:
+                continue
+            parts = line.split(",")
+            if current_section == "vm" and len(parts) >= 7:
+                current_pattern["vm"].append({"patch": int(parts[0]), "median_us": float(parts[4])})
+            elif current_section == "dm" and len(parts) >= 8:
+                current_pattern["dm"].append({
+                    "patch_start": int(parts[0]), "patch_end": int(parts[1]), "median_us": float(parts[5]),
+                })
+            elif current_section == "vq" and len(parts) >= 5:
+                current_pattern["vq"].append({"median_us": float(parts[2])})
+    return patterns
+
+
+def _ostrich_median_ms_by_version(patterns: List[dict], query_type: str, version_field: str,
+                                  pattern_filter: str | None = None, start_filter: int | None = None) -> Dict[int, float]:
+    by_version: Dict[int, list] = {}
+    for pat in patterns:
+        if pattern_filter and pat["pattern_type"] != pattern_filter:
+            continue
+        for entry in pat[query_type]:
+            if start_filter is not None and entry.get("patch_start") != start_filter:
+                continue
+            v = entry[version_field]
+            by_version.setdefault(v, []).append(entry["median_us"] / 1000)
+    return {v: statistics.median(vals) for v, vals in sorted(by_version.items())}
+
+
+def load_ostrich_vm_by_version(raw_files: List[Path], pattern_filter: str | None = None) -> Dict[int, float]:
+    patterns = _parse_ostrich_raw_files(raw_files)
+    return _ostrich_median_ms_by_version(patterns, "vm", "patch", pattern_filter)
+
+
+def load_ostrich_dm_by_version(raw_files: List[Path], pattern_filter: str | None = None) -> Dict[int, float]:
+    patterns = _parse_ostrich_raw_files(raw_files)
+    return _ostrich_median_ms_by_version(patterns, "dm", "patch_end", pattern_filter, start_filter=0)
+
+
+def load_ostrich_vq_median(raw_files: List[Path], pattern_filter: str | None = None) -> float:
+    patterns = _parse_ostrich_raw_files(raw_files)
+    medians = []
+    for pat in patterns:
+        if pattern_filter and pat["pattern_type"] != pattern_filter:
+            continue
+        for entry in pat["vq"]:
+            medians.append(entry["median_us"] / 1000)
+    return statistics.median(medians)
+
+
+# --- Plotting ---
+
+def _ms_formatter(val: float, _pos: int) -> str:
+    if val >= 1:
+        return f"{val:g}"
+    return f"{val:.2g}"
+
+
+def _format_log_axis(ax: plt.Axes) -> None:
+    ax.set_yscale("log")
+    ax.yaxis.set_major_formatter(FuncFormatter(_ms_formatter))
+    ax.yaxis.set_minor_formatter(NullFormatter())
+
+
+def _save_plot(fig: plt.Figure, plot_dir: Path, name: str) -> None:
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(plot_dir / f"{name}.pdf", bbox_inches="tight")
+    plt.close(fig)
+    console.print(f"  Saved: {plot_dir / name}.pdf")
+
+
+def plot_vm_comparison(tal_vm: List[dict], ostrich_raw_files: List[Path], plot_dir: Path) -> None:
+    tal_data = load_tal_vm_by_version(tal_vm)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    versions = sorted(tal_data.keys())
+    ax.plot(versions, [tal_data[v] for v in versions], label="TAL", marker="", linewidth=1.5)
+    if any(f.exists() for f in ostrich_raw_files):
+        ost_data = load_ostrich_vm_by_version(ostrich_raw_files)
+        ost_versions = sorted(ost_data.keys())
+        ax.plot(ost_versions, [ost_data[v] for v in ost_versions], label="OSTRICH", marker="", linewidth=1.5)
+    _format_log_axis(ax)
+    ax.set_xlabel("Version")
+    ax.set_ylabel("Lookup time (ms)")
+    ax.set_title("VM: median across all triple patterns")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    _save_plot(fig, plot_dir, "vm_comparison")
+
+
+def plot_dm_comparison(tal_dm: List[dict], ostrich_raw_files: List[Path], plot_dir: Path) -> None:
+    tal_data = load_tal_dm_by_version(tal_dm)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    versions = sorted(tal_data.keys())
+    ax.plot(versions, [tal_data[v] for v in versions], label="TAL", marker="o", linewidth=1.5, markersize=4)
+    if any(f.exists() for f in ostrich_raw_files):
+        ost_data = load_ostrich_dm_by_version(ostrich_raw_files)
+        ost_versions = sorted(ost_data.keys())
+        ax.plot(ost_versions, [ost_data[v] for v in ost_versions], label="OSTRICH", marker="", linewidth=1.5)
+    _format_log_axis(ax)
+    ax.set_xlabel("Version (delta from V0)")
+    ax.set_ylabel("Lookup time (ms)")
+    ax.set_title("DM: median across all triple patterns from V0")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    _save_plot(fig, plot_dir, "dm_comparison")
+
+
+def plot_vq_comparison(tal_vq: List[dict], ostrich_raw_files: List[Path], plot_dir: Path) -> None:
+    systems = ["TAL"]
+    values = [load_tal_vq_median(tal_vq)]
+    if any(f.exists() for f in ostrich_raw_files):
+        systems.append("OSTRICH")
+        values.append(load_ostrich_vq_median(ostrich_raw_files))
+    fig, ax = plt.subplots(figsize=(6, 5))
+    bars = ax.bar(systems, values)
+    for bar, val in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.2f}",
+                ha="center", va="bottom", fontsize=9)
+    _format_log_axis(ax)
+    ax.set_ylabel("Lookup time (ms)")
+    ax.set_title("VQ: median across all triple patterns")
+    ax.grid(True, alpha=0.3, axis="y")
+    _save_plot(fig, plot_dir, "vq_comparison")
+
+
+def plot_by_pattern(tal_results: List[dict], ostrich_raw_files: List[Path],
+                    query_type: str, load_tal_fn, load_ost_fn, plot_dir: Path,
+                    x_label: str, version_key: str) -> None:
+    has_ostrich = any(f.exists() for f in ostrich_raw_files)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+    for i, pt in enumerate(["p", "po"]):
+        ax = axes[i]
+        tal_data = load_tal_fn(tal_results, pattern_filter=pt)
+        versions = sorted(tal_data.keys())
+        ax.plot(versions, [tal_data[v] for v in versions], label="TAL", linewidth=1.5)
+        if has_ostrich:
+            ost_data = load_ost_fn(ostrich_raw_files, pattern_filter=pt)
+            ost_versions = sorted(ost_data.keys())
+            ax.plot(ost_versions, [ost_data[v] for v in ost_versions], label="OSTRICH", linewidth=1.5)
+        _format_log_axis(ax)
+        ax.set_xlabel(x_label)
+        ax.set_title(f"?{'P?' if pt == 'p' else 'PO'} patterns")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    axes[0].set_ylabel("Lookup time (ms)")
+    fig.suptitle(f"{query_type.upper()}: median by pattern type", fontsize=13)
+    fig.tight_layout()
+    _save_plot(fig, plot_dir, f"{query_type}_by_pattern")
+
+
+def generate_plots(data: dict, ostrich_raw_files: List[Path], plot_dir: Path) -> None:
+    results = data.get("results", {})
+    vm_results = results.get("vm", [])
+    dm_results = results.get("dm", [])
+    vq_results = results.get("vq", [])
+
+    if vm_results:
+        plot_vm_comparison(vm_results, ostrich_raw_files, plot_dir)
+        plot_by_pattern(vm_results, ostrich_raw_files, "vm",
+                        load_tal_vm_by_version, load_ostrich_vm_by_version,
+                        plot_dir, "Version", "version_index")
+    if dm_results:
+        plot_dm_comparison(dm_results, ostrich_raw_files, plot_dir)
+        plot_by_pattern(dm_results, ostrich_raw_files, "dm",
+                        load_tal_dm_by_version, load_ostrich_dm_by_version,
+                        plot_dir, "Version (delta from V0)", "version_end")
+    if vq_results:
+        plot_vq_comparison(vq_results, ostrich_raw_files, plot_dir)
+
+
+def generate_comparison_table(tal_results: dict, ocdm_timing_file: Path, qlever_timing_file: Path) -> List[dict]:
     rows = []
     for system_name, published in PUBLISHED_RESULTS.items():
         row = {
@@ -155,7 +388,7 @@ def generate_comparison_table(tal_results: dict) -> List[dict]:
 
         rows.append(row)
 
-    tal_ingestion = load_tal_ingestion_time()
+    tal_ingestion = load_tal_ingestion_time(ocdm_timing_file, qlever_timing_file)
     tal_row = {
         "system": "TAL (ours)",
         "source": "this work",
@@ -320,11 +553,11 @@ def print_comparison_table(rows: List[dict]) -> None:
     console.print(table)
 
 
-def load_measured_ostrich_results() -> None:
-    if not OSTRICH_RESULTS_FILE.exists():
+def load_measured_ostrich_results(ostrich_results_file: Path) -> None:
+    if not ostrich_results_file.exists():
         return
     console.print("[bold]Loading measured OSTRICH results[/bold]")
-    with open(OSTRICH_RESULTS_FILE, "r", encoding="utf-8") as f:
+    with open(ostrich_results_file, "r", encoding="utf-8") as f:
         ostrich_data = json.load(f)
     results = ostrich_data["results"]
     measured: dict = {"source": "measured (this hardware)"}
@@ -342,23 +575,33 @@ def load_measured_ostrich_results() -> None:
     PUBLISHED_RESULTS["OSTRICH"] = measured
 
 
-def load_tal_ingestion_time() -> Optional[float]:
+def load_tal_ingestion_time(ocdm_timing_file: Path, qlever_timing_file: Path) -> Optional[float]:
     total = 0.0
     found = False
-    if OCDM_TIMING_FILE.exists():
-        with open(OCDM_TIMING_FILE, "r", encoding="utf-8") as f:
+    if ocdm_timing_file.exists():
+        with open(ocdm_timing_file, "r", encoding="utf-8") as f:
             total += json.load(f)["ocdm_conversion_s"]
             found = True
-    if QLEVER_TIMING_FILE.exists():
-        with open(QLEVER_TIMING_FILE, "r", encoding="utf-8") as f:
+    if qlever_timing_file.exists():
+        with open(qlever_timing_file, "r", encoding="utf-8") as f:
             total += json.load(f)["qlever_indexing_s"]
             found = True
     return total if found else None
 
 
 def main():
-    data = load_results(RESULTS_FILE)
-    load_measured_ostrich_results()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    args = parser.parse_args()
+
+    results_file = DATA_DIR / f"benchmark_results_{args.granularity}.json"
+    ostrich_results_file = DATA_DIR / f"ostrich_benchmark_results_{args.granularity}.json"
+    ocdm_timing_file = DATA_DIR / f"ocdm_conversion_time_{args.granularity}.json"
+    qlever_timing_file = DATA_DIR / f"qlever_indexing_time_{args.granularity}.json"
+    output_dir = DATA_DIR / "analysis" / args.granularity
+
+    data = load_results(results_file)
+    load_measured_ostrich_results(ostrich_results_file)
 
     tal_aggregates = {}
     for query_type in ["vm", "dm", "vq"]:
@@ -373,26 +616,31 @@ def main():
     print_results_table(tal_aggregates)
 
     console.rule("[bold]Generating output files")
-    comparison = generate_comparison_table(tal_aggregates)
-    write_csv(comparison, OUTPUT_DIR / "comparison.csv")
-    generate_latex_comparison(comparison, OUTPUT_DIR / "comparison.tex")
+    comparison = generate_comparison_table(tal_aggregates, ocdm_timing_file, qlever_timing_file)
+    write_csv(comparison, output_dir / "comparison.csv")
+    generate_latex_comparison(comparison, output_dir / "comparison.tex")
 
     console.print("\nGenerating capabilities table...")
-    write_csv(generate_capabilities_table(), OUTPUT_DIR / "capabilities.csv")
-    generate_latex_capabilities(OUTPUT_DIR / "capabilities.tex")
+    write_csv(generate_capabilities_table(), output_dir / "capabilities.csv")
+    generate_latex_capabilities(output_dir / "capabilities.tex")
 
     summary = {
         "tal_aggregates": tal_aggregates,
         "comparison": comparison,
         "hardware": data.get("hardware", {}),
     }
-    summary_path = OUTPUT_DIR / "summary.json"
+    summary_path = output_dir / "summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, default=str)
     console.print(f"  Saved: {summary_path}")
 
     console.print()
     print_comparison_table(comparison)
+
+    console.rule("[bold]Generating plots")
+    ostrich_raw_files = [DATA_DIR / f"ostrich_raw_{pt}.txt" for pt in ["p", "po"]]
+    plot_dir = output_dir / "plots"
+    generate_plots(data, ostrich_raw_files, plot_dir)
 
 
 if __name__ == "__main__":

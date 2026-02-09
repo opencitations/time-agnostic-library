@@ -25,6 +25,9 @@ from rich.table import Table
 
 from time_agnostic_library.agnostic_query import DeltaQuery, VersionQuery
 
+sys.path.insert(0, str(Path(__file__).parent))
+from parse_queries import DM_STEPS, GRANULARITY_CONFIG, parse_and_generate
+
 sys.setrecursionlimit(5000)
 
 console = Console()
@@ -33,9 +36,7 @@ NUM_RUNS = 5
 ALL_QUERY_TYPES = ["vm", "dm", "vq"]
 
 DATA_DIR = Path(__file__).parent / "data"
-QUERIES_FILE = DATA_DIR / "parsed_queries.json"
 CONFIG_FILE = Path(__file__).parent / "config_benchmark.json"
-OUTPUT_FILE = DATA_DIR / "benchmark_results.json"
 
 PROGRESS_COLUMNS = (
     SpinnerColumn(),
@@ -173,9 +174,9 @@ def benchmark_queries(queries: List[dict], config: dict) -> List[dict]:
     return results
 
 
-def save_results(all_results: dict) -> None:
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+def save_results(all_results: dict, output_file: Path) -> None:
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2)
 
 
@@ -201,23 +202,36 @@ def print_summary_table(all_results: dict) -> None:
     console.print(table)
 
 
-def load_existing_results() -> dict | None:
-    if OUTPUT_FILE.exists():
-        with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+def load_existing_results(output_file: Path) -> dict | None:
+    if output_file.exists():
+        with open(output_file, "r", encoding="utf-8") as f:
             return json.load(f)
     return None
 
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
     parser.add_argument("--only", choices=ALL_QUERY_TYPES, nargs="+", help="Run only specified query types (e.g. --only vq)")
     parser.add_argument("--resume", action="store_true", help="Resume from existing results, skip already completed query types")
     args = parser.parse_args()
 
+    queries_file = DATA_DIR / f"parsed_queries_{args.granularity}.json"
+    output_file = DATA_DIR / f"benchmark_results_{args.granularity}.json"
+
     query_types = args.only if args.only else ALL_QUERY_TYPES
 
-    with open(QUERIES_FILE, "r", encoding="utf-8") as f:
-        all_queries = json.load(f)
+    if not queries_file.exists():
+        console.print(f"[yellow]Parsed queries not found, generating {queries_file}...")
+        gc = GRANULARITY_CONFIG[args.granularity]
+        all_queries = parse_and_generate(gc["num_versions"], gc["interval"], DM_STEPS[args.granularity])
+        queries_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(queries_file, "w", encoding="utf-8") as f:
+            json.dump(all_queries, f, indent=2)
+        console.print(f"[green]Saved parsed queries to {queries_file}")
+    else:
+        with open(queries_file, "r", encoding="utf-8") as f:
+            all_queries = json.load(f)
 
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         config = json.load(f)
@@ -225,7 +239,7 @@ def main():
     hardware = get_hardware_info()
     console.print(f"[bold]Hardware:[/bold] {hardware}")
 
-    existing = load_existing_results() if args.resume else None
+    existing = load_existing_results(output_file) if args.resume else None
     all_results = existing or {"hardware": hardware, "config_path": str(CONFIG_FILE), "results": {}}
 
     for query_type in query_types:
@@ -236,10 +250,10 @@ def main():
         console.rule(f"[bold]{query_type.upper()} queries[/bold] ({len(queries)} queries, {NUM_RUNS} runs each)")
         results = benchmark_queries(queries, config)
         all_results["results"][query_type] = results
-        save_results(all_results)
-        console.print(f"[green]Saved {query_type.upper()} results to {OUTPUT_FILE}[/green]")
+        save_results(all_results, output_file)
+        console.print(f"[green]Saved {query_type.upper()} results to {output_file}[/green]")
 
-    console.print(f"\nAll results saved to {OUTPUT_FILE}")
+    console.print(f"\nAll results saved to {output_file}")
     print_summary_table(all_results)
 
 

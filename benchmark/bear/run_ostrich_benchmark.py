@@ -1,3 +1,4 @@
+import argparse
 import json
 import re
 import statistics
@@ -12,21 +13,17 @@ console = Console()
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR / "data"
 OSTRICH_DIR = DATA_DIR / "ostrich"
-EVALRUN_DIR = OSTRICH_DIR / "evalrun"
-PATCHES_DIR = OSTRICH_DIR / "patches"
 QUERIES_DIR = OSTRICH_DIR / "queries"
-INGESTION_LOG = OSTRICH_DIR / "ingestion_output.txt"
-OUTPUT_FILE = DATA_DIR / "ostrich_benchmark_results.json"
 IMAGE_NAME = "ostrich-bear"
 
 NUM_REPLICATIONS = 5
 QUERY_FILES = ["p.txt", "po.txt"]
 
 
-def run_ostrich_queries(query_file: str) -> str:
+def run_ostrich_queries(query_file: str, evalrun_dir: Path) -> str:
     cmd = [
         "docker", "run", "--rm",
-        "-v", f"{EVALRUN_DIR}:/var/evalrun",
+        "-v", f"{evalrun_dir}:/var/evalrun",
         "-v", f"{QUERIES_DIR}:/var/queries",
         IMAGE_NAME,
         "query",
@@ -102,6 +99,50 @@ def parse_ostrich_output(raw_output: str) -> list[dict]:
     return patterns
 
 
+def build_per_version_detail(all_patterns: dict[str, list[dict]]) -> dict:
+    vm_by_version: dict[int, list] = {}
+    dm_by_delta: dict[tuple[int, int], list] = {}
+    vq_entries: list[dict] = []
+
+    for pattern_type, patterns in all_patterns.items():
+        for pat_idx, pattern in enumerate(patterns):
+            for entry in pattern["vm"]:
+                version = entry["patch"]
+                vm_by_version.setdefault(version, []).append({
+                    "pattern_type": pattern_type,
+                    "pattern_index": pat_idx,
+                    "median_us": entry["median_us"],
+                })
+            for entry in pattern["dm"]:
+                key = (entry["patch_start"], entry["patch_end"])
+                dm_by_delta.setdefault(key, []).append({
+                    "pattern_type": pattern_type,
+                    "pattern_index": pat_idx,
+                    "median_us": entry["median_us"],
+                })
+            for entry in pattern["vq"]:
+                vq_entries.append({
+                    "pattern_type": pattern_type,
+                    "pattern_index": pat_idx,
+                    "median_us": entry["median_us"],
+                })
+
+    per_version_vm = [
+        {"version": v, "patterns": pats}
+        for v, pats in sorted(vm_by_version.items())
+    ]
+    per_delta_dm = [
+        {"patch_start": k[0], "patch_end": k[1], "patterns": pats}
+        for k, pats in sorted(dm_by_delta.items())
+    ]
+
+    return {
+        "per_version_vm": per_version_vm,
+        "per_delta_dm": per_delta_dm,
+        "per_pattern_vq": vq_entries,
+    }
+
+
 def aggregate_results(all_patterns: dict[str, list[dict]]) -> dict:
     results = {}
 
@@ -169,12 +210,12 @@ def print_summary(results: dict) -> None:
     console.print(table)
 
 
-def parse_ingestion_time() -> float | None:
-    if not INGESTION_LOG.exists():
+def parse_ingestion_time(ingestion_log: Path) -> float | None:
+    if not ingestion_log.exists():
         return None
     total_ms = 0.0
     found = False
-    for line in INGESTION_LOG.read_text().splitlines():
+    for line in ingestion_log.read_text().splitlines():
         parts = line.strip().split(",")
         if len(parts) >= 3 and parts[0].isdigit():
             total_ms += float(parts[2])
@@ -183,11 +224,19 @@ def parse_ingestion_time() -> float | None:
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    args = parser.parse_args()
+
+    evalrun_dir = OSTRICH_DIR / f"evalrun_{args.granularity}"
+    ingestion_log = OSTRICH_DIR / f"ingestion_output_{args.granularity}.txt"
+    output_file = DATA_DIR / f"ostrich_benchmark_results_{args.granularity}.json"
+
     all_patterns: dict[str, list[dict]] = {}
 
     for query_file in QUERY_FILES:
         pattern_type = query_file.replace(".txt", "")
-        raw_output = run_ostrich_queries(query_file)
+        raw_output = run_ostrich_queries(query_file, evalrun_dir)
 
         raw_path = DATA_DIR / f"ostrich_raw_{pattern_type}.txt"
         with open(raw_path, "w", encoding="utf-8") as f:
@@ -199,8 +248,9 @@ def main():
         console.print(f"  Parsed {len(patterns)} patterns from {query_file}")
 
     results = aggregate_results(all_patterns)
+    detail = build_per_version_detail(all_patterns)
 
-    ingestion_s = parse_ingestion_time()
+    ingestion_s = parse_ingestion_time(ingestion_log)
     if ingestion_s is not None:
         console.print(f"OSTRICH ingestion time: {ingestion_s:.2f}s")
 
@@ -208,13 +258,14 @@ def main():
         "replications": NUM_REPLICATIONS,
         "ingestion_s": ingestion_s,
         "results": results,
+        "detail": detail,
         "raw_patterns": {pt: [p["triple_pattern"] for p in pats] for pt, pats in all_patterns.items()},
     }
 
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
-    console.print(f"\nResults saved to {OUTPUT_FILE}")
+    console.print(f"\nResults saved to {output_file}")
 
     print_summary(results)
 

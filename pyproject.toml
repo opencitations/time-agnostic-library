@@ -29,6 +29,7 @@ dev = [
     "coverage>=7.13.3",
     "coverage-badge>=1.1.2",
     "isort>=7.0.0",
+    "matplotlib>=3.10.8",
     "pebble>=5.2.0",
     "psutil>=7.2.2",
     "qlever>=0.5.45",
