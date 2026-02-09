@@ -23,6 +23,7 @@ QUERY_FILES = ["p.txt", "po.txt"]
 def run_ostrich_queries(query_file: str, evalrun_dir: Path) -> str:
     cmd = [
         "docker", "run", "--rm",
+        "--ulimit", "nofile=65536:65536",
         "-v", f"{evalrun_dir}:/var/evalrun",
         "-v", f"{QUERIES_DIR}:/var/queries",
         IMAGE_NAME,

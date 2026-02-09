@@ -12,9 +12,9 @@ OSTRICH_REPO="$OSTRICH_DIR/ostrich-repo"
 IMAGE_NAME="ostrich-bear"
 
 case "$GRANULARITY" in
-    daily)   NUM_VERSIONS=89 ;;
-    hourly)  NUM_VERSIONS=1299 ;;
-    instant) NUM_VERSIONS=21046 ;;
+    daily)   NUM_VERSIONS=89;    STRATEGY="interval";   STRATEGY_PARAM=5 ;;
+    hourly)  NUM_VERSIONS=1299;  STRATEGY="interval";   STRATEGY_PARAM=50 ;;
+    instant) NUM_VERSIONS=21046; STRATEGY="time";        STRATEGY_PARAM=20 ;;
     *) echo "Error: unknown granularity '$GRANULARITY'. Use 'daily', 'hourly', or 'instant'."; exit 1 ;;
 esac
 
@@ -32,7 +32,7 @@ if docker image inspect "$IMAGE_NAME" > /dev/null 2>&1; then
 else
     echo "Building OSTRICH Docker image from source..."
     if [ ! -d "$OSTRICH_REPO" ]; then
-        git clone --recurse-submodules https://github.com/rdfostrich/ostrich.git "$OSTRICH_REPO"
+        git clone --recurse-submodules -b feat/olivier https://github.com/rdfostrich/ostrich.git "$OSTRICH_REPO"
     fi
     docker build -t "$IMAGE_NAME" "$OSTRICH_REPO"
     echo "Docker image '$IMAGE_NAME' built"
@@ -85,11 +85,12 @@ if [ -d "$EVALRUN_DIR" ] && [ "$(ls -A "$EVALRUN_DIR" 2>/dev/null)" ]; then
     echo "OSTRICH store already exists in $EVALRUN_DIR, skipping ingestion"
 else
     mkdir -p "$EVALRUN_DIR"
-    echo "Running OSTRICH ingestion (${NUM_VERSIONS} versions, strategy=never)..."
+    echo "Running OSTRICH ingestion (${NUM_VERSIONS} versions, strategy=${STRATEGY} ${STRATEGY_PARAM})..."
     docker run --rm \
+        --ulimit nofile=65536:65536 \
         -v "$EVALRUN_DIR":/var/evalrun \
         -v "$PATCHES_DIR":/var/patches \
-        "$IMAGE_NAME" ingest never 0 /var/patches 1 "${NUM_VERSIONS}" 2>&1 | tee "$INGESTION_LOG"
+        "$IMAGE_NAME" ingest "$STRATEGY" "$STRATEGY_PARAM" /var/patches 1 "${NUM_VERSIONS}" 2>&1 | tee "$INGESTION_LOG"
     echo "Ingestion complete (log saved to $INGESTION_LOG)"
 fi
 
