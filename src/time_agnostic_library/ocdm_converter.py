@@ -1,5 +1,7 @@
 import gzip
+import re
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
@@ -9,6 +11,27 @@ OCO_NS = "https://w3id.org/oc/ontology/"
 DCTERMS_NS = "http://purl.org/dc/terms/"
 XSD_NS = "http://www.w3.org/2001/XMLSchema#"
 
+# Regex to parse an N-Triples line into (subject, predicate, object) in a single
+# C-level pass. Falls back to the character-by-character parser on mismatch.
+#
+# N-Triples line format:  <subject> <predicate> <object> .
+#
+# Group 1 - subject: URI <http://...> or blank node _:id
+# Group 2 - predicate: always a URI <http://...>
+# Group 3 - object, one of:
+#   - URI:              <http://...>
+#   - literal:          "text" optionally followed by @lang or ^^<datatype>
+#   - blank node:       _:id
+_NT_RE = re.compile(
+    r"(<[^>]+>|_:\S+)\s+"          # group 1: subject (URI or blank node)
+    r"(<[^>]+>)\s+"                # group 2: predicate (URI)
+    r"(<[^>]+>"                    # group 3 option a: URI object
+    r'|"(?:[^"\\]|\\.)*"'         # group 3 option b: quoted literal (handles escapes)
+    r"(?:@[a-zA-Z-]+|\^\^<[^>]+>)?"  # optional language tag or datatype
+    r"|_:\S+)"                     # group 3 option c: blank node object
+    r"\s*\.\s*$"                   # trailing dot and whitespace
+)
+
 
 def parse_ntriples_line(
     line: str,
@@ -17,6 +40,12 @@ def parse_ntriples_line(
     line = line.strip()
     if not line or line.startswith("#"):
         return None
+    m = _NT_RE.match(line)
+    if m:
+        obj = m.group(3)
+        if object_normalizer:
+            obj = object_normalizer(obj)
+        return (m.group(1), m.group(2), obj)
     if line.endswith(" ."):
         line = line[:-2]
     elif line.endswith("."):
@@ -124,6 +153,47 @@ def group_triples_by_subject(
     return by_subject
 
 
+def _read_and_group(
+    filepath: Path,
+    object_normalizer: Optional[Callable[[str], str]] = None,
+) -> dict[str, set[tuple[str, str]]]:
+    by_subject: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    if filepath.suffix == ".gz":
+        opener = lambda: gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
+    else:
+        opener = lambda: open(filepath, "r", encoding="utf-8", errors="replace")
+    match = _NT_RE.match
+    with opener() as f:
+        if object_normalizer:
+            for line in f:
+                m = match(line)
+                if m:
+                    s, p, obj = m.groups()
+                    obj = object_normalizer(obj)
+                    uri = s[1:-1] if s[0] == "<" else s
+                    by_subject[uri].add((p, obj))
+                else:
+                    parsed = parse_ntriples_line(line, object_normalizer)
+                    if parsed:
+                        s, p, o = parsed
+                        uri = s[1:-1] if s[0] == "<" and s[-1] == ">" else s
+                        by_subject[uri].add((p, o))
+        else:
+            for line in f:
+                m = match(line)
+                if m:
+                    s, p, obj = m.groups()
+                    uri = s[1:-1] if s[0] == "<" else s
+                    by_subject[uri].add((p, obj))
+                else:
+                    parsed = parse_ntriples_line(line, object_normalizer)
+                    if parsed:
+                        s, p, o = parsed
+                        uri = s[1:-1] if s[0] == "<" and s[-1] == ">" else s
+                        by_subject[uri].add((p, o))
+    return by_subject
+
+
 def _format_timestamp(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
@@ -176,24 +246,33 @@ class OCDMConverter:
         prev_by_subject: dict[str, set[tuple[str, str]]] = {}
         latest_by_subject: dict[str, set[tuple[str, str]]] = {}
 
-        for version_idx, ic_file in enumerate(ic_files):
-            triples = read_ntriples_file(ic_file, self.object_normalizer)
-            cur_by_subject = group_triples_by_subject(triples)
-            all_entities.update(cur_by_subject.keys())
+        # Prefetch pipeline: a single background thread reads and parses the
+        # next IC file while the main thread diffs the current pair.
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_read_and_group, ic_files[0], self.object_normalizer)
 
-            if version_idx > 0:
-                changed_entities = set(prev_by_subject.keys()) | set(cur_by_subject.keys())
-                for entity_uri in changed_entities:
-                    prev_po = prev_by_subject.get(entity_uri, set())
-                    cur_po = cur_by_subject.get(entity_uri, set())
-                    deleted_po = prev_po - cur_po
-                    added_po = cur_po - prev_po
-                    if deleted_po or added_po:
-                        entity_changes[entity_uri].append((version_idx, deleted_po, added_po))
+            for version_idx in range(len(ic_files)):
+                cur_by_subject = future.result()
 
-            prev_by_subject = cur_by_subject
-            if version_idx == len(ic_files) - 1:
-                latest_by_subject = cur_by_subject
+                if version_idx + 1 < len(ic_files):
+                    future = executor.submit(
+                        _read_and_group, ic_files[version_idx + 1], self.object_normalizer
+                    )
+
+                all_entities.update(cur_by_subject.keys())
+
+                if version_idx > 0:
+                    for entity_uri in prev_by_subject.keys() | cur_by_subject.keys():
+                        prev_po = prev_by_subject.get(entity_uri, set())
+                        cur_po = cur_by_subject.get(entity_uri, set())
+                        deleted_po = prev_po - cur_po
+                        added_po = cur_po - prev_po
+                        if deleted_po or added_po:
+                            entity_changes[entity_uri].append((version_idx, deleted_po, added_po))
+
+                prev_by_subject = cur_by_subject
+                if version_idx == len(ic_files) - 1:
+                    latest_by_subject = cur_by_subject
 
         self._write_ocdm_output(
             all_entities, entity_changes, latest_by_subject,
@@ -211,34 +290,36 @@ class OCDMConverter:
         all_entities: set[str] = set()
         entity_changes: dict[str, list[tuple[int, set[tuple[str, str]], set[tuple[str, str]]]]] = defaultdict(list)
 
-        triples = read_ntriples_file(initial_snapshot, self.object_normalizer)
-        current_state: dict[str, set[tuple[str, str]]] = defaultdict(set, group_triples_by_subject(triples))
+        current_state: dict[str, set[tuple[str, str]]] = defaultdict(
+            set, _read_and_group(initial_snapshot, self.object_normalizer)
+        )
         all_entities.update(current_state.keys())
 
-        for changeset_idx, (added_file, deleted_file) in enumerate(changesets):
-            version_idx = changeset_idx + 1
+        # Read the added and deleted files of each changeset in parallel.
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            for changeset_idx, (added_file, deleted_file) in enumerate(changesets):
+                version_idx = changeset_idx + 1
 
-            deleted_triples = read_ntriples_file(deleted_file, self.object_normalizer)
-            deleted_by_subject = group_triples_by_subject(deleted_triples)
+                fut_del = executor.submit(_read_and_group, deleted_file, self.object_normalizer)
+                fut_add = executor.submit(_read_and_group, added_file, self.object_normalizer)
+                deleted_by_subject = fut_del.result()
+                added_by_subject = fut_add.result()
 
-            added_triples = read_ntriples_file(added_file, self.object_normalizer)
-            added_by_subject = group_triples_by_subject(added_triples)
+                changed_entities = deleted_by_subject.keys() | added_by_subject.keys()
+                all_entities.update(changed_entities)
 
-            changed_entities = set(deleted_by_subject.keys()) | set(added_by_subject.keys())
-            all_entities.update(changed_entities)
+                for entity_uri in changed_entities:
+                    deleted_po = deleted_by_subject.get(entity_uri, set())
+                    added_po = added_by_subject.get(entity_uri, set())
 
-            for entity_uri in changed_entities:
-                deleted_po = deleted_by_subject.get(entity_uri, set())
-                added_po = added_by_subject.get(entity_uri, set())
+                    current_state[entity_uri] -= deleted_po
+                    current_state[entity_uri] |= added_po
 
-                current_state[entity_uri] -= deleted_po
-                current_state[entity_uri] |= added_po
+                    if not current_state[entity_uri]:
+                        del current_state[entity_uri]
 
-                if not current_state[entity_uri]:
-                    del current_state[entity_uri]
-
-                if deleted_po or added_po:
-                    entity_changes[entity_uri].append((version_idx, deleted_po, added_po))
+                    if deleted_po or added_po:
+                        entity_changes[entity_uri].append((version_idx, deleted_po, added_po))
 
         self._write_ocdm_output(
             all_entities, entity_changes, current_state,
@@ -258,41 +339,46 @@ class OCDMConverter:
         provenance_output.parent.mkdir(parents=True, exist_ok=True)
         sorted_entities = sorted(all_entities)
 
+        lines = []
+        for entity_uri in sorted_entities:
+            po_set = latest_by_subject.get(entity_uri, set())
+            for p, o in sorted(po_set):
+                lines.append(f"<{entity_uri}> {p} {o} <{self.data_graph_uri}> .\n")
         with open(dataset_output, "w", encoding="utf-8") as f:
-            for entity_uri in sorted_entities:
-                po_set = latest_by_subject.get(entity_uri, set())
-                for p, o in sorted(po_set):
-                    f.write(f"<{entity_uri}> {p} {o} <{self.data_graph_uri}> .\n")
+            f.writelines(lines)
+
+        lines = []
+        for entity_uri in sorted_entities:
+            prov_graph = f"<{entity_uri}/prov/>"
+            changes = entity_changes.get(entity_uri, [])
+
+            se1_uri = f"<{entity_uri}/prov/se/1>"
+            t0 = _format_timestamp(timestamps[0])
+
+            lines.append(f'{se1_uri} <{PROV_NS}specializationOf> <{entity_uri}> {prov_graph} .\n')
+            lines.append(f'{se1_uri} <{PROV_NS}generatedAtTime> "{t0}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
+            lines.append(f'{se1_uri} <{PROV_NS}wasAttributedTo> <{self.agent_uri}> {prov_graph} .\n')
+            lines.append(f'{se1_uri} <{DCTERMS_NS}description> "The entity has been created." {prov_graph} .\n')
+
+            for change_idx, (version_idx, deleted_po, added_po) in enumerate(changes):
+                se_num = change_idx + 2
+                se_uri = f"<{entity_uri}/prov/se/{se_num}>"
+                timestamp = _format_timestamp(timestamps[version_idx])
+
+                lines.append(f'{se_uri} <{PROV_NS}specializationOf> <{entity_uri}> {prov_graph} .\n')
+                lines.append(f'{se_uri} <{PROV_NS}generatedAtTime> "{timestamp}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
+                lines.append(f'{se_uri} <{PROV_NS}wasAttributedTo> <{self.agent_uri}> {prov_graph} .\n')
+
+                update_query = _build_update_query(entity_uri, self.data_graph_uri, deleted_po, added_po)
+                escaped_query = _escape_sparql_for_nquads(update_query)
+                lines.append(f'{se_uri} <{OCO_NS}hasUpdateQuery> "{escaped_query}" {prov_graph} .\n')
+                lines.append(f'{se_uri} <{DCTERMS_NS}description> "The entity has been modified." {prov_graph} .\n')
+
+                prev_se_uri = f"<{entity_uri}/prov/se/{se_num - 1}>"
+                lines.append(f'{se_uri} <{PROV_NS}wasDerivedFrom> {prev_se_uri} {prov_graph} .\n')
+
+                if change_idx == len(changes) - 1 and entity_uri not in latest_by_subject:
+                    lines.append(f'{se_uri} <{PROV_NS}invalidatedAtTime> "{timestamp}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
 
         with open(provenance_output, "w", encoding="utf-8") as f:
-            for entity_uri in sorted_entities:
-                prov_graph = f"<{entity_uri}/prov/>"
-                changes = entity_changes.get(entity_uri, [])
-
-                se1_uri = f"<{entity_uri}/prov/se/1>"
-                t0 = _format_timestamp(timestamps[0])
-
-                f.write(f'{se1_uri} <{PROV_NS}specializationOf> <{entity_uri}> {prov_graph} .\n')
-                f.write(f'{se1_uri} <{PROV_NS}generatedAtTime> "{t0}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
-                f.write(f'{se1_uri} <{PROV_NS}wasAttributedTo> <{self.agent_uri}> {prov_graph} .\n')
-                f.write(f'{se1_uri} <{DCTERMS_NS}description> "The entity has been created." {prov_graph} .\n')
-
-                for change_idx, (version_idx, deleted_po, added_po) in enumerate(changes):
-                    se_num = change_idx + 2
-                    se_uri = f"<{entity_uri}/prov/se/{se_num}>"
-                    timestamp = _format_timestamp(timestamps[version_idx])
-
-                    f.write(f'{se_uri} <{PROV_NS}specializationOf> <{entity_uri}> {prov_graph} .\n')
-                    f.write(f'{se_uri} <{PROV_NS}generatedAtTime> "{timestamp}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
-                    f.write(f'{se_uri} <{PROV_NS}wasAttributedTo> <{self.agent_uri}> {prov_graph} .\n')
-
-                    update_query = _build_update_query(entity_uri, self.data_graph_uri, deleted_po, added_po)
-                    escaped_query = _escape_sparql_for_nquads(update_query)
-                    f.write(f'{se_uri} <{OCO_NS}hasUpdateQuery> "{escaped_query}" {prov_graph} .\n')
-                    f.write(f'{se_uri} <{DCTERMS_NS}description> "The entity has been modified." {prov_graph} .\n')
-
-                    prev_se_uri = f"<{entity_uri}/prov/se/{se_num - 1}>"
-                    f.write(f'{se_uri} <{PROV_NS}wasDerivedFrom> {prev_se_uri} {prov_graph} .\n')
-
-                    if change_idx == len(changes) - 1 and entity_uri not in latest_by_subject:
-                        f.write(f'{se_uri} <{PROV_NS}invalidatedAtTime> "{timestamp}"^^<{XSD_NS}dateTime> {prov_graph} .\n')
+            f.writelines(lines)
