@@ -523,7 +523,7 @@ class AgnosticQuery:
                 f"FILTER CONTAINS (?uq, '{uri}')" for uri in uris_str
             )
             query = f"""
-                SELECT DISTINCT ?entity WHERE {{
+                SELECT ?entity WHERE {{
                     ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
                         <{ProvEntity.iri_has_update_query}> ?uq.
                     {filter_clauses}.
