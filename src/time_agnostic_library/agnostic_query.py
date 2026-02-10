@@ -206,9 +206,6 @@ def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
     bindings = []
     for quad in quads:
         s, p, o = quad[0], quad[1], quad[2]
-        # Concrete positions must match exactly; variables match anything
-        if not s_is_var and s != s_pat:
-            continue
         if not p_is_var and p != p_pat:
             continue
         if not o_is_var and o != o_pat:
@@ -368,9 +365,7 @@ class AgnosticQuery:
             if k == key:
                 values.extend(v)
             elif isinstance(v, dict):
-                found = self._tree_traverse(v, key, values)
-                if found is not None:
-                    values.extend(found)
+                self._tree_traverse(v, key, values)
 
     def _rebuild_relevant_graphs(self) -> None:
         triples_checked = set()
@@ -393,8 +388,6 @@ class AgnosticQuery:
         if isinstance(triple[0], URIRef):
             return False
         variables = [el for el in triple if isinstance(el, Variable)]
-        if not variables:
-            return False
         for variable in variables:
             other_triples = {t for t in self.triples if t != triple}
             if self._there_is_transitive_closure(variable, other_triples):
@@ -781,9 +774,7 @@ class VersionQuery(AgnosticQuery):
             and not isinstance(self.triples[0][1], InvPath)
         )
         for triple in self.triples:
-            if isinstance(triple[0], URIRef):
-                all_entity_strs.add(str(triple[0]))
-            elif self._is_a_new_triple(triple, triples_checked):
+            if self._is_a_new_triple(triple, triples_checked):
                 present_entities = self._get_present_entities(triple)
                 prov_entities: set = set()
                 self._find_entity_uris_in_update_queries(triple, prov_entities)
@@ -899,8 +890,6 @@ class DeltaQuery(AgnosticQuery):
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 present_entities = self._get_present_entities(triple)
                 self.reconstructed_entities.update(present_entities)
-                if isinstance(triple[0], URIRef):
-                    self.reconstructed_entities.add(triple[0])
                 self._find_entities_in_update_queries(triple)
             else:
                 self._rebuild_relevant_entity(triple[0])

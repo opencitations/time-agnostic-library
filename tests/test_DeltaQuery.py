@@ -132,5 +132,53 @@ class Test_DeltaQuery(unittest.TestCase):
         }
         self.assertEqual(agnostic_results, expected_output)
 
+    def test_run_agnostic_query_with_concrete_subject(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT ?p ?o
+            WHERE {
+                <https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o .
+            }
+        """
+        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        result = delta_query.run_agnostic_query()
+        self.assertIn("https://github.com/arcangelo7/time_agnostic/ar/15519", result)
+        self.assertIn("created", result["https://github.com/arcangelo7/time_agnostic/ar/15519"])
+
+    def test_run_agnostic_query_with_non_isolated_triples(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT ?ar ?agent
+            WHERE {
+                ?ar a pro:RoleInTime .
+                ?ar pro:isHeldBy ?agent .
+            }
+        """
+        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        result = delta_query.run_agnostic_query()
+        self.assertIsInstance(result, dict)
+        self.assertGreater(len(result), 0)
+
+    def test_run_agnostic_query_nonexistent_entity(self):
+        query = """
+            SELECT ?o WHERE {
+                <https://github.com/arcangelo7/time_agnostic/nonexistent/999999> ?p ?o .
+            }
+        """
+        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        result = delta_query.run_agnostic_query()
+        self.assertEqual(result, {})
+
+    def test_run_agnostic_query_nonexistent_type(self):
+        query = """
+            SELECT ?o WHERE {
+                ?o a <http://example.com/NonExistentType> .
+            }
+        """
+        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        result = delta_query.run_agnostic_query()
+        self.assertEqual(result, {})
+
+
 if __name__ == '__main__': # pragma: no cover
     unittest.main()

@@ -17,7 +17,10 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from time_agnostic_library.agnostic_entity import AgnosticEntity
+from rdflib import Literal, URIRef
+from time_agnostic_library.agnostic_entity import (AgnosticEntity,
+                                                    _fast_parse_update,
+                                                    _find_matching_close_brace)
 
 CONFIG = {
     "dataset": {
@@ -376,6 +379,90 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
 
         # Verify result is a dictionary
         self.assertIsInstance(result, dict)
+
+    def test_fast_parse_update_with_lang_tagged_literal(self):
+        query = (
+            'DELETE DATA { GRAPH <http://ex.com/g/> { '
+            '<http://ex.com/s> <http://ex.com/p> "hello"@en . } }'
+        )
+        ops = _fast_parse_update(query)
+        self.assertEqual(len(ops), 1)
+        op_type, quads = ops[0]
+        self.assertEqual(op_type, 'DeleteData')
+        self.assertEqual(quads[0][2], Literal("hello", lang="en"))
+
+    def test_fast_parse_update_with_escaped_literal(self):
+        query = (
+            'INSERT DATA { GRAPH <http://ex.com/g/> { '
+            '<http://ex.com/s> <http://ex.com/p> "line1\\nline2"^^<http://www.w3.org/2001/XMLSchema#string> . } }'
+        )
+        ops = _fast_parse_update(query)
+        self.assertEqual(len(ops), 1)
+        self.assertEqual(ops[0][1][0][2], Literal("line1\nline2", datatype=URIRef("http://www.w3.org/2001/XMLSchema#string")))
+
+    def test_find_matching_close_brace_nested(self):
+        text = '{ inner { deep } } after'
+        pos = _find_matching_close_brace(text, 2)
+        self.assertEqual(text[pos], '}')
+        self.assertEqual(text[pos:], '} after')
+
+    def test_find_matching_close_brace_with_quoted_braces(self):
+        text = '{ "contains { brace" } after'
+        pos = _find_matching_close_brace(text, 2)
+        self.assertEqual(text[pos], '}')
+
+    def test_find_matching_close_brace_unclosed(self):
+        text = '{ no closing brace'
+        pos = _find_matching_close_brace(text, 2)
+        self.assertEqual(pos, len(text))
+
+    def test_find_matching_close_brace_with_escaped_quote(self):
+        text = '{ "escaped \\" quote" } after'
+        pos = _find_matching_close_brace(text, 2)
+        self.assertEqual(text[pos], '}')
+
+    def test_find_matching_close_brace_unterminated_string(self):
+        text = '{ "unterminated string'
+        pos = _find_matching_close_brace(text, 2)
+        self.assertEqual(pos, len(text))
+
+    def test_get_state_at_time_with_related_objects_different_timestamps(self):
+        entity = AgnosticEntity(
+            "https://github.com/arcangelo7/time_agnostic/ar/15519",
+            config=CONFIG,
+            include_related_objects=True,
+        )
+        result, _, _ = entity.get_state_at_time(
+            time=("2021-05-01T00:00:00", "2021-06-02T00:00:00"),
+            include_prov_metadata=False,
+        )
+        entity_key = "https://github.com/arcangelo7/time_agnostic/ar/15519"
+        self.assertIn(entity_key, result)
+        ts_2021_05_31 = "2021-05-31T18:19:47+00:00"
+        self.assertIn(ts_2021_05_31, result[entity_key])
+        graph = result[entity_key][ts_2021_05_31]
+        subjects = {str(q[0]) for q in graph.quads()}
+        self.assertIn("https://github.com/arcangelo7/time_agnostic/ra/4", subjects)
+
+    def test_get_state_at_time_with_none_none_interval(self):
+        entity = AgnosticEntity(
+            "https://github.com/arcangelo7/time_agnostic/ar/15519",
+            config=CONFIG,
+        )
+        result, _, _ = entity.get_state_at_time(
+            time=(None, None),
+            include_prov_metadata=False,
+        )
+        self.assertEqual(len(result), 3)
+
+    def test_iter_versions_nonexistent_entity(self):
+        entity = AgnosticEntity(
+            "https://github.com/arcangelo7/time_agnostic/nonexistent/999999",
+            config=CONFIG,
+        )
+        versions = list(entity.iter_versions())
+        self.assertEqual(versions, [])
+
 
 if __name__ == '__main__':
     unittest.main()

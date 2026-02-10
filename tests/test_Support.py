@@ -63,6 +63,10 @@ class Test_Support(unittest.TestCase):
         expected_output = datetime(2021, 5, 21, 19, 8, 56, tzinfo=timezone.utc)
         self.assertEqual(convert_to_datetime(input), expected_output)
 
+    def test_convert_to_datetime_naive(self):
+        result = convert_to_datetime("2021-05-21T19:08:56")
+        self.assertEqual(result, datetime(2021, 5, 21, 19, 8, 56, tzinfo=timezone.utc))
+
     def test_generate_config_file(self):
         # Test case 1: Basic configuration with default values
         expected_config = {

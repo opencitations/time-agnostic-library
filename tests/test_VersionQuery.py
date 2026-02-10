@@ -18,6 +18,7 @@
 import json
 import os
 import unittest
+from unittest.mock import patch
 
 from rdflib import URIRef, Variable
 from time_agnostic_library.agnostic_query import VersionQuery
@@ -26,6 +27,22 @@ from time_agnostic_library.support import (_to_dict_of_datasets,
 
 CONFIG_PATH = os.path.join('tests', 'config.json')
 CONFIG_VIRTUOSO = os.path.join('tests', 'config_virtuoso.json')
+CONFIG = {
+    "dataset": {
+        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
+        "file_paths": [],
+        "is_quadstore": True
+    },
+    "provenance": {
+        "triplestore_urls": [],
+        "file_paths": ["tests/prov.json"],
+        "is_quadstore": False
+    },
+    "blazegraph_full_text_search": "no",
+    "fuseki_full_text_search": "no",
+    "virtuoso_full_text_search": "no",
+    "graphdb_connector_name": ""
+}
 
 def _sort_bindings(bindings):
     return sorted(bindings, key=lambda b: json.dumps(b, sort_keys=True))
@@ -1556,6 +1573,160 @@ class Test_VersionQuery(unittest.TestCase):
     #             ('https://github.com/arcangelo7/time_agnostic/br/528725', 'https://github.com/arcangelo7/time_agnostic/id/282401', '10.3109/10673229.2010.493742'), 
     #             ('https://github.com/arcangelo7/time_agnostic/br/528727', 'https://github.com/arcangelo7/time_agnostic/id/282403', '10.3928/00220124-20100126-03')}}, set())
     #     self.assertEqual(output, expected_output)
+
+
+    def test_run_agnostic_query_single_isolated_triple_on_time(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT ?o
+            WHERE {
+                ?o a pro:RoleInTime .
+            }
+        """
+        vq = VersionQuery(
+            query,
+            on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
+            other_snapshots=False,
+            config_dict=CONFIG,
+        )
+        result, other = vq.run_agnostic_query()
+        self.assertEqual(other, set())
+        self.assertIn("2021-05-31T18:19:47+00:00", result)
+        bindings = result["2021-05-31T18:19:47+00:00"]
+        values = {b["o"]["value"] for b in bindings}
+        self.assertIn("https://github.com/arcangelo7/time_agnostic/ar/15519", values)
+
+    def test_run_agnostic_query_vm_batch_no_entities(self):
+        query = """
+            SELECT ?o
+            WHERE {
+                ?o a <http://example.com/NonExistentType> .
+            }
+        """
+        vq = VersionQuery(
+            query,
+            on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
+            other_snapshots=False,
+            config_dict=CONFIG,
+        )
+        result, other = vq.run_agnostic_query()
+        self.assertEqual(result, {})
+        self.assertEqual(other, set())
+
+    def test_run_agnostic_query_vm_batch_non_quadstore(self):
+        config_no_quad = {**CONFIG, "dataset": {**CONFIG["dataset"], "is_quadstore": False}}
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT ?o
+            WHERE {
+                ?o a pro:RoleInTime .
+            }
+        """
+        vq = VersionQuery(
+            query,
+            on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
+            other_snapshots=False,
+            config_dict=config_no_quad,
+        )
+        result, other = vq.run_agnostic_query()
+        self.assertIn("2021-05-31T18:19:47+00:00", result)
+        values = {b["o"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
+        self.assertIn("https://github.com/arcangelo7/time_agnostic/ar/15519", values)
+
+    def test_run_agnostic_query_cross_version_no_entities_fill_timestamps(self):
+        query = """
+            SELECT ?o
+            WHERE {
+                ?o a <http://example.com/NonExistentType> .
+            }
+        """
+        vq = VersionQuery(query, config_dict=CONFIG)
+        result, other = vq.run_agnostic_query(include_all_timestamps=True)
+        self.assertEqual(result, {})
+        self.assertEqual(other, set())
+
+    def test_run_agnostic_query_cross_version_with_fill_timestamps(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT ?o
+            WHERE {
+                ?o a pro:RoleInTime .
+            }
+        """
+        vq = VersionQuery(query, config_dict=CONFIG)
+        result, other = vq.run_agnostic_query(include_all_timestamps=True)
+        self.assertIsInstance(result, dict)
+        self.assertGreater(len(result), 0)
+
+    def test_run_agnostic_query_cross_version_variable_predicate(self):
+        query = """
+            SELECT ?s ?p
+            WHERE {
+                ?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519> .
+            }
+        """
+        vq = VersionQuery(query, config_dict=CONFIG)
+        result, other = vq.run_agnostic_query()
+        self.assertIsInstance(result, dict)
+        found_match = False
+        for ts, bindings in result.items():
+            for b in bindings:
+                if b.get("s", {}).get("value") == "https://github.com/arcangelo7/time_agnostic/ar/15519":
+                    self.assertEqual(b["p"]["value"], "http://purl.org/spar/pro/isHeldBy")
+                    found_match = True
+        self.assertTrue(found_match)
+
+    def test_run_agnostic_query_cross_version_non_isolated(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT ?ar ?agent
+            WHERE {
+                ?ar a pro:RoleInTime .
+                ?ar pro:isHeldBy ?agent .
+            }
+        """
+        vq = VersionQuery(query, config_dict=CONFIG)
+        result, other = vq.run_agnostic_query()
+        self.assertIsInstance(result, dict)
+        self.assertGreater(len(result), 0)
+        for ts, bindings in result.items():
+            for b in bindings:
+                self.assertIn("ar", b)
+                self.assertIn("agent", b)
+
+
+    @patch('time_agnostic_library.agnostic_query._PARALLEL_THRESHOLD', 1)
+    def test_run_agnostic_query_parallel_execution(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT ?ar
+            WHERE {
+                ?ar a pro:RoleInTime.
+                ?ar pro:isHeldBy ?agent.
+            }
+        """
+        vq = VersionQuery(query=query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), config_path=CONFIG_PATH)
+        result, _ = vq.run_agnostic_query()
+        self.assertIn("2021-05-31T18:19:47+00:00", result)
+        values = {b["ar"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
+        self.assertIn("https://github.com/arcangelo7/time_agnostic/ar/15519", values)
+
+    @patch('time_agnostic_library.agnostic_query._MP_CONTEXT', None)
+    @patch('time_agnostic_library.agnostic_query._PARALLEL_THRESHOLD', 1)
+    def test_run_agnostic_query_parallel_thread_fallback(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT ?ar
+            WHERE {
+                ?ar a pro:RoleInTime.
+                ?ar pro:isHeldBy ?agent.
+            }
+        """
+        vq = VersionQuery(query=query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), config_path=CONFIG_PATH)
+        result, _ = vq.run_agnostic_query()
+        self.assertIn("2021-05-31T18:19:47+00:00", result)
+        values = {b["ar"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
+        self.assertIn("https://github.com/arcangelo7/time_agnostic/ar/15519", values)
 
 
 if __name__ == '__main__': # pragma: no cover

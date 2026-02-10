@@ -756,8 +756,6 @@ class AgnosticEntity:
                 return {}, {}, other_snapshots_metadata
         entity_snapshots = {}
         entity_graphs = {}
-        if not relevant_results:
-            return entity_graphs, entity_snapshots, other_snapshots_metadata
         entity_cg = self._query_dataset(self.res)
         sorted_parsed = [(r, _parse_datetime(r['time']['value'])) for r in sorted_results]
         last_idx = len(relevant_results) - 1
@@ -820,8 +818,6 @@ class AgnosticEntity:
                     for triple in triples_with_property:
                         value = str(triple[2])
                         if abbr == "wasDerivedFrom":
-                            if not isinstance(snapshot_data[abbr], list):
-                                snapshot_data[abbr] = []
                             snapshot_data[abbr].append(value)
                         else:
                             snapshot_data[abbr] = value
