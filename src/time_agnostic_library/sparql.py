@@ -14,6 +14,7 @@
 # SOFTWARE.
 
 
+import atexit
 import threading
 import zipfile
 
@@ -25,6 +26,8 @@ from time_agnostic_library.prov_entity import ProvEntity
 
 _LOCAL = threading.local()
 _REAL_SPARQL_CLIENT = SPARQLClient
+_ALL_CLIENTS: list[SPARQLClient] = []
+_CLIENTS_LOCK = threading.Lock()
 
 
 def _get_client(url: str) -> SPARQLClient:
@@ -33,8 +36,21 @@ def _get_client(url: str) -> SPARQLClient:
     if not hasattr(_LOCAL, 'clients'):
         _LOCAL.clients = {}
     if url not in _LOCAL.clients:
-        _LOCAL.clients[url] = SPARQLClient(url)
+        client = SPARQLClient(url)
+        _LOCAL.clients[url] = client
+        with _CLIENTS_LOCK:
+            _ALL_CLIENTS.append(client)
     return _LOCAL.clients[url]
+
+
+def _close_cached_clients() -> None:
+    with _CLIENTS_LOCK:
+        for client in _ALL_CLIENTS:
+            client.close()
+        _ALL_CLIENTS.clear()
+
+
+atexit.register(_close_cached_clients)
 
 CONFIG_PATH = "./config.json"
 
@@ -139,6 +155,16 @@ class Sparql:
         else:
             return {'type': 'literal', 'value': str(value)}
 
+    @staticmethod
+    def binding_to_rdf_term(val: dict) -> Node:
+        if val['type'] == 'uri':
+            return URIRef(val['value'])
+        if 'datatype' in val:
+            return Literal(val['value'], datatype=val['datatype'])
+        if 'xml:lang' in val:
+            return Literal(val['value'], lang=val['xml:lang'])
+        return Literal(val['value'])
+
     def run_select_to_dataset(self) -> Dataset:
         results = self.run_select_query()
         ds = Dataset(default_union=True)
@@ -150,15 +176,7 @@ class Sparql:
                 if var not in binding:
                     skip = True
                     break
-                val = binding[var]
-                if val['type'] == 'uri':
-                    components.append(URIRef(val['value']))
-                elif 'datatype' in val:
-                    components.append(Literal(val['value'], datatype=val['datatype']))
-                elif 'xml:lang' in val:
-                    components.append(Literal(val['value'], lang=val['xml:lang']))
-                else:
-                    components.append(Literal(val['value']))
+                components.append(Sparql.binding_to_rdf_term(binding[var]))
             if not skip:
                 ds.add(tuple(components))  # type: ignore[arg-type]
         return ds

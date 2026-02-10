@@ -101,7 +101,6 @@ def run_vq_query(sparql: str, config: dict) -> dict:
     return {"time_s": elapsed, "num_results": num_results, "num_versions": num_versions}
 
 
-
 def benchmark_queries(queries: List[dict], config: dict, num_runs: int = NUM_RUNS) -> List[dict]:
     results = []
 

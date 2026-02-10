@@ -74,31 +74,26 @@ def _reconstruct_entity_worker(entity, config, on_time, other_snapshots_flag):
     return entity, entity_history[0], {}
 
 
-def _batch_query_provenance_snapshots(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
-    values = " ".join(f"<{uri}>" for uri in entity_uris)
-    is_quadstore = config["provenance"]["is_quadstore"]
+def _sparql_values(uris: set[str]) -> str:
+    return " ".join(f"<{uri}>" for uri in uris)
+
+
+def _wrap_in_graph(body: str, is_quadstore: bool) -> str:
     if is_quadstore:
-        query = f"""
-            SELECT ?entity ?time ?updateQuery
-            WHERE {{
-                GRAPH ?g {{
-                    ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
-                        <{ProvEntity.iri_generated_at_time}> ?time.
-                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
-                    VALUES ?entity {{ {values} }}
-                }}
-            }}
-        """
-    else:
-        query = f"""
-            SELECT ?entity ?time ?updateQuery
-            WHERE {{
-                ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
-                    <{ProvEntity.iri_generated_at_time}> ?time.
-                OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
-                VALUES ?entity {{ {values} }}
-            }}
-        """
+        return f"GRAPH ?g {{ {body} }}"
+    return body
+
+
+def _batch_query_provenance_snapshots(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
+    values = _sparql_values(entity_uris)
+    body = f"""
+        ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
+            <{ProvEntity.iri_generated_at_time}> ?time.
+        OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
+        VALUES ?entity {{ {values} }}
+    """
+    wrapped = _wrap_in_graph(body, config["provenance"]["is_quadstore"])
+    query = f"SELECT ?entity ?time ?updateQuery WHERE {{ {wrapped} }}"
     results = Sparql(query, config).run_select_query()
     output: dict[str, list[dict]] = {uri: [] for uri in entity_uris}
     for binding in results['results']['bindings']:
@@ -112,45 +107,22 @@ def _batch_query_provenance_snapshots(entity_uris: set[str], config: dict) -> di
 
 
 def _batch_query_dataset_triples(entity_uris: set[str], config: dict) -> dict[str, set[tuple]]:
-    values = " ".join(f"<{uri}>" for uri in entity_uris)
+    values = _sparql_values(entity_uris)
     is_quadstore = config['dataset']['is_quadstore']
-    if is_quadstore:
-        query = f"""
-            SELECT ?s ?p ?o ?g
-            WHERE {{
-                GRAPH ?g {{
-                    VALUES ?s {{ {values} }}
-                    ?s ?p ?o
-                }}
-            }}
-        """
-    else:
-        query = f"""
-            SELECT ?s ?p ?o
-            WHERE {{
-                VALUES ?s {{ {values} }}
-                ?s ?p ?o
-            }}
-        """
+    body = f"VALUES ?s {{ {values} }} ?s ?p ?o"
+    wrapped = _wrap_in_graph(body, is_quadstore)
+    select_vars = "?s ?p ?o ?g" if is_quadstore else "?s ?p ?o"
+    query = f"SELECT {select_vars} WHERE {{ {wrapped} }}"
     results = Sparql(query, config).run_select_query()
     output: dict[str, set[tuple]] = {uri: set() for uri in entity_uris}
+    to_term = Sparql.binding_to_rdf_term
     for binding in results['results']['bindings']:
         s_val = binding['s']['value']
         s = URIRef(s_val)
-        p_val = binding['p']
-        p = URIRef(p_val['value'])
-        o_binding = binding['o']
-        if o_binding['type'] == 'uri':
-            o = URIRef(o_binding['value'])
-        elif 'datatype' in o_binding:
-            o = Literal(o_binding['value'], datatype=o_binding['datatype'])
-        elif 'xml:lang' in o_binding:
-            o = Literal(o_binding['value'], lang=o_binding['xml:lang'])
-        else:
-            o = Literal(o_binding['value'])
+        p = URIRef(binding['p']['value'])
+        o = to_term(binding['o'])
         if is_quadstore and 'g' in binding:
-            g = URIRef(binding['g']['value'])
-            output[s_val].add((s, p, o, g))
+            output[s_val].add((s, p, o, URIRef(binding['g']['value'])))
         else:
             output[s_val].add((s, p, o))
     return output
@@ -254,7 +226,7 @@ def _match_single_pattern(triple_pattern: tuple, quads: frozenset) -> list[dict]
 
 
 def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
-    values = " ".join(f"<{uri}>" for uri in entity_uris)
+    values = _sparql_values(entity_uris)
     query = f"""
         SELECT ?entity ?time ?updateQuery ?description
         WHERE {{
@@ -281,7 +253,7 @@ def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str,
 
 
 def _batch_check_existence(entity_uris: set[str], config: dict) -> dict[str, bool]:
-    values = " ".join(f"<{uri}>" for uri in entity_uris)
+    values = _sparql_values(entity_uris)
     query = f"""
         SELECT DISTINCT ?entity
         WHERE {{
@@ -566,8 +538,7 @@ class AgnosticQuery:
             """
             results = Sparql(query, self.config).run_select_query()
             for binding in results['results']['bindings']:
-                if 'entity' in binding:
-                    entities.add(URIRef(binding['entity']['value']))
+                entities.add(URIRef(binding['entity']['value']))
             return
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config).run_select_query()
