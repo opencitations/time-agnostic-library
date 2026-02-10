@@ -870,22 +870,22 @@ class AgnosticEntity:
             key=lambda x: _parse_datetime(str(x[0])),
             reverse=True
         )
+        if not ordered_data:
+            return entity_current_state
+        most_recent_graph = ordered_data[0][1]
+        snapshot_update_queries: dict[str, str | None] = {}
+        for s, _, o in most_recent_graph.triples((None, ProvEntity.iri_generated_at_time, None)):
+            uq = most_recent_graph.value(subject=s, predicate=ProvEntity.iri_has_update_query)
+            snapshot_update_queries[str(o)] = str(uq) if uq is not None else None
         for index, date_graph in enumerate(ordered_data):
             if index > 0:
                 next_snapshot = ordered_data[index-1][0]
                 previous_graph: Dataset = _copy_dataset(entity_current_state[0][self.res][next_snapshot])
-                snapshot_uri = previous_graph.value(
-                    predicate=ProvEntity.iri_generated_at_time,
-                    object=Literal(next_snapshot)
-                )
-                snapshot_update_query = previous_graph.value(
-                    subject=snapshot_uri,
-                    predicate=ProvEntity.iri_has_update_query,
-                    object=None)
-                if snapshot_update_query is None:
+                update_query = snapshot_update_queries.get(str(next_snapshot))
+                if update_query is None:
                     entity_current_state[0][self.res][date_graph[0]] = previous_graph
                 else:
-                    self._manage_update_queries(previous_graph, str(snapshot_update_query))
+                    self._manage_update_queries(previous_graph, update_query)
                     entity_current_state[0][self.res][date_graph[0]] = previous_graph
         for time in list(entity_current_state[0][self.res]):
             cg_no_pro = entity_current_state[0][self.res].pop(time)

@@ -159,7 +159,7 @@ def _parse_ostrich_raw_files(raw_files: List[Path]) -> List[dict]:
     for raw_file in raw_files:
         if not raw_file.exists():
             continue
-        pattern_type = raw_file.stem.replace("ostrich_raw_", "")
+        pattern_type = raw_file.stem.replace("ostrich_raw_", "").rsplit("_", 1)[0]
         current_pattern = None
         current_section = None
         for line in raw_file.read_text().splitlines():

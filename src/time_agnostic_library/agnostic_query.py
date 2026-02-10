@@ -637,10 +637,8 @@ class AgnosticQuery:
                 previous_se = ordered_data[index-1][0]
                 for subject in self.relevant_graphs[previous_se].subjects():
                     if (subject, None, None, None) not in cg and subject in self.relevant_entities_graphs and se not in self.relevant_entities_graphs[subject]:
-                                graph_to_cache = Graph()
                                 for quad in self.relevant_graphs[previous_se].quads((subject, None, None, None)):
                                     self.relevant_graphs[se].add(quad)
-                                    graph_to_cache.add(quad[:3])
 
     def _sort_relevant_graphs(self):
         ordered_data: list[tuple[str, ConjunctiveGraph]] = sorted(
@@ -905,34 +903,6 @@ class DeltaQuery(AgnosticQuery):
             triples_checked.add(triple)
         self._align_snapshots()
         self._solve_variables()
-
-    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set | None = None):
-        if present_entities is None:
-            present_entities = set()
-        uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
-        relevant_entities_found = set()
-        query_to_identify = self._get_query_to_update_queries(triple)
-        results = Sparql(query_to_identify, self.config).run_select_query()
-        bindings = results['results']['bindings']
-        if bindings:
-            for result in bindings:
-                update_query = result.get('updateQuery')
-                if update_query and update_query.get('value'):
-                    operations = _fast_parse_update(update_query['value'])
-                    for _, quads in operations:
-                        for quad in quads:
-                            quad_uris = {el for el in quad[:3] if isinstance(el, URIRef)}
-                            if uris_in_triple.issubset(quad_uris):
-                                for el in quad[:3]:
-                                    if isinstance(el, URIRef) and el not in uris_in_triple:
-                                        relevant_entities_found.add(el)
-        for relevant_entity_found in relevant_entities_found:
-            self.reconstructed_entities.add(relevant_entity_found)
-
-    def _get_query_to_update_queries(self, triple:tuple) -> str:
-        uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
-        query_to_identify = self.get_full_text_search(uris_in_triple)
-        return query_to_identify
 
     def run_agnostic_query(self) -> dict:
         """
