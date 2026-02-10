@@ -1,7 +1,9 @@
 import argparse
 import json
 import re
+import statistics
 import sys
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -88,20 +90,24 @@ def version_to_timestamp(version: int, interval: timedelta) -> str:
     return (BASE_TIMESTAMP + interval * version).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
 
-def run_vm_query(sparql: str, version: int, interval: timedelta, config: dict) -> int:
+def run_vm_query(sparql: str, version: int, interval: timedelta, config: dict) -> tuple[int, float]:
     ts = version_to_timestamp(version, interval)
+    start = time.perf_counter()
     vq = VersionQuery(sparql, on_time=(ts, ts), config_dict=config)
     result, _ = vq.run_agnostic_query()
+    elapsed = time.perf_counter() - start
     if not result:
-        return 0
+        return 0, elapsed
     latest_ts = max(result.keys())
-    return len(result[latest_ts])
+    return len(result[latest_ts]), elapsed
 
 
-def run_vq_query(sparql: str, config: dict) -> Dict[str, int]:
+def run_vq_query(sparql: str, config: dict) -> tuple[Dict[str, int], float]:
+    start = time.perf_counter()
     vq = VersionQuery(sparql, config_dict=config)
     result, _ = vq.run_agnostic_query(include_all_timestamps=True)
-    return {ts: len(bindings) for ts, bindings in result.items()}
+    elapsed = time.perf_counter() - start
+    return {ts: len(bindings) for ts, bindings in result.items()}, elapsed
 
 
 def verify_pattern_vm(
@@ -128,7 +134,7 @@ def verify_pattern_vm(
 
     for version in sample_versions:
         expected = expected_counts.get(version, 0)
-        actual = run_vm_query(sparql, version, interval, config)
+        actual, elapsed = run_vm_query(sparql, version, interval, config)
         match = expected == actual
         results.append({
             "query_type": "vm",
@@ -138,6 +144,7 @@ def verify_pattern_vm(
             "expected": expected,
             "actual": actual,
             "match": match,
+            "time_s": elapsed,
         })
         if not match:
             console.print(
@@ -168,7 +175,7 @@ def verify_pattern_vq(
 
     expected_counts = parse_bear_result_file(result_file)
     sparql = bear_pattern_to_sparql(pattern, pattern_type)
-    actual_by_ts = run_vq_query(sparql, config)
+    actual_by_ts, vq_elapsed = run_vq_query(sparql, config)
 
     actual_by_version = {}
     for ts, count in actual_by_ts.items():
@@ -193,6 +200,7 @@ def verify_pattern_vq(
             "expected": expected,
             "actual": actual,
             "match": match,
+            "time_s": vq_elapsed,
         })
         if not match:
             mismatches += 1
@@ -206,7 +214,23 @@ def verify_pattern_vq(
     return results
 
 
-def print_summary(results: List[dict]) -> None:
+def collect_timing(results: List[dict]) -> dict[str, list[float]]:
+    timing: dict[str, list[float]] = defaultdict(list)
+    seen_vq: set[tuple[str, int]] = set()
+    for r in results:
+        if "time_s" not in r:
+            continue
+        qt = r["query_type"]
+        if qt == "vq":
+            key = (r["pattern_type"], r["pattern_index"])
+            if key in seen_vq:
+                continue
+            seen_vq.add(key)
+        timing[qt].append(r["time_s"])
+    return dict(timing)
+
+
+def print_summary(results: List[dict], baseline: dict | None = None) -> None:
     matched = sum(1 for r in results if r["match"])
     total = len(results)
 
@@ -230,10 +254,70 @@ def print_summary(results: List[dict]) -> None:
     console.print(table)
     console.print(f"\nOverall: {matched}/{total} checks passed")
 
+    timing = collect_timing(results)
+    if not timing:
+        return
+
+    timing_table = Table(title="Timing summary")
+    timing_table.add_column("Query type", style="bold")
+    timing_table.add_column("Queries", justify="right")
+    timing_table.add_column("Median (ms)", justify="right")
+    timing_table.add_column("Mean (ms)", justify="right")
+    timing_table.add_column("Min (ms)", justify="right")
+    timing_table.add_column("Max (ms)", justify="right")
+    if baseline:
+        timing_table.add_column("Baseline median (ms)", justify="right")
+        timing_table.add_column("Speedup", justify="right")
+
+    for qt in ["vm", "vq"]:
+        times = timing.get(qt, [])
+        if not times:
+            continue
+        med = statistics.median(times) * 1000
+        mean = statistics.mean(times) * 1000
+        row = [
+            qt.upper(),
+            str(len(times)),
+            f"{med:.1f}",
+            f"{mean:.1f}",
+            f"{min(times) * 1000:.1f}",
+            f"{max(times) * 1000:.1f}",
+        ]
+        if baseline:
+            base_times = baseline.get(qt, [])
+            if base_times:
+                base_med = statistics.median(base_times) * 1000
+                speedup = base_med / med if med > 0 else float("inf")
+                color = "[green]" if speedup > 1.05 else "[red]" if speedup < 0.95 else ""
+                row.extend([f"{base_med:.1f}", f"{color}{speedup:.2f}x"])
+            else:
+                row.extend(["N/A", "N/A"])
+        timing_table.add_row(*row)
+
+    console.print()
+    console.print(timing_table)
+
+
+def load_baseline(path: Path) -> dict[str, list[float]] | None:
+    if not path.exists():
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_timing(timing: dict[str, list[float]], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(timing, f, indent=2)
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    parser.add_argument("--save-baseline", action="store_true",
+                        help="Save timing as baseline for future comparison")
+    parser.add_argument("--compare", action="store_true",
+                        help="Compare against saved baseline")
     args = parser.parse_args()
 
     config_g = GRANULARITY_CONFIG[args.granularity]
@@ -241,6 +325,7 @@ def main():
     interval = config_g["interval"]
     sample_versions = config_g["sample_versions"]
     results_dir = DATA_DIR / args.granularity / "results"
+    baseline_file = DATA_DIR / f"timing_baseline_{args.granularity}.json"
 
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         config = json.load(f)
@@ -309,7 +394,17 @@ def main():
             )
 
     console.rule("[bold]Final results")
-    print_summary(all_results)
+
+    baseline = load_baseline(baseline_file) if args.compare else None
+    if args.compare and baseline is None:
+        console.print(f"[yellow]No baseline found at {baseline_file}, run with --save-baseline first")
+
+    print_summary(all_results, baseline=baseline)
+
+    timing = collect_timing(all_results)
+    if args.save_baseline:
+        save_timing(timing, baseline_file)
+        console.print(f"\nBaseline saved to {baseline_file}")
 
     output_file = DATA_DIR / "verification_results.json"
     with open(output_file, "w", encoding="utf-8") as f:

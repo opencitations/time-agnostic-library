@@ -20,7 +20,7 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
-from rdflib import ConjunctiveGraph, Graph, Literal, URIRef, Variable
+from rdflib import ConjunctiveGraph, Dataset, Graph, Literal, URIRef, Variable
 from rdflib.paths import InvPath
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
@@ -74,52 +74,265 @@ def _reconstruct_entity_worker(entity, config, on_time, other_snapshots_flag):
     return entity, entity_history[0], {}
 
 
-def _identify_changed_entity_worker(entity, config, on_time, changed_properties):
-    output = {}
+def _batch_query_provenance_snapshots(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
+    values = " ".join(f"<{uri}>" for uri in entity_uris)
+    is_quadstore = config["provenance"]["is_quadstore"]
+    if is_quadstore:
+        query = f"""
+            SELECT ?entity ?time ?updateQuery
+            WHERE {{
+                GRAPH ?g {{
+                    ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
+                        <{ProvEntity.iri_generated_at_time}> ?time.
+                    OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
+                    VALUES ?entity {{ {values} }}
+                }}
+            }}
+        """
+    else:
+        query = f"""
+            SELECT ?entity ?time ?updateQuery
+            WHERE {{
+                ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
+                    <{ProvEntity.iri_generated_at_time}> ?time.
+                OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
+                VALUES ?entity {{ {values} }}
+            }}
+        """
+    results = Sparql(query, config).run_select_query()
+    output: dict[str, list[dict]] = {uri: [] for uri in entity_uris}
+    for binding in results['results']['bindings']:
+        entity_uri = binding['entity']['value']
+        entry = {
+            'time': binding['time']['value'],
+            'updateQuery': binding['updateQuery']['value'] if 'updateQuery' in binding else None,
+        }
+        output[entity_uri].append(entry)
+    return output
+
+
+def _batch_query_dataset_triples(entity_uris: set[str], config: dict) -> dict[str, set[tuple]]:
+    values = " ".join(f"<{uri}>" for uri in entity_uris)
+    is_quadstore = config['dataset']['is_quadstore']
+    if is_quadstore:
+        query = f"""
+            SELECT ?s ?p ?o ?g
+            WHERE {{
+                GRAPH ?g {{
+                    VALUES ?s {{ {values} }}
+                    ?s ?p ?o
+                }}
+            }}
+        """
+    else:
+        query = f"""
+            SELECT ?s ?p ?o
+            WHERE {{
+                VALUES ?s {{ {values} }}
+                ?s ?p ?o
+            }}
+        """
+    results = Sparql(query, config).run_select_query()
+    output: dict[str, set[tuple]] = {uri: set() for uri in entity_uris}
+    for binding in results['results']['bindings']:
+        s_val = binding['s']['value']
+        s = URIRef(s_val)
+        p_val = binding['p']
+        p = URIRef(p_val['value'])
+        o_binding = binding['o']
+        if o_binding['type'] == 'uri':
+            o = URIRef(o_binding['value'])
+        elif 'datatype' in o_binding:
+            o = Literal(o_binding['value'], datatype=o_binding['datatype'])
+        elif 'xml:lang' in o_binding:
+            o = Literal(o_binding['value'], lang=o_binding['xml:lang'])
+        else:
+            o = Literal(o_binding['value'])
+        if is_quadstore and 'g' in binding:
+            g = URIRef(binding['g']['value'])
+            output[s_val].add((s, p, o, g))
+        else:
+            output[s_val].add((s, p, o))
+    return output
+
+
+def _reconstruct_at_time_from_data(
+    prov_snapshots: list[dict],
+    dataset_quads: set[tuple],
+    on_time: tuple[str | None, str | None],
+) -> dict[str, Dataset]:
+    if not prov_snapshots:
+        return {}
+    sorted_snaps = sorted(prov_snapshots, key=lambda x: _parse_datetime(x['time']), reverse=True)
+    relevant = _filter_timestamps_by_interval(
+        on_time,
+        [{'time': {'value': s['time']}} for s in sorted_snaps],
+        time_index='time',
+    )
+    if not relevant:
+        interval_start = _parse_datetime(on_time[0]) if on_time[0] else None
+        if interval_start:
+            earlier = [s for s in sorted_snaps if _parse_datetime(s['time']) <= interval_start]
+            if earlier:
+                best = max(earlier, key=lambda x: _parse_datetime(x['time']))
+                relevant = [{'time': {'value': best['time']}}]
+            else:
+                return {}
+        else:
+            return {}
+    sorted_parsed = [(s, _parse_datetime(s['time'])) for s in sorted_snaps]
+    result: dict[str, Dataset] = {}
+    for rel in relevant:
+        rel_time = rel['time']['value']
+        rel_dt = _parse_datetime(rel_time)
+        update_parts = [
+            s['updateQuery'] for s, s_dt in sorted_parsed
+            if s['updateQuery'] is not None and s_dt > rel_dt
+        ]
+        cg = Dataset(default_union=True)
+        for quad in dataset_quads:
+            cg.add(quad)
+        if update_parts:
+            AgnosticEntity._manage_update_queries(cg, ";".join(update_parts))
+        ts_key = str(convert_to_datetime(rel_time, stringify=True))
+        result[ts_key] = cg
+    return result
+
+
+def _iter_versions_as_sets(
+    prov_snapshots: list[dict],
+    dataset_quads: set[tuple],
+) -> list[tuple[str, frozenset]]:
+    if not prov_snapshots:
+        return []
+    sorted_snaps = sorted(prov_snapshots, key=lambda x: _parse_datetime(x['time']), reverse=True)
+    working = set(dataset_quads)
+    results = []
+    for i, snap in enumerate(sorted_snaps):
+        if i > 0:
+            prev_uq = sorted_snaps[i - 1]['updateQuery']
+            if prev_uq is not None:
+                for op_type, quads in _fast_parse_update(prev_uq):
+                    if op_type == 'DeleteData':
+                        for quad in quads:
+                            working.add(quad)
+                    elif op_type == 'InsertData':
+                        for quad in quads:
+                            working.discard(quad)
+        normalized = str(convert_to_datetime(snap['time'], stringify=True))
+        results.append((normalized, frozenset(working)))
+    return results
+
+
+def _match_single_pattern(triple_pattern: tuple, quads: frozenset) -> list[dict]:
+    # Replaces rdflib's graph.query() for single triple patterns like "?s <pred> ?o".
+    # Each position in the pattern is either a concrete term (URIRef/Literal) or a Variable.
+    s_pat, p_pat, o_pat = triple_pattern[0], triple_pattern[1], triple_pattern[2]
+    s_is_var = isinstance(s_pat, Variable)
+    p_is_var = isinstance(p_pat, Variable)
+    o_is_var = isinstance(o_pat, Variable)
+    bindings = []
+    for quad in quads:
+        s, p, o = quad[0], quad[1], quad[2]
+        # Concrete positions must match exactly; variables match anything
+        if not s_is_var and s != s_pat:
+            continue
+        if not p_is_var and p != p_pat:
+            continue
+        if not o_is_var and o != o_pat:
+            continue
+        # Build a SPARQL JSON binding for each variable position
+        binding = {}
+        if s_is_var:
+            binding[str(s_pat)] = Sparql._format_result_value(s)
+        if p_is_var:
+            binding[str(p_pat)] = Sparql._format_result_value(p)
+        if o_is_var:
+            binding[str(o_pat)] = Sparql._format_result_value(o)
+        bindings.append(binding)
+    return bindings
+
+
+def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
+    values = " ".join(f"<{uri}>" for uri in entity_uris)
     query = f"""
-        SELECT ?time ?updateQuery ?description
+        SELECT ?entity ?time ?updateQuery ?description
         WHERE {{
-            ?se <{ProvEntity.iri_specialization_of}> <{entity}>;
+            ?se <{ProvEntity.iri_specialization_of}> ?entity;
                 <{ProvEntity.iri_generated_at_time}> ?time;
                 <{ProvEntity.iri_description}> ?description.
             OPTIONAL {{
                 ?se <{ProvEntity.iri_has_update_query}> ?updateQuery.
             }}
-        }}
-    """
-    query_existence = f"""
-        ASK WHERE {{
-            <{entity}> ?p ?o.
+            VALUES ?entity {{ {values} }}
         }}
     """
     results = Sparql(query, config).run_select_query()
-    bindings = results['results']['bindings']
-    if bindings:
-        relevant_results = _filter_timestamps_by_interval(on_time, bindings, time_index='time')
-        if relevant_results:
-            entity_str = str(entity)
-            output[entity_str] = {"created": None, "modified": {}, "deleted": None}
-            results_sorted = sorted(bindings, key=lambda x: _parse_datetime(x['time']['value']))
-            creation_date = convert_to_datetime(results_sorted[0]['time']['value'], stringify=True)
-            exists = Sparql(query_existence, config).run_ask_query()
-            if not exists:
-                deletion_time = convert_to_datetime(results_sorted[-1]['time']['value'], stringify=True)
-                output[entity_str]["deleted"] = deletion_time
-            for result_binding in relevant_results:
-                time_val = convert_to_datetime(result_binding['time']['value'], stringify=True)
-                if time_val != creation_date:
-                    update_query = result_binding.get('updateQuery', {}).get('value')
-                    description = result_binding.get('description', {}).get('value')
-                    if update_query and changed_properties:
-                        for changed_property in changed_properties:
-                            if changed_property in update_query:
-                                output[entity_str]["modified"][time_val] = update_query
-                    elif update_query and not changed_properties:
+    output: dict[str, list[dict]] = {uri: [] for uri in entity_uris}
+    for binding in results['results']['bindings']:
+        entity_uri = binding['entity']['value']
+        entry = {
+            'time': binding['time']['value'],
+            'updateQuery': binding['updateQuery']['value'] if 'updateQuery' in binding else None,
+            'description': binding['description']['value'] if 'description' in binding else None,
+        }
+        output[entity_uri].append(entry)
+    return output
+
+
+def _batch_check_existence(entity_uris: set[str], config: dict) -> dict[str, bool]:
+    values = " ".join(f"<{uri}>" for uri in entity_uris)
+    query = f"""
+        SELECT DISTINCT ?entity
+        WHERE {{
+            VALUES ?entity {{ {values} }}
+            ?entity ?p ?o.
+        }}
+    """
+    results = Sparql(query, config).run_select_query()
+    existing = {binding['entity']['value'] for binding in results['results']['bindings']}
+    return {uri: uri in existing for uri in entity_uris}
+
+
+def _build_delta_result(
+    entity_str: str,
+    snapshots: list[dict],
+    exists: bool,
+    on_time: tuple[str | None, str | None] | None,
+    changed_properties: set[str],
+) -> dict:
+    output: dict[str, dict] = {}
+    sorted_results = sorted(snapshots, key=lambda x: _parse_datetime(x['time']))
+    relevant_results = _filter_timestamps_by_interval(
+        on_time,
+        [{'time': {'value': s['time']}} for s in snapshots],
+        time_index='time',
+    )
+    if not relevant_results:
+        return output
+    output[entity_str] = {"created": None, "modified": {}, "deleted": None}
+    creation_date = convert_to_datetime(sorted_results[0]['time'], stringify=True)
+    if not exists:
+        deletion_time = convert_to_datetime(sorted_results[-1]['time'], stringify=True)
+        output[entity_str]["deleted"] = deletion_time
+    relevant_times = {r['time']['value'] for r in relevant_results}
+    for snap in sorted_results:
+        if snap['time'] not in relevant_times:
+            continue
+        time_val = convert_to_datetime(snap['time'], stringify=True)
+        if time_val != creation_date:
+            update_query = snap['updateQuery']
+            description = snap['description']
+            if update_query and changed_properties:
+                for changed_property in changed_properties:
+                    if changed_property in update_query:
                         output[entity_str]["modified"][time_val] = update_query
-                    elif not update_query and not changed_properties:
-                        output[entity_str]["modified"][time_val] = description
-                else:
-                    output[entity_str]["created"] = creation_date
+            elif update_query and not changed_properties:
+                output[entity_str]["modified"][time_val] = update_query
+            elif not update_query and not changed_properties:
+                output[entity_str]["modified"][time_val] = description
+        else:
+            output[entity_str]["created"] = creation_date
     return output
 
 
@@ -338,6 +551,24 @@ class AgnosticQuery:
 
     def _find_entity_uris_in_update_queries(self, triple: tuple, entities: set) -> None:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
+        uris_str = {str(el) for el in uris_in_triple}
+        if not any([self.blazegraph_full_text_search, self.fuseki_full_text_search,
+                     self.virtuoso_full_text_search, self.graphdb_connector_name]):
+            filter_clauses = ".".join(
+                f"FILTER CONTAINS (?uq, '{uri}')" for uri in uris_str
+            )
+            query = f"""
+                SELECT DISTINCT ?entity WHERE {{
+                    ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
+                        <{ProvEntity.iri_has_update_query}> ?uq.
+                    {filter_clauses}.
+                }}
+            """
+            results = Sparql(query, self.config).run_select_query()
+            for binding in results['results']['bindings']:
+                if 'entity' in binding:
+                    entities.add(URIRef(binding['entity']['value']))
+            return
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config).run_select_query()
         for binding in results['results']['bindings']:
@@ -502,10 +733,16 @@ class VersionQuery(AgnosticQuery):
         super().__init__(query, on_time, other_snapshots, config_path, config_dict)
 
     def _rebuild_relevant_graphs(self) -> None:
+        self.triples = self._process_query()
         if self.on_time is not None:
+            if (len(self.triples) == 1
+                    and self._is_isolated(self.triples[0])
+                    and not isinstance(self.triples[0][1], InvPath)
+                    and not self.other_snapshots):
+                self._rebuild_vm_batch()
+                return
             super()._rebuild_relevant_graphs()
             return
-        self.triples = self._process_query()
         if not all(self._is_isolated(t) for t in self.triples):
             super()._rebuild_relevant_graphs()
             self._streaming_results = {
@@ -514,6 +751,39 @@ class VersionQuery(AgnosticQuery):
             }
             return
         self._rebuild_streaming()
+
+    def _discover_entities_parallel(self, triple: tuple) -> set[str]:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            fut_present = executor.submit(self._get_present_entities, triple)
+            entities_set: set = set()
+            fut_prov = executor.submit(self._find_entity_uris_in_update_queries, triple, entities_set)
+            present_entities = fut_present.result()
+            fut_prov.result()
+            all_entities = {str(e) for e in present_entities if isinstance(e, URIRef)}
+            all_entities.update(str(e) for e in entities_set if isinstance(e, URIRef))
+        return all_entities
+
+    def _rebuild_vm_batch(self) -> None:
+        assert self.on_time is not None
+        triple = self.triples[0]
+        all_entity_strs = self._discover_entities_parallel(triple)
+        if not all_entity_strs:
+            return
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            fut_prov = executor.submit(_batch_query_provenance_snapshots, all_entity_strs, self.config)
+            fut_data = executor.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
+            prov_data = fut_prov.result()
+            dataset_data = fut_data.result()
+        for entity_str in all_entity_strs:
+            entity_uri = URIRef(entity_str)
+            entity_graphs = _reconstruct_at_time_from_data(
+                prov_data[entity_str], dataset_data[entity_str],
+                self.on_time,
+            )
+            self.reconstructed_entities.add(entity_uri)
+            for ts, cg in entity_graphs.items():
+                self.relevant_entities_graphs.setdefault(entity_uri, {})[ts] = cg
+        self._align_snapshots()
 
     def _extract_bindings(self, graph) -> list[dict]:
         query_results = graph.query(self.query)
@@ -531,35 +801,60 @@ class VersionQuery(AgnosticQuery):
 
     def _rebuild_streaming(self) -> None:
         triples_checked = set()
-        all_entities: set[URIRef] = set()
+        all_entity_strs: set[str] = set()
+        use_fast_path = (
+            len(self.triples) == 1
+            and self._is_isolated(self.triples[0])
+            and not isinstance(self.triples[0][1], InvPath)
+        )
         for triple in self.triples:
             if isinstance(triple[0], URIRef):
-                all_entities.add(triple[0])
+                all_entity_strs.add(str(triple[0]))
             elif self._is_a_new_triple(triple, triples_checked):
                 present_entities = self._get_present_entities(triple)
-                self._find_entity_uris_in_update_queries(triple, present_entities)
-                all_entities.update(e for e in present_entities if isinstance(e, URIRef))
+                prov_entities: set = set()
+                self._find_entity_uris_in_update_queries(triple, prov_entities)
+                all_entity_strs.update(str(e) for e in present_entities if isinstance(e, URIRef))
+                all_entity_strs.update(str(e) for e in prov_entities if isinstance(e, URIRef))
             triples_checked.add(triple)
-        entity_bindings: dict[URIRef, dict[str, list[dict]]] = {}
-        for entity_uri in all_entities:
-            ae = AgnosticEntity(entity_uri, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-            per_ts: dict[str, list[dict]] = {}
-            for ts, graph in ae.iter_versions():
-                per_ts[ts] = self._extract_bindings(graph)
-            entity_bindings[entity_uri] = per_ts
+        if not all_entity_strs:
+            self._streaming_results = {}
+            return
+        if use_fast_path:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                fut_prov = executor.submit(_batch_query_provenance_snapshots, all_entity_strs, self.config)
+                fut_data = executor.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
+                prov_data = fut_prov.result()
+                dataset_data = fut_data.result()
+            triple = self.triples[0]
+            entity_bindings: dict[str, dict[str, list[dict]]] = {}
+            for entity_str in all_entity_strs:
+                per_ts: dict[str, list[dict]] = {}
+                for ts, quad_set in _iter_versions_as_sets(prov_data[entity_str], dataset_data[entity_str]):
+                    per_ts[ts] = _match_single_pattern(triple, quad_set)
+                entity_bindings[entity_str] = per_ts
+        else:
+            entity_bindings = {}
+            for entity_str in all_entity_strs:
+                entity_uri = URIRef(entity_str)
+                ae = AgnosticEntity(entity_uri, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+                per_ts = {}
+                for ts, graph in ae.iter_versions():
+                    per_ts[ts] = self._extract_bindings(graph)
+                entity_bindings[entity_str] = per_ts
         all_timestamps: set[str] = set()
         for per_ts in entity_bindings.values():
             all_timestamps.update(per_ts.keys())
         sorted_timestamps = sorted(all_timestamps, key=_parse_datetime)
         result: dict[str, list[dict]] = {}
-        last_known: dict[URIRef, list[dict]] = {}
+        last_known: dict[str, list[dict]] = {}
         for ts in sorted_timestamps:
             merged: list[dict] = []
-            for entity_uri, per_ts in entity_bindings.items():
+            for entity_str, per_ts in entity_bindings.items():
                 if ts in per_ts:
-                    last_known[entity_uri] = per_ts[ts]
-                if entity_uri in last_known:
-                    merged.extend(last_known[entity_uri])
+                    last_known[entity_str] = per_ts[ts]
+                if entity_str in last_known:
+                    merged.extend(last_known[entity_str])
             result[ts] = merged
         self._streaming_results = result
 
@@ -708,12 +1003,21 @@ class DeltaQuery(AgnosticQuery):
 
         :returns Dict[str, Set[Tuple]] -- The output is a dictionary that reports the modified entities, when they were created, modified, and deleted. Changes are reported as SPARQL UPDATE queries. If the entity was not created or deleted within the indicated range, the "created" or "deleted" value is None. On the other hand, if the entity does not exist within the input interval, the "modified" value is an empty dictionary.
         """
+        entity_uris = {str(e) for e in self.reconstructed_entities}
+        if not entity_uris:
+            return {}
+        prov_data = _batch_query_dm_provenance(entity_uris, self.config)
+        existence_data = _batch_check_existence(entity_uris, self.config)
         output = {}
-        args_list = [
-            (entity, self.config, self.on_time, self.changed_properties)
-            for entity in self.reconstructed_entities
-        ]
-        for result in _run_in_parallel(_identify_changed_entity_worker, args_list):
+        for entity_str in entity_uris:
+            snapshots = prov_data[entity_str]
+            if not snapshots:
+                continue
+            exists = existence_data[entity_str]
+            result = _build_delta_result(
+                entity_str, snapshots, exists,
+                self.on_time, self.changed_properties,
+            )
             output.update(result)
         return output
 

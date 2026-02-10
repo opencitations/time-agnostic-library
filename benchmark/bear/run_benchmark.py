@@ -1,6 +1,5 @@
 import argparse
 import json
-import multiprocessing
 import os
 import platform
 import resource
@@ -102,24 +101,8 @@ def run_vq_query(sparql: str, config: dict) -> dict:
     return {"time_s": elapsed, "num_results": num_results, "num_versions": num_versions}
 
 
-def _subprocess_vq_worker(sparql: str, config: dict, result_dict: dict) -> None:
-    sys.setrecursionlimit(5000)
-    r = run_vq_query(sparql, config)
-    result_dict.update(r)
 
-
-def run_vq_query_isolated(sparql: str, config: dict) -> dict:
-    manager = multiprocessing.Manager()
-    result_dict = manager.dict()
-    p = multiprocessing.Process(target=_subprocess_vq_worker, args=(sparql, config, result_dict))
-    p.start()
-    p.join()
-    if p.exitcode != 0:
-        raise RuntimeError(f"VQ subprocess exited with code {p.exitcode}")
-    return dict(result_dict)
-
-
-def benchmark_queries(queries: List[dict], config: dict) -> List[dict]:
+def benchmark_queries(queries: List[dict], config: dict, num_runs: int = NUM_RUNS) -> List[dict]:
     results = []
 
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
@@ -136,20 +119,20 @@ def benchmark_queries(queries: List[dict], config: dict) -> List[dict]:
                 elif query_type == "dm":
                     run_dm_query(sparql, tuple(on_time), config)
                 elif query_type == "vq":
-                    run_vq_query_isolated(sparql, config)
+                    run_vq_query(sparql, config)
             except Exception as e:
                 console.print(f"    [yellow]Warmup error: {e}")
 
             times = []
             last_result: dict | None = None
-            for run_idx in range(NUM_RUNS):
+            for run_idx in range(num_runs):
                 try:
                     if query_type == "vm":
                         last_result = run_vm_query(sparql, tuple(on_time), config)
                     elif query_type == "dm":
                         last_result = run_dm_query(sparql, tuple(on_time), config)
                     elif query_type == "vq":
-                        last_result = run_vq_query_isolated(sparql, config)
+                        last_result = run_vq_query(sparql, config)
                     if last_result:
                         times.append(last_result["time_s"])
                 except Exception as e:
@@ -159,7 +142,7 @@ def benchmark_queries(queries: List[dict], config: dict) -> List[dict]:
             valid_times = [t for t in times if t is not None]
             entry = {
                 **query_spec,
-                "runs": NUM_RUNS,
+                "runs": num_runs,
                 "times_s": times,
                 "mean_s": statistics.mean(valid_times) if valid_times else None,
                 "std_s": statistics.stdev(valid_times) if len(valid_times) > 1 else 0.0,
@@ -213,6 +196,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
     parser.add_argument("--only", choices=ALL_QUERY_TYPES, nargs="+", help="Run only specified query types (e.g. --only vq)")
+    parser.add_argument("--runs", type=int, default=NUM_RUNS, help="Number of repetitions per query (default: 5)")
     parser.add_argument("--resume", action="store_true", help="Resume from existing results, skip already completed query types")
     args = parser.parse_args()
 
@@ -247,8 +231,8 @@ def main():
             console.print(f"[dim]Skipping {query_type.upper()} (already completed)[/dim]")
             continue
         queries = all_queries.get(query_type, [])
-        console.rule(f"[bold]{query_type.upper()} queries[/bold] ({len(queries)} queries, {NUM_RUNS} runs each)")
-        results = benchmark_queries(queries, config)
+        console.rule(f"[bold]{query_type.upper()} queries[/bold] ({len(queries)} queries, {args.runs} runs each)")
+        results = benchmark_queries(queries, config, num_runs=args.runs)
         all_results["results"][query_type] = results
         save_results(all_results, output_file)
         console.print(f"[green]Saved {query_type.upper()} results to {output_file}[/green]")

@@ -14,6 +14,7 @@
 # SOFTWARE.
 
 
+import threading
 import zipfile
 
 from rdflib import Dataset
@@ -21,6 +22,19 @@ from rdflib.term import Literal, Node, URIRef
 from sparqlite import SPARQLClient
 
 from time_agnostic_library.prov_entity import ProvEntity
+
+_LOCAL = threading.local()
+_REAL_SPARQL_CLIENT = SPARQLClient
+
+
+def _get_client(url: str) -> SPARQLClient:
+    if SPARQLClient is not _REAL_SPARQL_CLIENT:
+        return SPARQLClient(url)
+    if not hasattr(_LOCAL, 'clients'):
+        _LOCAL.clients = {}
+    if url not in _LOCAL.clients:
+        _LOCAL.clients[url] = SPARQLClient(url)
+    return _LOCAL.clients[url]
 
 CONFIG_PATH = "./config.json"
 
@@ -104,8 +118,8 @@ class Sparql:
     def _get_results_from_triplestores(self, output: dict) -> dict:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            with SPARQLClient(url) as client:
-                results = client.query(self.query)
+            client = _get_client(url)
+            results = client.query(self.query)
             if not output['head']['vars']:
                 output['head']['vars'] = results['head']['vars']
             output['results']['bindings'].extend(results['results']['bindings'])
@@ -152,8 +166,8 @@ class Sparql:
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            with SPARQLClient(url) as client:
-                return client.ask(self.query)
+            client = _get_client(url)
+            return client.ask(self.query)
         return False
 
     @classmethod
