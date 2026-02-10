@@ -14,8 +14,6 @@
 # SOFTWARE.
 
 
-import atexit
-import threading
 import zipfile
 
 from rdflib import Dataset
@@ -23,42 +21,6 @@ from rdflib.term import Literal, Node, URIRef
 from sparqlite import SPARQLClient
 
 from time_agnostic_library.prov_entity import ProvEntity
-
-_LOCAL = threading.local()
-_REAL_SPARQL_CLIENT = SPARQLClient
-_ALL_CLIENTS: list[tuple[threading.Thread, SPARQLClient]] = []
-_CLIENTS_LOCK = threading.Lock()
-
-
-def _get_client(url: str) -> SPARQLClient:
-    if SPARQLClient is not _REAL_SPARQL_CLIENT:
-        return SPARQLClient(url)
-    if not hasattr(_LOCAL, 'clients'):
-        _LOCAL.clients = {}
-    if url not in _LOCAL.clients:
-        client = SPARQLClient(url)
-        _LOCAL.clients[url] = client
-        with _CLIENTS_LOCK:
-            _ALL_CLIENTS.append((threading.current_thread(), client))
-    return _LOCAL.clients[url]
-
-
-def prune_stale_clients() -> None:
-    with _CLIENTS_LOCK:
-        to_close = [c for t, c in _ALL_CLIENTS if not t.is_alive()]
-        _ALL_CLIENTS[:] = [(t, c) for t, c in _ALL_CLIENTS if t.is_alive()]
-    for c in to_close:
-        c.close()
-
-
-def _close_cached_clients() -> None:
-    with _CLIENTS_LOCK:
-        for _, client in _ALL_CLIENTS:
-            client.close()
-        _ALL_CLIENTS.clear()
-
-
-atexit.register(_close_cached_clients)
 
 CONFIG_PATH = "./config.json"
 
@@ -142,8 +104,8 @@ class Sparql:
     def _get_results_from_triplestores(self, output: dict) -> dict:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            client = _get_client(url)
-            results = client.query(self.query)
+            with SPARQLClient(url) as client:
+                results = client.query(self.query)
             if not output['head']['vars']:
                 output['head']['vars'] = results['head']['vars']
             output['results']['bindings'].extend(results['results']['bindings'])
@@ -192,8 +154,8 @@ class Sparql:
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            client = _get_client(url)
-            return client.ask(self.query)
+            with SPARQLClient(url) as client:
+                return client.ask(self.query)
         return False
 
     @classmethod
