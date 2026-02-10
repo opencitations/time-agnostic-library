@@ -5,8 +5,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="${SCRIPT_DIR}/data"
 QLEVER_DIR="${DATA_DIR}/qlever"
 GRANULARITY="${1:-daily}"
-PORT=7001
 INDEX_NAME="bear-${GRANULARITY}"
+
+case "${GRANULARITY}" in
+    daily)   PORT=7001 ;;
+    hourly)  PORT=7002 ;;
+    instant) PORT=7003 ;;
+    *)       echo "Error: unknown granularity '${GRANULARITY}'"; exit 1 ;;
+esac
 
 DATASET_NQ="${DATA_DIR}/${GRANULARITY}/dataset.nq"
 PROVENANCE_NQ="${DATA_DIR}/${GRANULARITY}/provenance.nq"
@@ -65,7 +71,7 @@ echo "  Indexing time: ${INDEX_ELAPSED}s"
 echo "{\"qlever_indexing_s\": ${INDEX_ELAPSED}}" > "${DATA_DIR}/qlever_indexing_time_${GRANULARITY}.json"
 
 echo "Starting QLever server on port ${PORT}..."
-# Remove any Docker container already bound to the target port (e.g. a different granularity)
+# Remove any stale container on this port
 docker ps -a --filter "publish=${PORT}" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
 ${QLEVER} start \
     --name "${INDEX_NAME}" \

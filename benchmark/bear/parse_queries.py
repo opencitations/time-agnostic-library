@@ -12,6 +12,29 @@ GRANULARITY_CONFIG = {
     "instant": {"num_versions": 21046, "interval": timedelta(minutes=1)},
 }
 
+GRANULARITY_PORTS = {"daily": 7001, "hourly": 7002, "instant": 7003}
+
+
+def build_config(granularity: str) -> dict:
+    port = GRANULARITY_PORTS[granularity]
+    url = f"http://localhost:{port}"
+    return {
+        "dataset": {
+            "triplestore_urls": [url],
+            "file_paths": [],
+            "is_quadstore": True,
+        },
+        "provenance": {
+            "triplestore_urls": [url],
+            "file_paths": [],
+            "is_quadstore": True,
+        },
+        "blazegraph_full_text_search": "no",
+        "fuseki_full_text_search": "no",
+        "virtuoso_full_text_search": "no",
+        "graphdb_connector_name": "",
+    }
+
 BASE_TIMESTAMP = datetime.fromisoformat("2015-08-01T00:00:00+00:00")
 
 DATA_DIR = Path(__file__).parent / "data"

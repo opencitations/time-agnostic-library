@@ -25,7 +25,7 @@ from rich.table import Table
 from time_agnostic_library.agnostic_query import DeltaQuery, VersionQuery
 
 sys.path.insert(0, str(Path(__file__).parent))
-from parse_queries import DM_STEPS, GRANULARITY_CONFIG, parse_and_generate
+from parse_queries import DM_STEPS, GRANULARITY_CONFIG, build_config, parse_and_generate
 
 sys.setrecursionlimit(5000)
 
@@ -35,7 +35,6 @@ NUM_RUNS = 5
 ALL_QUERY_TYPES = ["vm", "dm", "vq"]
 
 DATA_DIR = Path(__file__).parent / "data"
-CONFIG_FILE = Path(__file__).parent / "config_benchmark.json"
 
 PROGRESS_COLUMNS = (
     SpinnerColumn(),
@@ -216,14 +215,13 @@ def main():
         with open(queries_file, "r", encoding="utf-8") as f:
             all_queries = json.load(f)
 
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        config = json.load(f)
+    config = build_config(args.granularity)
 
     hardware = get_hardware_info()
     console.print(f"[bold]Hardware:[/bold] {hardware}")
 
     existing = load_existing_results(output_file) if args.resume else None
-    all_results = existing or {"hardware": hardware, "config_path": str(CONFIG_FILE), "results": {}}
+    all_results = existing or {"hardware": hardware, "results": {}}
 
     for query_type in query_types:
         if args.resume and query_type in all_results["results"]:

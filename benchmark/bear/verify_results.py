@@ -15,13 +15,15 @@ from rich.table import Table
 
 from time_agnostic_library.agnostic_query import VersionQuery
 
+sys.path.insert(0, str(Path(__file__).parent))
+from parse_queries import build_config
+
 sys.setrecursionlimit(5000)
 
 console = Console()
 
 DATA_DIR = Path(__file__).parent / "data"
 QUERIES_DIR = DATA_DIR / "queries"
-CONFIG_FILE = Path(__file__).parent / "config_benchmark.json"
 
 GRANULARITY_CONFIG = {
     "daily": {
@@ -327,8 +329,7 @@ def main():
     results_dir = DATA_DIR / args.granularity / "results"
     baseline_file = DATA_DIR / f"timing_baseline_{args.granularity}.json"
 
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        config = json.load(f)
+    config = build_config(args.granularity)
 
     all_patterns = []
     for pattern_type in ["p", "po"]:
