@@ -32,7 +32,7 @@ from time_agnostic_library.agnostic_entity import (
     _parse_datetime,
 )
 from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.sparql import Sparql
+from time_agnostic_library.sparql import Sparql, prune_stale_clients
 from time_agnostic_library.support import convert_to_datetime
 
 CONFIG_PATH = "./config.json"
@@ -732,6 +732,7 @@ class VersionQuery(AgnosticQuery):
             fut_prov.result()
             all_entities = {str(e) for e in present_entities if isinstance(e, URIRef)}
             all_entities.update(str(e) for e in entities_set if isinstance(e, URIRef))
+        prune_stale_clients()
         return all_entities
 
     def _rebuild_vm_batch(self) -> None:
@@ -745,6 +746,7 @@ class VersionQuery(AgnosticQuery):
             fut_data = executor.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
             prov_data = fut_prov.result()
             dataset_data = fut_data.result()
+        prune_stale_clients()
         for entity_str in all_entity_strs:
             entity_uri = URIRef(entity_str)
             entity_graphs = _reconstruct_at_time_from_data(

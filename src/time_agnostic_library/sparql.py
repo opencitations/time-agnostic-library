@@ -26,7 +26,7 @@ from time_agnostic_library.prov_entity import ProvEntity
 
 _LOCAL = threading.local()
 _REAL_SPARQL_CLIENT = SPARQLClient
-_ALL_CLIENTS: list[SPARQLClient] = []
+_ALL_CLIENTS: list[tuple[threading.Thread, SPARQLClient]] = []
 _CLIENTS_LOCK = threading.Lock()
 
 
@@ -39,13 +39,21 @@ def _get_client(url: str) -> SPARQLClient:
         client = SPARQLClient(url)
         _LOCAL.clients[url] = client
         with _CLIENTS_LOCK:
-            _ALL_CLIENTS.append(client)
+            _ALL_CLIENTS.append((threading.current_thread(), client))
     return _LOCAL.clients[url]
+
+
+def prune_stale_clients() -> None:
+    with _CLIENTS_LOCK:
+        to_close = [c for t, c in _ALL_CLIENTS if not t.is_alive()]
+        _ALL_CLIENTS[:] = [(t, c) for t, c in _ALL_CLIENTS if t.is_alive()]
+    for c in to_close:
+        c.close()
 
 
 def _close_cached_clients() -> None:
     with _CLIENTS_LOCK:
-        for client in _ALL_CLIENTS:
+        for _, client in _ALL_CLIENTS:
             client.close()
         _ALL_CLIENTS.clear()
 
