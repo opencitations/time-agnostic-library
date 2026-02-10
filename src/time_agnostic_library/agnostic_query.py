@@ -174,7 +174,7 @@ def _reconstruct_at_time_from_data(
 def _iter_versions_as_sets(
     prov_snapshots: list[dict],
     dataset_quads: set[tuple],
-) -> list[tuple[str, frozenset]]:
+) -> list[tuple[str, tuple]]:
     if not prov_snapshots:
         return []
     sorted_snaps = sorted(prov_snapshots, key=lambda x: _parse_datetime(x['time']), reverse=True)
@@ -192,11 +192,11 @@ def _iter_versions_as_sets(
                         for quad in quads:
                             working.discard(quad)
         normalized = str(convert_to_datetime(snap['time'], stringify=True))
-        results.append((normalized, frozenset(working)))
+        results.append((normalized, tuple(working)))
     return results
 
 
-def _match_single_pattern(triple_pattern: tuple, quads: frozenset) -> list[dict]:
+def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
     # Replaces rdflib's graph.query() for single triple patterns like "?s <pred> ?o".
     # Each position in the pattern is either a concrete term (URIRef/Literal) or a Variable.
     s_pat, p_pat, o_pat = triple_pattern[0], triple_pattern[1], triple_pattern[2]
@@ -626,9 +626,11 @@ class AgnosticQuery:
                         self.relevant_graphs[snapshot].add(quad)
                 else:
                     self.relevant_graphs[snapshot] = graph
-        # To copy the entity two conditions must be met:
-        #   1) the entity is present in tn but not in tn+1;
-        #   2) the entity is absent in tn+1 because it has not changed and not because it has been deleted.
+        # Propagate unchanged entities across timestamps: copy from tn to tn+1
+        # when the entity hasn't changed (not deleted, just absent from that snapshot).
+        # With a single timestamp there is nothing to propagate.
+        if len(self.relevant_graphs) <= 1:
+            return
         ordered_data = self._sort_relevant_graphs()
         for index, se_cg in enumerate(ordered_data):
             se = se_cg[0]
