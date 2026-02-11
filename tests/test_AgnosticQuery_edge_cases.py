@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 from rdflib import Graph, URIRef, Literal
 
-from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery, get_insert_query, _reconstruct_at_time_from_data
+from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery, get_insert_query, _reconstruct_at_time_as_sets
 
 CONFIG = {
     "dataset": {
@@ -251,35 +251,35 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         # This tests the exception handling in update query processing
 
 
-    def test_reconstruct_at_time_empty_prov(self):
-        result = _reconstruct_at_time_from_data([], set(), ("2021-05-20T00:00:00+00:00", "2021-05-20T00:00:00+00:00"))
-        self.assertEqual(result, {})
+    def test_reconstruct_at_time_as_sets_empty_prov(self):
+        result = _reconstruct_at_time_as_sets([], set(), ("2021-05-20T00:00:00+00:00", "2021-05-20T00:00:00+00:00"))
+        self.assertEqual(result, [])
 
-    def test_reconstruct_at_time_earlier_snapshot(self):
+    def test_reconstruct_at_time_as_sets_earlier_snapshot(self):
         prov = [
             {'time': '2021-05-07T09:59:15+00:00', 'updateQuery': None},
             {'time': '2021-06-01T18:46:41+00:00', 'updateQuery': None},
         ]
         quads = {(URIRef('http://s'), URIRef('http://p'), Literal('o'), URIRef('http://g'))}
-        result = _reconstruct_at_time_from_data(prov, quads, ("2021-05-20T00:00:00+00:00", "2021-05-20T00:00:00+00:00"))
+        result = _reconstruct_at_time_as_sets(prov, quads, ("2021-05-20T00:00:00+00:00", "2021-05-20T00:00:00+00:00"))
         self.assertEqual(len(result), 1)
-        self.assertIn("2021-05-07T09:59:15+00:00", result)
+        self.assertEqual(result[0][0], "2021-05-07T09:59:15+00:00")
 
-    def test_reconstruct_at_time_no_earlier_snapshot(self):
+    def test_reconstruct_at_time_as_sets_no_earlier_snapshot(self):
         prov = [
             {'time': '2021-05-07T09:59:15+00:00', 'updateQuery': None},
         ]
         quads = {(URIRef('http://s'), URIRef('http://p'), Literal('o'), URIRef('http://g'))}
-        result = _reconstruct_at_time_from_data(prov, quads, ("2021-01-01T00:00:00+00:00", "2021-01-01T00:00:00+00:00"))
-        self.assertEqual(result, {})
+        result = _reconstruct_at_time_as_sets(prov, quads, ("2021-01-01T00:00:00+00:00", "2021-01-01T00:00:00+00:00"))
+        self.assertEqual(result, [])
 
-    def test_reconstruct_at_time_no_interval_start(self):
+    def test_reconstruct_at_time_as_sets_no_interval_start(self):
         prov = [
             {'time': '2021-05-07T09:59:15+00:00', 'updateQuery': None},
         ]
         quads = {(URIRef('http://s'), URIRef('http://p'), Literal('o'), URIRef('http://g'))}
-        result = _reconstruct_at_time_from_data(prov, quads, (None, "2021-01-01T00:00:00+00:00"))
-        self.assertEqual(result, {})
+        result = _reconstruct_at_time_as_sets(prov, quads, (None, "2021-01-01T00:00:00+00:00"))
+        self.assertEqual(result, [])
 
     def test_generic_triple_pattern_raises_error(self):
         query = "SELECT ?s ?p ?o WHERE { ?s ?p ?o }"

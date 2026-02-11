@@ -20,7 +20,7 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
-from rdflib import ConjunctiveGraph, Dataset, Graph, Literal, URIRef, Variable
+from rdflib import ConjunctiveGraph, Graph, Literal, URIRef, Variable
 from rdflib.paths import InvPath
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
@@ -128,13 +128,45 @@ def _batch_query_dataset_triples(entity_uris: set[str], config: dict) -> dict[st
     return output
 
 
-def _reconstruct_at_time_from_data(
+def _iter_versions_as_sets(
+    prov_snapshots: list[dict],
+    dataset_quads: set[tuple],
+    relevant_times: set[str] | None = None,
+) -> list[tuple[str, tuple]]:
+    if not prov_snapshots:
+        return []
+    sorted_snaps = sorted(prov_snapshots, key=lambda x: _parse_datetime(x['time']), reverse=True)
+    target_count = len(relevant_times) if relevant_times else None
+    working = set(dataset_quads)
+    results = []
+    found = 0
+    for i, snap in enumerate(sorted_snaps):
+        if i > 0:
+            prev_uq = sorted_snaps[i - 1]['updateQuery']
+            if prev_uq is not None:
+                for op_type, quads in _fast_parse_update(prev_uq):
+                    if op_type == 'DeleteData':
+                        for quad in quads:
+                            working.add(quad)
+                    elif op_type == 'InsertData':
+                        for quad in quads:
+                            working.discard(quad)
+        if relevant_times is None or snap['time'] in relevant_times:
+            normalized = str(convert_to_datetime(snap['time'], stringify=True))
+            results.append((normalized, tuple(working)))
+            found += 1
+            if target_count is not None and found == target_count:
+                break
+    return results
+
+
+def _reconstruct_at_time_as_sets(
     prov_snapshots: list[dict],
     dataset_quads: set[tuple],
     on_time: tuple[str | None, str | None],
-) -> dict[str, Dataset]:
+) -> list[tuple[str, tuple]]:
     if not prov_snapshots:
-        return {}
+        return []
     sorted_snaps = sorted(prov_snapshots, key=lambda x: _parse_datetime(x['time']), reverse=True)
     relevant = _filter_timestamps_by_interval(
         on_time,
@@ -149,51 +181,11 @@ def _reconstruct_at_time_from_data(
                 best = max(earlier, key=lambda x: _parse_datetime(x['time']))
                 relevant = [{'time': {'value': best['time']}}]
             else:
-                return {}
+                return []
         else:
-            return {}
-    sorted_parsed = [(s, _parse_datetime(s['time'])) for s in sorted_snaps]
-    result: dict[str, Dataset] = {}
-    for rel in relevant:
-        rel_time = rel['time']['value']
-        rel_dt = _parse_datetime(rel_time)
-        update_parts = [
-            s['updateQuery'] for s, s_dt in sorted_parsed
-            if s['updateQuery'] is not None and s_dt > rel_dt
-        ]
-        cg = Dataset(default_union=True)
-        for quad in dataset_quads:
-            cg.add(quad)
-        if update_parts:
-            AgnosticEntity._manage_update_queries(cg, ";".join(update_parts))
-        ts_key = str(convert_to_datetime(rel_time, stringify=True))
-        result[ts_key] = cg
-    return result
-
-
-def _iter_versions_as_sets(
-    prov_snapshots: list[dict],
-    dataset_quads: set[tuple],
-) -> list[tuple[str, tuple]]:
-    if not prov_snapshots:
-        return []
-    sorted_snaps = sorted(prov_snapshots, key=lambda x: _parse_datetime(x['time']), reverse=True)
-    working = set(dataset_quads)
-    results = []
-    for i, snap in enumerate(sorted_snaps):
-        if i > 0:
-            prev_uq = sorted_snaps[i - 1]['updateQuery']
-            if prev_uq is not None:
-                for op_type, quads in _fast_parse_update(prev_uq):
-                    if op_type == 'DeleteData':
-                        for quad in quads:
-                            working.add(quad)
-                    elif op_type == 'InsertData':
-                        for quad in quads:
-                            working.discard(quad)
-        normalized = str(convert_to_datetime(snap['time'], stringify=True))
-        results.append((normalized, tuple(working)))
-    return results
+            return []
+    relevant_times = {r['time']['value'] for r in relevant}
+    return _iter_versions_as_sets(prov_snapshots, dataset_quads, relevant_times)
 
 
 def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
@@ -220,6 +212,24 @@ def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
             binding[str(o_pat)] = Sparql._format_result_value(o)
         bindings.append(binding)
     return bindings
+
+
+def _merge_entity_bindings(entity_bindings: dict[str, dict[str, list[dict]]]) -> dict[str, list[dict]]:
+    all_timestamps: set[str] = set()
+    for per_ts in entity_bindings.values():
+        all_timestamps.update(per_ts.keys())
+    sorted_timestamps = sorted(all_timestamps, key=_parse_datetime)
+    result: dict[str, list[dict]] = {}
+    last_known: dict[str, list[dict]] = {}
+    for ts in sorted_timestamps:
+        merged: list[dict] = []
+        for entity_str, per_ts in entity_bindings.items():
+            if ts in per_ts:
+                last_known[entity_str] = per_ts[ts]
+            if entity_str in last_known:
+                merged.extend(last_known[entity_str])
+        result[ts] = merged
+    return result
 
 
 def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
@@ -739,17 +749,15 @@ class VersionQuery(AgnosticQuery):
             fut_data = executor.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
             prov_data = fut_prov.result()
             dataset_data = fut_data.result()
-
+        entity_bindings: dict[str, dict[str, list[dict]]] = {}
         for entity_str in all_entity_strs:
-            entity_uri = URIRef(entity_str)
-            entity_graphs = _reconstruct_at_time_from_data(
-                prov_data[entity_str], dataset_data[entity_str],
-                self.on_time,
-            )
-            self.reconstructed_entities.add(entity_uri)
-            for ts, cg in entity_graphs.items():
-                self.relevant_entities_graphs.setdefault(entity_uri, {})[ts] = cg
-        self._align_snapshots()
+            per_ts: dict[str, list[dict]] = {}
+            for ts, quad_set in _reconstruct_at_time_as_sets(
+                prov_data[entity_str], dataset_data[entity_str], self.on_time,
+            ):
+                per_ts[ts] = _match_single_pattern(triple, quad_set)
+            entity_bindings[entity_str] = per_ts
+        self._streaming_results = _merge_entity_bindings(entity_bindings)
 
     def _extract_bindings(self, graph) -> list[dict]:
         query_results = graph.query(self.query)
@@ -806,24 +814,10 @@ class VersionQuery(AgnosticQuery):
                 for ts, graph in ae.iter_versions():
                     per_ts[ts] = self._extract_bindings(graph)
                 entity_bindings[entity_str] = per_ts
-        all_timestamps: set[str] = set()
-        for per_ts in entity_bindings.values():
-            all_timestamps.update(per_ts.keys())
-        sorted_timestamps = sorted(all_timestamps, key=_parse_datetime)
-        result: dict[str, list[dict]] = {}
-        last_known: dict[str, list[dict]] = {}
-        for ts in sorted_timestamps:
-            merged: list[dict] = []
-            for entity_str, per_ts in entity_bindings.items():
-                if ts in per_ts:
-                    last_known[entity_str] = per_ts[ts]
-                if entity_str in last_known:
-                    merged.extend(last_known[entity_str])
-            result[ts] = merged
-        self._streaming_results = result
+        self._streaming_results = _merge_entity_bindings(entity_bindings)
 
     def run_agnostic_query(self, include_all_timestamps: bool = False) -> tuple[dict[str, list[dict]], set]:
-        if self.on_time is None:
+        if self.on_time is None or self._streaming_results:
             agnostic_result = self._streaming_results
             if include_all_timestamps:
                 agnostic_result = self._fill_timestamp_gaps(agnostic_result)
@@ -886,16 +880,21 @@ class DeltaQuery(AgnosticQuery):
     def _rebuild_relevant_graphs(self) -> None:
         triples_checked = set()
         self.triples = self._process_query()
+        needs_graph_alignment = False
         for triple in self.triples:
             if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
                 present_entities = self._get_present_entities(triple)
                 self.reconstructed_entities.update(present_entities)
-                self._find_entities_in_update_queries(triple)
+                prov_entities: set = set()
+                self._find_entity_uris_in_update_queries(triple, prov_entities)
+                self.reconstructed_entities.update(prov_entities)
             else:
+                needs_graph_alignment = True
                 self._rebuild_relevant_entity(triple[0])
             triples_checked.add(triple)
-        self._align_snapshots()
-        self._solve_variables()
+        if needs_graph_alignment:
+            self._align_snapshots()
+            self._solve_variables()
 
     def run_agnostic_query(self) -> dict:
         """
