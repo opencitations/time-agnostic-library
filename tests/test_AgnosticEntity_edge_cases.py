@@ -17,7 +17,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from rdflib import Literal, URIRef
 from time_agnostic_library.agnostic_entity import (AgnosticEntity,
                                                     _fast_parse_update,
                                                     _find_matching_close_brace)
@@ -194,12 +193,10 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         entity_uri = "https://github.com/arcangelo7/time_agnostic/test/entity"
         agnostic_entity = AgnosticEntity(entity_uri, config=non_quadstore_config)
 
-        # Mock SPARQL to return empty graph
+        # Mock SPARQL to return empty set
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
-
-        from rdflib import Dataset
-        mock_sparql_instance.run_select_to_dataset.return_value = Dataset()
+        mock_sparql_instance.run_select_to_quad_set.return_value = set()
 
         # Call the method - should use non-quadstore query
         result = agnostic_entity._query_dataset(entity_uri)
@@ -329,55 +326,39 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
 
 
     def test_manage_update_queries_with_malformed_query(self):
-        """
-        Test _manage_update_queries with a malformed SPARQL update query.
-        This should exercise the exception handling at lines 826-828.
-        """
-        from rdflib import Dataset
-
-        graph = Dataset()
+        graph = set()
 
         # Malformed SPARQL query
         malformed_query = "THIS IS NOT VALID SPARQL { DELETE SOMETHING }"
 
-        # Should handle the exception gracefully and print error
-        # The method doesn't raise, it just prints
         AgnosticEntity._manage_update_queries(graph, malformed_query)
 
         # Graph should remain unchanged
         self.assertEqual(len(graph), 0)
 
     def test_include_prov_metadata_with_was_derived_from(self):
-        """
-        Test _include_prov_metadata when processing wasDerivedFrom properties.
-        This should exercise the list initialization at line 653 and list handling.
-        """
-        from rdflib import Dataset, URIRef, Literal
-        from rdflib.namespace import XSD
         from time_agnostic_library.prov_entity import ProvEntity
 
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
 
-        # Create current state graph with provenance data including wasDerivedFrom
-        current_state = Dataset()
-        snapshot1 = URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1")
-        snapshot2 = URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2")
-        snapshot3 = URIRef("https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3")
-        time1 = Literal("2021-05-07T09:59:15.000Z", datatype=XSD.dateTime)
+        snapshot1 = "<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1>"
+        snapshot2 = "<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2>"
+        snapshot3 = "<https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3>"
+        gen_at_time_n3 = f"<{ProvEntity.iri_generated_at_time}>"
+        was_derived_n3 = f"<{ProvEntity.iri_was_derived_from}>"
+        time1_n3 = '"2021-05-07T09:59:15.000Z"^^<http://www.w3.org/2001/XMLSchema#dateTime>'
 
-        # Add triples for snapshot with multiple wasDerivedFrom
-        current_state.add((snapshot1, ProvEntity.iri_generated_at_time, time1))
-        current_state.add((snapshot2, ProvEntity.iri_was_derived_from, snapshot1))
-        current_state.add((snapshot3, ProvEntity.iri_was_derived_from, snapshot2))
+        current_state = {
+            (snapshot1, gen_at_time_n3, time1_n3, ""),
+            (snapshot2, was_derived_n3, snapshot1, ""),
+            (snapshot3, was_derived_n3, snapshot2, ""),
+        }
 
-        triples_generated_at_time = [(snapshot1, ProvEntity.iri_generated_at_time, time1)]
+        triples_generated_at_time = [(snapshot1, gen_at_time_n3, time1_n3, "")]
 
-        # Call the method (only takes 2 parameters: triples_generated_at_time and current_state)
-        # The method creates its own prov_metadata structure
         result = agnostic_entity._include_prov_metadata(triples_generated_at_time, current_state)
 
-        # Verify result is a dictionary
         self.assertIsInstance(result, dict)
 
     def test_fast_parse_update_with_lang_tagged_literal(self):
@@ -389,7 +370,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         self.assertEqual(len(ops), 1)
         op_type, quads = ops[0]
         self.assertEqual(op_type, 'DeleteData')
-        self.assertEqual(quads[0][2], Literal("hello", lang="en"))
+        self.assertEqual(quads[0][2], '"hello"@en')
 
     def test_fast_parse_update_with_escaped_literal(self):
         query = (
@@ -398,7 +379,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         )
         ops = _fast_parse_update(query)
         self.assertEqual(len(ops), 1)
-        self.assertEqual(ops[0][1][0][2], Literal("line1\nline2", datatype=URIRef("http://www.w3.org/2001/XMLSchema#string")))
+        self.assertEqual(ops[0][1][0][2], '"line1\nline2"^^<http://www.w3.org/2001/XMLSchema#string>')
 
     def test_find_matching_close_brace_nested(self):
         text = '{ inner { deep } } after'

@@ -15,34 +15,26 @@
 
 from typing import ClassVar
 
-from rdflib import Namespace, URIRef
-
 
 class ProvEntity:
-    """Snapshot of entity metadata: a particular snapshot recording the
-    metadata associated with an individual entity (either a bibliographic entity or an
-    identifier) at a particular date and time, including the agent, such as a person,
-    organisation or automated process that created or modified the entity metadata.
-    """
+    PROV: ClassVar[str] = "http://www.w3.org/ns/prov#"
+    DCTERMS: ClassVar[str] = "http://purl.org/dc/terms/"
+    OCO: ClassVar[str] = "https://w3id.org/oc/ontology/"
 
-    PROV: ClassVar[Namespace] = Namespace("http://www.w3.org/ns/prov#")
-    DCTERMS: ClassVar[Namespace] = Namespace("http://purl.org/dc/terms/")
-    OCO: ClassVar[Namespace] = Namespace("https://w3id.org/oc/ontology/")
+    iri_entity: ClassVar[str] = PROV + "Entity"
+    iri_generated_at_time: ClassVar[str] = PROV + "generatedAtTime"
+    iri_invalidated_at_time: ClassVar[str] = PROV + "invalidatedAtTime"
+    iri_specialization_of: ClassVar[str] = PROV + "specializationOf"
+    iri_was_derived_from: ClassVar[str] = PROV + "wasDerivedFrom"
+    iri_had_primary_source: ClassVar[str] = PROV + "hadPrimarySource"
+    iri_was_attributed_to: ClassVar[str] = PROV + "wasAttributedTo"
+    iri_description: ClassVar[str] = DCTERMS + "description"
+    iri_has_update_query: ClassVar[str] = OCO + "hasUpdateQuery"
 
-    iri_entity: ClassVar[URIRef] = PROV.Entity
-    iri_generated_at_time: ClassVar[URIRef] = PROV.generatedAtTime
-    iri_invalidated_at_time: ClassVar[URIRef] = PROV.invalidatedAtTime
-    iri_specialization_of: ClassVar[URIRef] = PROV.specializationOf
-    iri_was_derived_from: ClassVar[URIRef] = PROV.wasDerivedFrom
-    iri_had_primary_source: ClassVar[URIRef] = PROV.hadPrimarySource
-    iri_was_attributed_to: ClassVar[URIRef] = PROV.wasAttributedTo
-    iri_description: ClassVar[URIRef] = DCTERMS.description
-    iri_has_update_query: ClassVar[URIRef] = OCO.hasUpdateQuery
-
-    _prov_properties: ClassVar[tuple[URIRef, ...]] = ()
+    _prov_properties: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
-    def get_prov_properties(cls) -> tuple[URIRef, ...]:
+    def get_prov_properties(cls) -> tuple[str, ...]:
         if not cls._prov_properties:
             cls._prov_properties = (
                 cls.iri_entity, cls.iri_generated_at_time, cls.iri_invalidated_at_time,

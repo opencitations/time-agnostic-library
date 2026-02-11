@@ -32,7 +32,7 @@ from time_agnostic_library.agnostic_entity import (
     _parse_datetime,
 )
 from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.sparql import Sparql
+from time_agnostic_library.sparql import Sparql, _binding_to_n3, _n3_to_binding
 from time_agnostic_library.support import convert_to_datetime
 
 CONFIG_PATH = "./config.json"
@@ -115,14 +115,13 @@ def _batch_query_dataset_triples(entity_uris: set[str], config: dict) -> dict[st
     query = f"SELECT {select_vars} WHERE {{ {wrapped} }}"
     results = Sparql(query, config).run_select_query()
     output: dict[str, set[tuple]] = {uri: set() for uri in entity_uris}
-    to_term = Sparql.binding_to_rdf_term
     for binding in results['results']['bindings']:
         s_val = binding['s']['value']
-        s = URIRef(s_val)
-        p = URIRef(binding['p']['value'])
-        o = to_term(binding['o'])
+        s = _binding_to_n3(binding['s'])
+        p = _binding_to_n3(binding['p'])
+        o = _binding_to_n3(binding['o'])
         if is_quadstore and 'g' in binding:
-            output[s_val].add((s, p, o, URIRef(binding['g']['value'])))
+            output[s_val].add((s, p, o, _binding_to_n3(binding['g'])))
         else:
             output[s_val].add((s, p, o))
     return output
@@ -189,27 +188,27 @@ def _reconstruct_at_time_as_sets(
 
 
 def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
-    # Replaces rdflib's graph.query() for single triple patterns like "?s <pred> ?o".
-    # Each position in the pattern is either a concrete term (URIRef/Literal) or a Variable.
     s_pat, p_pat, o_pat = triple_pattern[0], triple_pattern[1], triple_pattern[2]
     s_is_var = isinstance(s_pat, Variable)
     p_is_var = isinstance(p_pat, Variable)
     o_is_var = isinstance(o_pat, Variable)
+    # Pre-convert concrete pattern terms to N3 for fast string comparison
+    p_n3 = p_pat.n3() if not p_is_var else None
+    o_n3 = o_pat.n3() if not o_is_var else None
     bindings = []
     for quad in quads:
         s, p, o = quad[0], quad[1], quad[2]
-        if not p_is_var and p != p_pat:
+        if p_n3 is not None and p != p_n3:
             continue
-        if not o_is_var and o != o_pat:
+        if o_n3 is not None and o != o_n3:
             continue
-        # Build a SPARQL JSON binding for each variable position
         binding = {}
         if s_is_var:
-            binding[str(s_pat)] = Sparql._format_result_value(s)
+            binding[str(s_pat)] = _n3_to_binding(s)
         if p_is_var:
-            binding[str(p_pat)] = Sparql._format_result_value(p)
+            binding[str(p_pat)] = _n3_to_binding(p)
         if o_is_var:
-            binding[str(o_pat)] = Sparql._format_result_value(o)
+            binding[str(o_pat)] = _n3_to_binding(o)
         bindings.append(binding)
     return bindings
 
@@ -527,6 +526,7 @@ class AgnosticQuery:
     def _find_entity_uris_in_update_queries(self, triple: tuple, entities: set) -> None:
         uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
         uris_str = {str(el) for el in uris_in_triple}
+        uris_n3 = {el.n3() for el in uris_in_triple}
         if not any([self.blazegraph_full_text_search, self.fuseki_full_text_search,
                      self.virtuoso_full_text_search, self.graphdb_connector_name]):
             filter_clauses = ".".join(
@@ -550,9 +550,9 @@ class AgnosticQuery:
             if uq and uq.get('value'):
                 for _, quads in _fast_parse_update(uq['value']):
                     for quad in quads:
-                        triple_uris = {el for el in quad[:3] if isinstance(el, URIRef)}
-                        if uris_in_triple.issubset(triple_uris):
-                            entities.add(quad[0])
+                        quad_uris = {el for el in quad[:3] if el.startswith('<') and el.endswith('>')}
+                        if uris_n3.issubset(quad_uris):
+                            entities.add(URIRef(quad[0][1:-1]))
 
     def _find_entities_in_update_queries(self, triple:tuple, present_entities:set | None = None):
         if present_entities is None:

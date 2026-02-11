@@ -17,46 +17,86 @@
 import zipfile
 
 from rdflib import Dataset
-from rdflib.term import Literal, Node, URIRef
+from rdflib.term import BNode, Literal, Node, URIRef
 from sparqlite import SPARQLClient
 
 from time_agnostic_library.prov_entity import ProvEntity
 
 CONFIG_PATH = "./config.json"
 
-_PROV_PROPERTY_STRINGS: tuple[str, ...] = tuple(str(p) for p in ProvEntity.get_prov_properties())
+_PROV_PROPERTY_STRINGS: tuple[str, ...] = tuple(ProvEntity.get_prov_properties())
+
+
+def _binding_to_n3(val: dict) -> str:
+    if val['type'] == 'uri':
+        return f"<{val['value']}>"
+    if val['type'] == 'bnode':
+        return f"_:{val['value']}"
+    v = val['value']
+    if 'datatype' in val:
+        escaped = v.replace('\\', '\\\\').replace('"', '\\"')
+        return f'"{escaped}"^^<{val["datatype"]}>'
+    if 'xml:lang' in val:
+        escaped = v.replace('\\', '\\\\').replace('"', '\\"')
+        return f'"{escaped}"@{val["xml:lang"]}'
+    escaped = v.replace('\\', '\\\\').replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _n3_value(n3: str) -> str:
+    if n3.startswith('<') and n3.endswith('>'):
+        return n3[1:-1]
+    if n3.startswith('_:'):
+        return n3[2:]
+    quote_end = n3.find('"', 1)
+    if quote_end == -1:
+        return n3
+    while quote_end > 0 and n3[quote_end - 1] == '\\':
+        quote_end = n3.find('"', quote_end + 1)
+        if quote_end == -1:
+            return n3
+    raw = n3[1:quote_end]
+    return raw.replace('\\"', '"').replace('\\\\', '\\')
+
+
+def _n3_to_rdf_term(n3: str) -> Node:
+    if n3.startswith('<') and n3.endswith('>'):
+        return URIRef(n3[1:-1])
+    if n3.startswith('_:'):
+        return BNode(n3[2:])
+    # Literal
+    quote_end = n3.find('"', 1)
+    while quote_end > 0 and n3[quote_end - 1] == '\\':
+        quote_end = n3.find('"', quote_end + 1)
+    raw = n3[1:quote_end]
+    value = raw.replace('\\"', '"').replace('\\\\', '\\')
+    rest = n3[quote_end + 1:]
+    if rest.startswith('^^<') and rest.endswith('>'):
+        return Literal(value, datatype=URIRef(rest[3:-1]))
+    if rest.startswith('@'):
+        return Literal(value, lang=rest[1:])
+    return Literal(value)
+
+
+def _n3_to_binding(n3: str) -> dict:
+    if n3.startswith('<') and n3.endswith('>'):
+        return {'type': 'uri', 'value': n3[1:-1]}
+    if n3.startswith('_:'):
+        return {'type': 'bnode', 'value': n3[2:]}
+    quote_end = n3.find('"', 1)
+    while quote_end > 0 and n3[quote_end - 1] == '\\':
+        quote_end = n3.find('"', quote_end + 1)
+    raw = n3[1:quote_end]
+    value = raw.replace('\\"', '"').replace('\\\\', '\\')
+    rest = n3[quote_end + 1:]
+    if rest.startswith('^^<') and rest.endswith('>'):
+        return {'type': 'literal', 'value': value, 'datatype': rest[3:-1]}
+    if rest.startswith('@'):
+        return {'type': 'literal', 'value': value, 'xml:lang': rest[1:]}
+    return {'type': 'literal', 'value': value}
+
 
 class Sparql:
-    """
-    The Sparql class handles SPARQL queries.
-    It is instantiated by passing as a parameter
-    the path to a configuration file, whose default location is "./config.json".
-    The configuration file must be in JSON format and contain information on the sources to be queried.
-    There are two types of sources: dataset and provenance sources and they need to be specified separately.
-    Both triplestores and JSON files are supported.
-    In addition, some optional values can be set to make executions faster and more efficient.
-
-    - **blazegraph_full_text_search**: Specify an affirmative Boolean value if Blazegraph was used as a triplestore, and a textual index was built to speed up queries. For more information, see https://github.com/blazegraph/database/wiki/Rebuild_Text_Index_Procedure. The allowed values are "true", "1", 1, "t", "y", "yes", "ok", or "false", "0", 0, "n", "f", "no".
-    - **graphdb_connector_name**: Specify the name of the Lucene connector if GraphDB was used as a triplestore and a textual index was built to speed up queries. For more information, see https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html.
-
-    Here is an example of the configuration file content: ::
-
-        {
-            "dataset": {
-                "triplestore_urls": ["http://127.0.0.1:7200/repositories/data"],
-                "file_paths": []
-            },
-            "provenance": {
-                "triplestore_urls": [],
-                "file_paths": ["./prov.json"]
-            },
-            "blazegraph_full_text_search": "no",
-            "graphdb_connector_name": "fts"
-        }
-
-    :param config_path: The path to the configuration file.
-    :type config_path: str, optional
-    """
     def __init__(self, query:str, config:dict):
         self.query = query
         self.config = config
@@ -66,11 +106,6 @@ class Sparql:
             self.storer:dict = config["dataset"]
 
     def run_select_query(self) -> dict:
-        """
-        Given a SELECT query, it returns the results in SPARQL JSON bindings format.
-
-        :returns:  dict -- A dictionary with 'head' and 'results' keys following SPARQL JSON results format.
-        """
         output = {'head': {'vars': []}, 'results': {'bindings': []}}
         if self.storer["file_paths"]:
             output = self._get_results_from_files(output)
@@ -88,7 +123,6 @@ class Sparql:
             else:
                 file_cg.parse(location=file_path, format="json-ld")
             query_results = file_cg.query(self.query)
-            # rdflib types vars as Optional, but it's always set for SELECT queries
             assert query_results.vars is not None
             vars_list = [str(var) for var in query_results.vars]
             output['head']['vars'] = vars_list
@@ -150,6 +184,22 @@ class Sparql:
             if not skip:
                 ds.add(tuple(components))  # type: ignore[arg-type]
         return ds
+
+    def run_select_to_quad_set(self) -> set[tuple[str, ...]]:
+        results = self.run_select_query()
+        output: set[tuple[str, ...]] = set()
+        vars_list = results['head']['vars']
+        for binding in results['results']['bindings']:
+            components: list[str] = []
+            skip = False
+            for var in vars_list:
+                if var not in binding:
+                    skip = True
+                    break
+                components.append(_binding_to_n3(binding[var]))
+            if not skip:
+                output.add(tuple(components))
+        return output
 
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
