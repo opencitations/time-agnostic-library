@@ -168,6 +168,38 @@ def _quad_set_to_dataset(quads: set[tuple[str, ...]]) -> Dataset:
     return ds
 
 
+_GEN_AT_TIME_N3 = f"<{ProvEntity.iri_generated_at_time}>"
+_HAS_UQ_N3 = f"<{ProvEntity.iri_has_update_query}>"
+
+
+def _extract_snapshot_update_queries(quads: set[tuple[str, ...]]) -> dict[str, str | None]:
+    by_subject: dict[str, dict[str, str]] = {}
+    for quad in quads:
+        if quad[1] in (_GEN_AT_TIME_N3, _HAS_UQ_N3):
+            by_subject.setdefault(quad[0], {})[quad[1]] = _n3_value(quad[2])
+    result: dict[str, str | None] = {}
+    for props in by_subject.values():
+        if _GEN_AT_TIME_N3 in props:
+            result[props[_GEN_AT_TIME_N3]] = props.get(_HAS_UQ_N3)
+    return result
+
+
+_PROV_PREFIX = ProvEntity.PROV
+_RDF_TYPE_N3 = f"<{_RDF_TYPE}>"
+
+
+def _find_related_object_uris(entity_uri: str, graphs: dict) -> set[str]:
+    entity_n3 = f"<{entity_uri}>"
+    result = set()
+    for quad_set in graphs.values():
+        if quad_set is None:
+            continue
+        for quad in quad_set:
+            if quad[0] == entity_n3 and quad[2].startswith('<') and _PROV_PREFIX not in quad[1] and quad[1] != _RDF_TYPE_N3:
+                result.add(_n3_value(quad[2]))
+    return result
+
+
 class AgnosticEntity:
     def __init__(self, res:str, config:dict, include_related_objects:bool=False, include_merged_entities:bool=False, include_reverse_relations:bool=False):
         self.res = res
@@ -234,18 +266,7 @@ class AgnosticEntity:
         if not entity_graphs:
             return
 
-        prov_prefix = ProvEntity.PROV
-        entity_n3 = f"<{entity_uri}>"
-        rdf_type_n3 = f"<{_RDF_TYPE}>"
-        related_objects = set()
-        for quad_set in entity_graphs.values():
-            if quad_set is None:
-                continue
-            for quad in quad_set:
-                if quad[0] == entity_n3 and quad[2].startswith('<') and prov_prefix not in quad[1] and quad[1] != rdf_type_n3:
-                    related_objects.add(_n3_value(quad[2]))
-
-        for obj_uri in related_objects:
+        for obj_uri in _find_related_object_uris(entity_uri, entity_graphs):
             if obj_uri not in processed_entities:
                 processed_entities.add(obj_uri)
                 agnostic_entity = AgnosticEntity(obj_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
@@ -403,16 +424,7 @@ class AgnosticEntity:
         if not entity_graphs:
             return
 
-        prov_prefix = ProvEntity.PROV
-        entity_n3 = f"<{entity_uri}>"
-        rdf_type_n3 = f"<{_RDF_TYPE}>"
-        related_objects = set()
-        for quad_set in entity_graphs.values():
-            for quad in quad_set:
-                if quad[0] == entity_n3 and quad[2].startswith('<') and prov_prefix not in quad[1] and quad[1] != rdf_type_n3:
-                    related_objects.add(_n3_value(quad[2]))
-
-        for obj_uri in related_objects:
+        for obj_uri in _find_related_object_uris(entity_uri, entity_graphs):
             if obj_uri not in processed_entities:
                 processed_entities.add(obj_uri)
                 agnostic_entity = AgnosticEntity(obj_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
@@ -631,10 +643,9 @@ class AgnosticEntity:
 
     def _include_prov_metadata(self, triples_generated_at_time: list, current_state: set[tuple[str, ...]]) -> dict:
         res_n3 = f"<{self.res}>"
-        rdf_type_n3 = f"<{_RDF_TYPE}>"
         entity_n3 = f"<{ProvEntity.iri_entity}>"
         for quad in current_state:
-            if quad[0] == res_n3 and quad[1] == rdf_type_n3 and quad[2] == entity_n3:
+            if quad[0] == res_n3 and quad[1] == _RDF_TYPE_N3 and quad[2] == entity_n3:
                 return {}
         prov_properties = {
             f"<{ProvEntity.iri_invalidated_at_time}>": "invalidatedAtTime",
@@ -659,19 +670,22 @@ class AgnosticEntity:
                 "hasUpdateQuery": None,
                 "wasDerivedFrom": []
             }
+        prov_prop_n3_set = set(prov_properties)
+        index: dict[str, dict[str, list[str]]] = {}
+        for quad in current_state:
+            if quad[1] in prov_prop_n3_set:
+                index.setdefault(quad[0], {}).setdefault(quad[1], []).append(_n3_value(quad[2]))
         for metadata in dict(prov_metadata).values():
             for se_uri_str, snapshot_data in metadata.items():
                 se_n3 = f"<{se_uri_str}>"
+                se_props = index.get(se_n3, {})
                 for prov_prop_n3, abbr in prov_properties.items():
-                    for quad in current_state:
-                        if quad[0] == se_n3 and quad[1] == prov_prop_n3:
-                            value = _n3_value(quad[2])
-                            if abbr == "wasDerivedFrom":
-                                snapshot_data[abbr].append(value)
-                            else:
-                                snapshot_data[abbr] = value
-
-                if "wasDerivedFrom" in snapshot_data and isinstance(snapshot_data["wasDerivedFrom"], list):
+                    for value in se_props.get(prov_prop_n3, ()):
+                        if abbr == "wasDerivedFrom":
+                            snapshot_data[abbr].append(value)
+                        else:
+                            snapshot_data[abbr] = value
+                if isinstance(snapshot_data.get("wasDerivedFrom"), list):
                     snapshot_data["wasDerivedFrom"] = sorted(snapshot_data["wasDerivedFrom"])
 
         return prov_metadata
@@ -722,18 +736,7 @@ class AgnosticEntity:
         if not ordered_data:
             return entity_current_state
         most_recent_graph = ordered_data[0][1]
-        gen_at_time_n3 = f"<{ProvEntity.iri_generated_at_time}>"
-        has_uq_n3 = f"<{ProvEntity.iri_has_update_query}>"
-        snapshot_update_queries: dict[str, str | None] = {}
-        for quad in most_recent_graph:
-            if quad[1] == gen_at_time_n3:
-                time_val = _n3_value(quad[2])
-                uq_val = None
-                for q2 in most_recent_graph:
-                    if q2[0] == quad[0] and q2[1] == has_uq_n3:
-                        uq_val = _n3_value(q2[2])
-                        break
-                snapshot_update_queries[time_val] = uq_val
+        snapshot_update_queries = _extract_snapshot_update_queries(most_recent_graph)
         for index, date_graph in enumerate(ordered_data):
             if index > 0:
                 next_snapshot = ordered_data[index-1][0]
@@ -772,18 +775,7 @@ class AgnosticEntity:
         working: set[tuple[str, ...]] = set()
         working.update(prov_quads)
         working.update(dataset_quads)
-        gen_at_time_n3 = f"<{ProvEntity.iri_generated_at_time}>"
-        has_uq_n3 = f"<{ProvEntity.iri_has_update_query}>"
-        snapshots: dict[str, str | None] = {}
-        for quad in prov_quads:
-            if quad[1] == gen_at_time_n3:
-                time_str = _n3_value(quad[2])
-                uq_val = None
-                for q2 in prov_quads:
-                    if q2[0] == quad[0] and q2[1] == has_uq_n3:
-                        uq_val = _n3_value(q2[2])
-                        break
-                snapshots[time_str] = uq_val
+        snapshots = _extract_snapshot_update_queries(prov_quads)
         ordered = sorted(snapshots.items(), key=lambda x: _parse_datetime(x[0]), reverse=True)
         for i, (time_str, update_query) in enumerate(ordered):
             if i > 0:

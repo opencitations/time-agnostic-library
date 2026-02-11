@@ -22,9 +22,21 @@ from sparqlite import SPARQLClient
 
 from time_agnostic_library.prov_entity import ProvEntity
 
+__all__ = [
+    "Sparql",
+    "_binding_to_n3",
+    "_n3_value",
+    "_n3_to_rdf_term",
+    "_n3_to_binding",
+]
+
 CONFIG_PATH = "./config.json"
 
 _PROV_PROPERTY_STRINGS: tuple[str, ...] = tuple(ProvEntity.get_prov_properties())
+
+
+def _escape_n3(v: str) -> str:
+    return v.replace('\\', '\\\\').replace('"', '\\"')
 
 
 def _binding_to_n3(val: dict) -> str:
@@ -32,15 +44,35 @@ def _binding_to_n3(val: dict) -> str:
         return f"<{val['value']}>"
     if val['type'] == 'bnode':
         return f"_:{val['value']}"
-    v = val['value']
+    escaped = _escape_n3(val['value'])
     if 'datatype' in val:
-        escaped = v.replace('\\', '\\\\').replace('"', '\\"')
         return f'"{escaped}"^^<{val["datatype"]}>'
     if 'xml:lang' in val:
-        escaped = v.replace('\\', '\\\\').replace('"', '\\"')
         return f'"{escaped}"@{val["xml:lang"]}'
-    escaped = v.replace('\\', '\\\\').replace('"', '\\"')
     return f'"{escaped}"'
+
+
+def _find_closing_quote(n3: str) -> int:
+    pos = n3.find('"', 1)
+    while pos > 0:
+        num_backslashes = 0
+        check = pos - 1
+        while check >= 1 and n3[check] == '\\':
+            num_backslashes += 1
+            check -= 1
+        if num_backslashes % 2 == 0:
+            return pos
+        pos = n3.find('"', pos + 1)
+    return -1
+
+
+def _parse_n3_literal(n3: str) -> tuple[str, str]:
+    quote_end = _find_closing_quote(n3)
+    if quote_end == -1:
+        return n3, ''
+    raw = n3[1:quote_end]
+    value = raw.replace('\\"', '"').replace('\\\\', '\\')
+    return value, n3[quote_end + 1:]
 
 
 def _n3_value(n3: str) -> str:
@@ -48,15 +80,8 @@ def _n3_value(n3: str) -> str:
         return n3[1:-1]
     if n3.startswith('_:'):
         return n3[2:]
-    quote_end = n3.find('"', 1)
-    if quote_end == -1:
-        return n3
-    while quote_end > 0 and n3[quote_end - 1] == '\\':
-        quote_end = n3.find('"', quote_end + 1)
-        if quote_end == -1:
-            return n3
-    raw = n3[1:quote_end]
-    return raw.replace('\\"', '"').replace('\\\\', '\\')
+    value, _ = _parse_n3_literal(n3)
+    return value
 
 
 def _n3_to_rdf_term(n3: str) -> Node:
@@ -64,13 +89,7 @@ def _n3_to_rdf_term(n3: str) -> Node:
         return URIRef(n3[1:-1])
     if n3.startswith('_:'):
         return BNode(n3[2:])
-    # Literal
-    quote_end = n3.find('"', 1)
-    while quote_end > 0 and n3[quote_end - 1] == '\\':
-        quote_end = n3.find('"', quote_end + 1)
-    raw = n3[1:quote_end]
-    value = raw.replace('\\"', '"').replace('\\\\', '\\')
-    rest = n3[quote_end + 1:]
+    value, rest = _parse_n3_literal(n3)
     if rest.startswith('^^<') and rest.endswith('>'):
         return Literal(value, datatype=URIRef(rest[3:-1]))
     if rest.startswith('@'):
@@ -83,12 +102,7 @@ def _n3_to_binding(n3: str) -> dict:
         return {'type': 'uri', 'value': n3[1:-1]}
     if n3.startswith('_:'):
         return {'type': 'bnode', 'value': n3[2:]}
-    quote_end = n3.find('"', 1)
-    while quote_end > 0 and n3[quote_end - 1] == '\\':
-        quote_end = n3.find('"', quote_end + 1)
-    raw = n3[1:quote_end]
-    value = raw.replace('\\"', '"').replace('\\\\', '\\')
-    rest = n3[quote_end + 1:]
+    value, rest = _parse_n3_literal(n3)
     if rest.startswith('^^<') and rest.endswith('>'):
         return {'type': 'literal', 'value': value, 'datatype': rest[3:-1]}
     if rest.startswith('@'):
