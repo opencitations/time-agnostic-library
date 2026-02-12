@@ -463,7 +463,7 @@ class AgnosticQuery:
     def _reconstruct_entity_state(self, entity_uri: str) -> tuple[dict, dict] | None:
         agnostic_entity = AgnosticEntity(entity_uri, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
         if self.on_time:
-            entity_graphs, _entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
+            entity_graphs, _, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
             return entity_graphs, other_snapshots
         entity_history = agnostic_entity.get_history(include_prov_metadata=True)
         return entity_history[0], {}
@@ -720,7 +720,7 @@ class VersionQuery(AgnosticQuery):
 
     :param query: The SPARQL query string.
     :type query: str
-    :param on_time: If you want to query a specific version, specify the time interval here. The format is (START, END). If one of the two values is None, only the other is considered. Finally, the time can be specified using any existing standard.
+    :param on_time: If you want to query a specific version, specify the time interval here. The format is (START, END). If one of the two values is None, only the other is considered. Dates must be in ISO 8601 format.
     :type on_time: Tuple[Union[str, None]], optional
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
@@ -945,7 +945,7 @@ class DeltaQuery(AgnosticQuery):
 
     :param query: A SPARQL query string. It is useful to identify the entities whose change you want to investigate.
     :type query: str
-    :param on_time: If you want to query specific snapshots, specify the time interval here. The format is (START, END). If one of the two values is None, only the other is considered. Finally, the time can be specified using any existing standard.
+    :param on_time: If you want to query specific snapshots, specify the time interval here. The format is (START, END). If one of the two values is None, only the other is considered. Dates must be in ISO 8601 format.
     :type on_time: Tuple[Union[str, None]], optional
     :param changed_properties: A set of properties. It narrows the field to those entities where the properties specified in the set have changed.
     :type changed_properties: Set[str], optional

@@ -27,45 +27,61 @@ The output is a tuple of three elements:
 ```python
 (
     {
-        RES_URI: {
-            TIME_1: ENTITY_GRAPH_AT_TIME_1,
-            TIME_2: ENTITY_GRAPH_AT_TIME_2
+        TIME_1: ENTITY_QUAD_SET_AT_TIME_1,
+        TIME_2: ENTITY_QUAD_SET_AT_TIME_2
+    },
+    {
+        SNAPSHOT_URI_AT_TIME_1: {
+            'generatedAtTime': TIME_1,
+            'invalidatedAtTime': INVALIDATION_TIME,
+            'wasAttributedTo': ATTRIBUTION,
+            'hasUpdateQuery': UPDATE_QUERY,
+            'hadPrimarySource': PRIMARY_SOURCE,
+            'description': DESCRIPTION
         }
     },
     {
-        RES_URI: {
-            SNAPSHOT_URI_AT_TIME_1: {
-                'generatedAtTime': TIME_1,
-                'wasAttributedTo': ATTRIBUTION,
-                'hadPrimarySource': PRIMARY_SOURCE
-            },
-            SNAPSHOT_URI_AT_TIME_2: {
-                'generatedAtTime': TIME_2,
-                'wasAttributedTo': ATTRIBUTION,
-                'hadPrimarySource': PRIMARY_SOURCE
-            }
-        }
-    },
-    {
-        RES_URI: {
-            OTHER_SNAPSHOT_URI_1: {
-                'generatedAtTime': GENERATION_TIME,
-                'wasAttributedTo': ATTRIBUTION,
-                'hadPrimarySource': PRIMARY_SOURCE
-            },
-            OTHER_SNAPSHOT_URI_2: {
-                'generatedAtTime': GENERATION_TIME,
-                'wasAttributedTo': ATTRIBUTION,
-                'hadPrimarySource': PRIMARY_SOURCE
-            }
+        OTHER_SNAPSHOT_URI_1: {
+            'generatedAtTime': GENERATION_TIME,
+            'invalidatedAtTime': INVALIDATION_TIME,
+            'wasAttributedTo': ATTRIBUTION,
+            'hasUpdateQuery': UPDATE_QUERY,
+            'hadPrimarySource': PRIMARY_SOURCE,
+            'description': DESCRIPTION
         }
     }
 )
 ```
 
-1. A dictionary mapping entity URIs to their graphs at timestamps within the specified interval
+1. A dictionary mapping timestamps to entity quad sets within the specified interval. Each quad set is a `set[tuple[str, ...]]` where each tuple contains N3-encoded RDF terms (e.g., `("<http://example.com/s>", "<http://example.com/p>", "\"value\"")`)
 2. Snapshots metadata for the returned states if `include_prov_metadata` is `True`, empty dictionary if `False`
 3. Other snapshots' provenance metadata if `include_prov_metadata` is `True`, empty dictionary if `False`
+
+When `include_related_objects`, `include_merged_entities`, or `include_reverse_relations` are enabled, the output tuple has the same structure but each element gains an extra nesting level keyed by entity URI, since the result can contain multiple entities:
+
+```python
+(
+    {
+        RES_URI_1: {
+            TIME_1: ENTITY_QUAD_SET_AT_TIME_1,
+            TIME_2: ENTITY_QUAD_SET_AT_TIME_2
+        },
+        RES_URI_2: {
+            TIME_1: ENTITY_QUAD_SET_AT_TIME_1
+        }
+    },
+    {
+        RES_URI_1: {
+            SNAPSHOT_URI: { ... }
+        }
+    },
+    {
+        RES_URI_1: {
+            OTHER_SNAPSHOT_URI: { ... }
+        }
+    }
+)
+```
 
 ## Get full history
 
@@ -82,28 +98,27 @@ The output is a two-element tuple:
 (
     {
         RES_URI: {
-            TIME_1: ENTITY_GRAPH_AT_TIME_1,
-            TIME_2: ENTITY_GRAPH_AT_TIME_2
+            TIME_1: ENTITY_QUAD_SET_AT_TIME_1,
+            TIME_2: ENTITY_QUAD_SET_AT_TIME_2
         }
     },
     {
         RES_URI: {
             SNAPSHOT_URI_AT_TIME_1: {
                 'generatedAtTime': GENERATION_TIME,
+                'invalidatedAtTime': INVALIDATION_TIME,
                 'wasAttributedTo': ATTRIBUTION,
-                'hadPrimarySource': PRIMARY_SOURCE
-            },
-            SNAPSHOT_URI_AT_TIME_2: {
-                'generatedAtTime': GENERATION_TIME,
-                'wasAttributedTo': ATTRIBUTION,
-                'hadPrimarySource': PRIMARY_SOURCE
+                'hadPrimarySource': PRIMARY_SOURCE,
+                'description': DESCRIPTION,
+                'hasUpdateQuery': UPDATE_QUERY,
+                'wasDerivedFrom': [DERIVED_SNAPSHOT_URI_1, ...]
             }
         }
     }
 )
 ```
 
-1. A dictionary containing all versions of the entity, keyed by entity URI
+1. A dictionary containing all versions of the entity, keyed by entity URI. Each version is a `set[tuple[str, ...]]` of N3-encoded quad tuples
 2. All provenance metadata linked to that entity if `include_prov_metadata` is `True`, `None` if `False`
 
 ## Related entities
