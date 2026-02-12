@@ -20,7 +20,7 @@ entity = AgnosticEntity(res=RES_URI, config=config)
 entity.get_state_at_time(time=(START, END), include_prov_metadata=True)
 ```
 
-The time is a tuple `(START, END)`. If one value is `None`, only the other is considered. Any standard datetime format is accepted.
+The time is a tuple `(START, END)`. If one value is `None`, only the other is considered. Dates must be in ISO 8601 format (e.g., `2023-01-01`, `2023-01-01T00:00:00+00:00`).
 
 The output is a tuple of three elements:
 

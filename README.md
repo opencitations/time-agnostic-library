@@ -46,6 +46,8 @@ delta = DeltaQuery(query="SELECT ...", config_path="./config.json")
 delta.run_agnostic_query()
 ```
 
+All date/time values must be in ISO 8601 format (e.g., `2023-01-01`, `2023-01-01T00:00:00+00:00`).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and release process.

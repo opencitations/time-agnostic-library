@@ -26,7 +26,7 @@ agnostic_entity.run_agnostic_query()
 ```
 
 - The query string identifies the entities whose changes you want to investigate
-- The time is a tuple `(START, END)`. If one value is `None`, only the other is considered
+- The time is a tuple `(START, END)`. If one value is `None`, only the other is considered. Dates must be in ISO 8601 format (e.g., `2023-01-01`, `2023-01-01T00:00:00+00:00`)
 - The set of properties narrows results to entities where those specific properties changed. If empty, any changes are considered
 
 The output reports modified entities with creation, modification, and deletion timestamps. Changes are reported as SPARQL UPDATE queries:

@@ -17,7 +17,6 @@ classifiers = [
 ]
 requires-python = ">=3.10, <3.14"
 dependencies = [
-    "python-dateutil>=2.9.0.post0",
     "rdflib>=7.5.0",
     "sparqlite>=1.1.0",
 ]

@@ -1087,7 +1087,6 @@ name = "time-agnostic-library"
 version = "5.0.7"
 source = { editable = "." }
 dependencies = [
-    { name = "python-dateutil" },
     { name = "rdflib" },
     { name = "sparqlite" },
 ]
@@ -1111,7 +1110,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "rdflib", specifier = ">=7.5.0" },
     { name = "sparqlite", specifier = ">=1.1.0" },
 ]

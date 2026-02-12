@@ -20,7 +20,7 @@ query = VersionQuery(query=QUERY_STRING, on_time=(START, END), config_path=CONFI
 results, other_timestamps = query.run_agnostic_query()
 ```
 
-The time is a tuple `(START, END)`. If one value is `None`, only the other is considered. Any standard datetime format is accepted.
+The time is a tuple `(START, END)`. If one value is `None`, only the other is considered. Dates must be in ISO 8601 format (e.g., `2023-01-01`, `2023-01-01T00:00:00+00:00`).
 
 The output is a tuple of two elements. The first is a dictionary where keys are timestamps and values are lists of bindings in the [W3C SPARQL JSON results format](https://www.w3.org/TR/sparql11-results-json/). The second is a set of timestamps from other relevant snapshots:
 

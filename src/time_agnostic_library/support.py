@@ -19,7 +19,6 @@ import re
 from datetime import datetime, timezone
 from functools import lru_cache
 
-from dateutil import parser
 
 CONFIG_PATH = './config.json'
 
@@ -80,7 +79,9 @@ def generate_config_file(
 
 @lru_cache(maxsize=4096)
 def _cached_parse(time_string: str) -> datetime:
-    time = parser.parse(time_string)
+    if time_string.endswith("Z"):
+        time_string = time_string[:-1] + "+00:00"
+    time = datetime.fromisoformat(time_string)
     if time.tzinfo is None:
         return time.replace(tzinfo=timezone.utc)
     return time.astimezone(timezone.utc)
