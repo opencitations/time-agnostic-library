@@ -295,27 +295,6 @@ class TestSparqlEdgeCases(unittest.TestCase):
             if os.path.exists(temp_jsonld_path):
                 os.remove(temp_jsonld_path)
 
-    def test_binding_to_rdf_term_language_tagged(self):
-        from rdflib import Literal
-        result = Sparql.binding_to_rdf_term({'type': 'literal', 'value': 'hello', 'xml:lang': 'en'})
-        self.assertEqual(result, Literal('hello', lang='en'))
-
-    def test_run_select_to_dataset_skips_incomplete_bindings(self):
-        query = """
-            SELECT ?s ?p ?o
-            WHERE { ?s ?p ?o }
-        """
-        sparql = Sparql(query, config=CONFIG)
-        sparql.run_select_query = MagicMock(return_value={
-            'head': {'vars': ['s', 'p', 'o']},
-            'results': {'bindings': [
-                {'s': {'type': 'uri', 'value': 'http://ex.com/s'}, 'p': {'type': 'uri', 'value': 'http://ex.com/p'}},
-                {'s': {'type': 'uri', 'value': 'http://ex.com/s'}, 'p': {'type': 'uri', 'value': 'http://ex.com/p'}, 'o': {'type': 'literal', 'value': 'val'}},
-            ]}
-        })
-        ds = sparql.run_select_to_dataset()
-        self.assertEqual(len(list(ds.quads())), 1)
-
     def test_get_tuples_set_mixed_values(self):
         output = set()
         Sparql._get_tuples_set({'x': 'plain_string', 'y': {'value': 'dict_val'}}, output, ['x', 'y', 'z'])

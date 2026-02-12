@@ -17,8 +17,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from rdflib import Graph, URIRef, Literal
-
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery, get_insert_query, _reconstruct_at_time_as_sets
 
 CONFIG = {
@@ -184,34 +182,14 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         self.assertIsNotNone(version_query)
         self.assertEqual(version_query.config, CONFIG)
 
-    def test_get_insert_query_with_empty_graph(self):
-        """
-        Test get_insert_query function with an empty graph.
-        This should exercise the early return at lines 633-634.
-        """
-        empty_graph = Graph()
-        graph_iri = URIRef("http://example.com/graph")
-
-        # Should return empty string for empty graph
-        result, num_statements = get_insert_query(graph_iri, empty_graph)
-
-        # Empty graph should produce no insert query
+    def test_get_insert_query_with_empty_set(self):
+        result, num_statements = get_insert_query("http://example.com/graph", set())
         self.assertEqual(result, "")
         self.assertEqual(num_statements, 0)
 
-    def test_get_insert_query_with_non_empty_graph(self):
-        """
-        Test get_insert_query function with a non-empty graph.
-        This should exercise the serialization logic at lines 636-640.
-        """
-        graph = Graph()
-        graph.add((URIRef("http://example.com/s"), URIRef("http://example.com/p"), Literal("object")))
-        graph_iri = URIRef("http://example.com/graph")
-
-        # Should generate an INSERT query
-        result, num_statements = get_insert_query(graph_iri, graph)
-
-        # Result should be a string containing INSERT
+    def test_get_insert_query_with_non_empty_set(self):
+        data = {('<http://example.com/s>', '<http://example.com/p>', '"object"')}
+        result, num_statements = get_insert_query("http://example.com/graph", data)
         self.assertIsInstance(result, str)
         self.assertIn("INSERT", result.upper())
         self.assertEqual(num_statements, 1)
@@ -260,7 +238,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
             {'time': '2021-05-07T09:59:15+00:00', 'updateQuery': None},
             {'time': '2021-06-01T18:46:41+00:00', 'updateQuery': None},
         ]
-        quads = {(URIRef('http://s'), URIRef('http://p'), Literal('o'), URIRef('http://g'))}
+        quads = {('<http://s>', '<http://p>', '"o"', '<http://g>')}
         result = _reconstruct_at_time_as_sets(prov, quads, ("2021-05-20T00:00:00+00:00", "2021-05-20T00:00:00+00:00"))
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], "2021-05-07T09:59:15+00:00")
@@ -269,7 +247,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         prov = [
             {'time': '2021-05-07T09:59:15+00:00', 'updateQuery': None},
         ]
-        quads = {(URIRef('http://s'), URIRef('http://p'), Literal('o'), URIRef('http://g'))}
+        quads = {('<http://s>', '<http://p>', '"o"', '<http://g>')}
         result = _reconstruct_at_time_as_sets(prov, quads, ("2021-01-01T00:00:00+00:00", "2021-01-01T00:00:00+00:00"))
         self.assertEqual(result, [])
 
@@ -277,7 +255,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         prov = [
             {'time': '2021-05-07T09:59:15+00:00', 'updateQuery': None},
         ]
-        quads = {(URIRef('http://s'), URIRef('http://p'), Literal('o'), URIRef('http://g'))}
+        quads = {('<http://s>', '<http://p>', '"o"', '<http://g>')}
         result = _reconstruct_at_time_as_sets(prov, quads, (None, "2021-01-01T00:00:00+00:00"))
         self.assertEqual(result, [])
 

@@ -17,7 +17,7 @@
 import zipfile
 
 from rdflib import Dataset
-from rdflib.term import BNode, Literal, Node, URIRef
+from rdflib.term import Literal, URIRef
 from sparqlite import SPARQLClient
 
 from time_agnostic_library.prov_entity import ProvEntity
@@ -26,7 +26,6 @@ __all__ = [
     "Sparql",
     "_binding_to_n3",
     "_n3_value",
-    "_n3_to_rdf_term",
     "_n3_to_binding",
 ]
 
@@ -36,7 +35,7 @@ _PROV_PROPERTY_STRINGS: tuple[str, ...] = tuple(ProvEntity.get_prov_properties()
 
 
 def _escape_n3(v: str) -> str:
-    return v.replace('\\', '\\\\').replace('"', '\\"')
+    return v.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
 
 def _binding_to_n3(val: dict) -> str:
@@ -66,13 +65,36 @@ def _find_closing_quote(n3: str) -> int:
     return -1
 
 
+def _unescape_n3(raw: str) -> str:
+    out: list[str] = []
+    i = 0
+    while i < len(raw):
+        if raw[i] == '\\' and i + 1 < len(raw):
+            nxt = raw[i + 1]
+            if nxt == 'n':
+                out.append('\n')
+            elif nxt == 'r':
+                out.append('\r')
+            elif nxt == '"':
+                out.append('"')
+            elif nxt == '\\':
+                out.append('\\')
+            else:
+                out.append(raw[i])
+                out.append(nxt)
+            i += 2
+        else:
+            out.append(raw[i])
+            i += 1
+    return ''.join(out)
+
+
 def _parse_n3_literal(n3: str) -> tuple[str, str]:
     quote_end = _find_closing_quote(n3)
     if quote_end == -1:
         return n3, ''
     raw = n3[1:quote_end]
-    value = raw.replace('\\"', '"').replace('\\\\', '\\')
-    return value, n3[quote_end + 1:]
+    return _unescape_n3(raw), n3[quote_end + 1:]
 
 
 def _n3_value(n3: str) -> str:
@@ -82,19 +104,6 @@ def _n3_value(n3: str) -> str:
         return n3[2:]
     value, _ = _parse_n3_literal(n3)
     return value
-
-
-def _n3_to_rdf_term(n3: str) -> Node:
-    if n3.startswith('<') and n3.endswith('>'):
-        return URIRef(n3[1:-1])
-    if n3.startswith('_:'):
-        return BNode(n3[2:])
-    value, rest = _parse_n3_literal(n3)
-    if rest.startswith('^^<') and rest.endswith('>'):
-        return Literal(value, datatype=URIRef(rest[3:-1]))
-    if rest.startswith('@'):
-        return Literal(value, lang=rest[1:])
-    return Literal(value)
 
 
 def _n3_to_binding(n3: str) -> dict:
@@ -160,7 +169,7 @@ class Sparql:
         return output
 
     @staticmethod
-    def _format_result_value(value: Node) -> dict:
+    def _format_result_value(value) -> dict:
         if isinstance(value, URIRef):
             return {'type': 'uri', 'value': str(value)}
         elif isinstance(value, Literal):
@@ -172,32 +181,6 @@ class Sparql:
             return result
         else:
             return {'type': 'literal', 'value': str(value)}
-
-    @staticmethod
-    def binding_to_rdf_term(val: dict) -> Node:
-        if val['type'] == 'uri':
-            return URIRef(val['value'])
-        if 'datatype' in val:
-            return Literal(val['value'], datatype=val['datatype'])
-        if 'xml:lang' in val:
-            return Literal(val['value'], lang=val['xml:lang'])
-        return Literal(val['value'])
-
-    def run_select_to_dataset(self) -> Dataset:
-        results = self.run_select_query()
-        ds = Dataset(default_union=True)
-        vars_list = results['head']['vars']
-        for binding in results['results']['bindings']:
-            components = []
-            skip = False
-            for var in vars_list:
-                if var not in binding:
-                    skip = True
-                    break
-                components.append(Sparql.binding_to_rdf_term(binding[var]))
-            if not skip:
-                ds.add(tuple(components))  # type: ignore[arg-type]
-        return ds
 
     def run_select_to_quad_set(self) -> set[tuple[str, ...]]:
         results = self.run_select_query()

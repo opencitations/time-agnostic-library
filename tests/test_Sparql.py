@@ -243,7 +243,7 @@ class Test_Sparql(unittest.TestCase):
         )
         self.assertEqual(output, expected_output)
 
-    def test_run_select_to_dataset(self):
+    def test_run_select_to_quad_set(self):
         input = """
             SELECT ?s ?p ?o ?c
             WHERE {
@@ -251,7 +251,7 @@ class Test_Sparql(unittest.TestCase):
                 GRAPH ?c {?s ?p ?o}
             }
         """
-        output = _to_nt_sorted_list(Sparql(input, CONFIG).run_select_to_dataset())
+        output = _to_nt_sorted_list(Sparql(input, CONFIG).run_select_to_quad_set())
         expected_output = [
             "<https://github.com/arcangelo7/time_agnostic/id/14> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/orcid>",
             '<https://github.com/arcangelo7/time_agnostic/id/14> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "http://orcid.org/0000-0002-3259-2309"',
@@ -259,7 +259,7 @@ class Test_Sparql(unittest.TestCase):
         ]
         self.assertEqual(output, expected_output)
 
-    def test_run_select_to_dataset_from_triplestore(self):
+    def test_run_select_to_quad_set_from_triplestore(self):
         input = """
             SELECT ?s ?p ?o
             WHERE {
@@ -267,7 +267,7 @@ class Test_Sparql(unittest.TestCase):
                 ?s ?p ?o.
             }
         """
-        output = _to_nt_sorted_list(Sparql(input, CONFIG).run_select_to_dataset())
+        output = _to_nt_sorted_list(Sparql(input, CONFIG).run_select_to_quad_set())
         expected_output = [
             "<https://github.com/arcangelo7/time_agnostic/ra/4> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/14>",
             "<https://github.com/arcangelo7/time_agnostic/ra/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent>",

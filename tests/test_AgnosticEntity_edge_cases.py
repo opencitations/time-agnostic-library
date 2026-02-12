@@ -379,7 +379,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         )
         ops = _fast_parse_update(query)
         self.assertEqual(len(ops), 1)
-        self.assertEqual(ops[0][1][0][2], '"line1\nline2"^^<http://www.w3.org/2001/XMLSchema#string>')
+        self.assertEqual(ops[0][1][0][2], '"line1\\nline2"^^<http://www.w3.org/2001/XMLSchema#string>')
 
     def test_find_matching_close_brace_nested(self):
         text = '{ inner { deep } } after'
@@ -422,8 +422,8 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         ts_2021_05_31 = "2021-05-31T18:19:47+00:00"
         self.assertIn(ts_2021_05_31, result[entity_key])
         graph = result[entity_key][ts_2021_05_31]
-        subjects = {str(q[0]) for q in graph.quads()}
-        self.assertIn("https://github.com/arcangelo7/time_agnostic/ra/4", subjects)
+        subjects = {q[0] for q in graph}
+        self.assertIn("<https://github.com/arcangelo7/time_agnostic/ra/4>", subjects)
 
     def test_get_state_at_time_with_none_none_interval(self):
         entity = AgnosticEntity(

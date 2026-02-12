@@ -17,10 +17,8 @@ import re
 from datetime import datetime
 from functools import lru_cache
 
-from rdflib import Dataset
-
 from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.sparql import Sparql, _n3_to_rdf_term, _n3_value
+from time_agnostic_library.sparql import Sparql, _n3_value
 from time_agnostic_library.support import convert_to_datetime
 
 _OPERATION_RE = re.compile(r'(DELETE|INSERT)\s+DATA', re.IGNORECASE)
@@ -52,7 +50,7 @@ def _unescape_literal(s: str) -> str:
 
 def _normalize_literal(raw: str) -> str:
     unescaped = _unescape_literal(raw)
-    return unescaped.replace('\\', '\\\\').replace('"', '\\"')
+    return unescaped.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
 
 def _regex_match_to_n3(match: re.Match) -> str:
@@ -160,14 +158,6 @@ def _parse_datetime(time_string: str) -> datetime:
     return result
 
 
-def _quad_set_to_dataset(quads: set[tuple[str, ...]]) -> Dataset:
-    ds = Dataset(default_union=True)
-    for quad in quads:
-        rdf_terms = tuple(_n3_to_rdf_term(t) for t in quad)
-        ds.add(rdf_terms)  # type: ignore[arg-type]
-    return ds
-
-
 _GEN_AT_TIME_N3 = f"<{ProvEntity.iri_generated_at_time}>"
 _HAS_UQ_N3 = f"<{ProvEntity.iri_has_update_query}>"
 
@@ -216,16 +206,10 @@ class AgnosticEntity:
         else:
             entity_history = self._get_entity_current_state(include_prov_metadata)
             entity_history = self._get_old_graphs(entity_history)
-            # Convert quad sets to Datasets at public API boundary
-            converted = {}
             for uri, time_dict in entity_history[0].items():
-                converted[uri] = {}
                 for ts, quad_set in time_dict.items():
-                    if quad_set is not None:
-                        converted[uri][ts] = _quad_set_to_dataset(quad_set)
-                    else:
-                        converted[uri][ts] = Dataset(default_union=True)
-            entity_history[0] = converted
+                    if quad_set is None:
+                        entity_history[0][uri][ts] = set()
             return tuple(entity_history)
 
     def _collect_all_related_entities_histories(
@@ -364,7 +348,7 @@ class AgnosticEntity:
                 if relevant_time:
                     merged_set.update(entity_histories[entity_uri][relevant_time])
 
-            merged_histories[self.res][timestamp] = _quad_set_to_dataset(merged_set)
+            merged_histories[self.res][timestamp] = merged_set
 
         return merged_histories, metadata
 
@@ -378,12 +362,7 @@ class AgnosticEntity:
             self._collect_all_related_entities_states_at_time(histories, time, include_prov_metadata)
             return self._get_merged_histories_at_time(histories, include_prov_metadata)
         else:
-            entity_graphs, entity_snapshots, other_snapshots_metadata = self._get_entity_state_at_time(time, include_prov_metadata)
-            # Convert quad sets to Datasets at public API boundary
-            converted = {}
-            for ts, quad_set in entity_graphs.items():
-                converted[ts] = _quad_set_to_dataset(quad_set)
-            return converted, entity_snapshots, other_snapshots_metadata
+            return self._get_entity_state_at_time(time, include_prov_metadata)
 
     def _collect_all_related_entities_states_at_time(
         self,
@@ -531,7 +510,7 @@ class AgnosticEntity:
                         continue
                 merged_set.update(related_quads)
 
-            merged_histories[self.res][timestamp] = _quad_set_to_dataset(merged_set)
+            merged_histories[self.res][timestamp] = merged_set
 
         return merged_histories, entity_snapshots_metadata, other_snapshots_metadata
 
@@ -783,7 +762,7 @@ class AgnosticEntity:
                 if prev_update is not None:
                     self._manage_update_queries(working, prev_update)
             normalized = str(convert_to_datetime(time_str, stringify=True))
-            yield normalized, _quad_set_to_dataset(working)
+            yield normalized, set(working)
 
     @classmethod
     def _manage_update_queries(cls, graph: set, update_query: str) -> None:

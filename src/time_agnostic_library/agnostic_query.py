@@ -20,9 +20,6 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
-from rdflib import ConjunctiveGraph, Graph, Literal, URIRef, Variable
-from rdflib.paths import InvPath
-from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 
 from time_agnostic_library.agnostic_entity import (
@@ -189,26 +186,25 @@ def _reconstruct_at_time_as_sets(
 
 def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
     s_pat, p_pat, o_pat = triple_pattern[0], triple_pattern[1], triple_pattern[2]
-    s_is_var = isinstance(s_pat, Variable)
-    p_is_var = isinstance(p_pat, Variable)
-    o_is_var = isinstance(o_pat, Variable)
-    # Pre-convert concrete pattern terms to N3 for fast string comparison
-    p_n3 = p_pat.n3() if not p_is_var else None
-    o_n3 = o_pat.n3() if not o_is_var else None
+    s_is_var = s_pat.startswith('?')
+    p_is_var = p_pat.startswith('?')
+    o_is_var = o_pat.startswith('?')
     bindings = []
     for quad in quads:
         s, p, o = quad[0], quad[1], quad[2]
-        if p_n3 is not None and p != p_n3:
+        if not p_is_var and p != p_pat:
             continue
-        if o_n3 is not None and o != o_n3:
+        if not o_is_var and o != o_pat:
+            continue
+        if not s_is_var and s != s_pat:
             continue
         binding = {}
         if s_is_var:
-            binding[str(s_pat)] = _n3_to_binding(s)
+            binding[s_pat[1:]] = _n3_to_binding(s)
         if p_is_var:
-            binding[str(p_pat)] = _n3_to_binding(p)
+            binding[p_pat[1:]] = _n3_to_binding(p)
         if o_is_var:
-            binding[str(o_pat)] = _n3_to_binding(o)
+            binding[o_pat[1:]] = _n3_to_binding(o)
         bindings.append(binding)
     return bindings
 
@@ -337,10 +333,10 @@ class AgnosticQuery:
             self.on_time: tuple[str | None, str | None] | None = (after_time, before_time)  # type: ignore[assignment]
         else:
             self.on_time = None
-        self.reconstructed_entities: set = set()
+        self.reconstructed_entities: set[str] = set()
         self.vars_to_explicit_by_time: dict = {}
-        self.relevant_entities_graphs: dict = {}
-        self.relevant_graphs: dict[str, ConjunctiveGraph] = {}
+        self.relevant_entities_graphs: dict[str, dict[str, set]] = {}
+        self.relevant_graphs: dict[str, set[tuple[str, ...]]] = {}
         self._rebuild_relevant_graphs()
 
     def __init_text_index(self, config:dict):
@@ -356,25 +352,66 @@ class AgnosticQuery:
         if len([index for index in [self.blazegraph_full_text_search, self.fuseki_full_text_search, self.virtuoso_full_text_search, self.graphdb_connector_name] if index]) > 1:
             raise ValueError("The use of multiple indexing systems simultaneously is currently not supported.")
 
-    def _process_query(self) -> list[tuple]:
-        algebra:CompValue = prepareQuery(self.query).algebra
+    def _process_query(self) -> list[tuple[str, ...]]:
+        # Parse the SPARQL string into an algebra tree via rdflib, then walk
+        # the tree to extract triple patterns as N3 strings, separating
+        # mandatory patterns from OPTIONAL groups.
+        algebra = prepareQuery(self.query).algebra
         if algebra.name != "SelectQuery":
             raise ValueError("Only SELECT queries are allowed.")
-        triples = []
-        # The algebra can be extremely variable in case of one or more OPTIONAL in the query:
-        # it is necessary to navigate the dictionary recursively in search of the values of the "triples" keys.
-        self._tree_traverse(algebra, "triples", triples)
-        triples_without_hook = [triple for triple in triples if isinstance(triple[0], Variable) and isinstance(triple[1], Variable) and isinstance(triple[2], Variable)]
+        mandatory: list[tuple[str, ...]] = []
+        self._optional_groups: list[list[tuple[str, ...]]] = []
+        self._collect_patterns(algebra, mandatory)
+        all_triples = list(mandatory)
+        for group in self._optional_groups:
+            all_triples.extend(group)
+        # Reject triples made of only variables (e.g. ?s ?p ?o): they would
+        # match every entity in the dataset, making the query too expensive.
+        triples_without_hook = [t for t in all_triples if all(el.startswith('?') for el in t)]
         if triples_without_hook:
             raise ValueError("Could not perform a generic time agnostic query. Please, specify at least one URI or Literal within the query.")
-        return triples
+        self._select_vars = [str(v) for v in algebra['PV']]
+        self._mandatory_triples = mandatory
+        return all_triples
 
-    def _tree_traverse(self, tree:dict, key:str, values:list[tuple]) -> None:
-        for k, v in tree.items():
-            if k == key:
-                values.extend(v)
-            elif isinstance(v, dict):
-                self._tree_traverse(v, key, values)
+    def _collect_patterns(self, node: dict, mandatory: list[tuple[str, ...]]) -> None:
+        # Walk the algebra tree recursively. Each node has a 'name' attribute
+        # that tells its type (LeftJoin, Join, BGP, etc.). Plain dicts are
+        # intermediate wrappers without a name, so we just recurse into them.
+        name = getattr(node, 'name', None)
+        if name is None:
+            for v in node.values():
+                if isinstance(v, dict):
+                    self._collect_patterns(v, mandatory)
+            return
+        if name == 'LeftJoin':
+            # OPTIONAL = left join: p1 (left, mandatory) must match, p2 (right,
+            # optional) extends the binding if possible, otherwise it's ignored
+            self._collect_patterns(node['p1'], mandatory)
+            opt_group: list[tuple[str, ...]] = []
+            self._collect_triples_flat(node['p2'], opt_group)
+            if opt_group:
+                self._optional_groups.append(opt_group)
+        elif name == 'Join':
+            # Both sides are mandatory (rdflib splits BGPs into Join nodes)
+            self._collect_patterns(node['p1'], mandatory)
+            self._collect_patterns(node['p2'], mandatory)
+        elif 'triples' in node:
+            # BGP leaf node: convert rdflib terms to N3 strings
+            mandatory.extend(tuple(el.n3() for el in t) for t in node['triples'])
+        else:
+            for v in node.values():
+                if isinstance(v, dict):
+                    self._collect_patterns(v, mandatory)
+
+    def _collect_triples_flat(self, node: dict, triples: list[tuple[str, ...]]) -> None:
+        # Collect all triples from a subtree without distinguishing
+        # mandatory/optional. Used to extract triples inside an OPTIONAL block.
+        if 'triples' in node:
+            triples.extend(tuple(el.n3() for el in t) for t in node['triples'])
+        for v in node.values():
+            if isinstance(v, dict):
+                self._collect_triples_flat(v, triples)
 
     def _rebuild_relevant_graphs(self) -> None:
         triples_checked = set()
@@ -393,83 +430,82 @@ class AgnosticQuery:
         if not all_isolated:
             self._solve_variables()
 
-    def _is_isolated(self, triple:tuple) -> bool:
-        if isinstance(triple[0], URIRef):
+    def _is_isolated(self, triple: tuple) -> bool:
+        if triple[0].startswith('<') and triple[0].endswith('>'):
             return False
-        variables = [el for el in triple if isinstance(el, Variable)]
+        variables = [el for el in triple if el.startswith('?')]
         for variable in variables:
             other_triples = {t for t in self.triples if t != triple}
             if self._there_is_transitive_closure(variable, other_triples):
                 return False
         return True
 
-    def _there_is_transitive_closure(self, variable:Variable, triples:set[tuple]) -> bool:
+    def _there_is_transitive_closure(self, variable: str, triples: set[tuple]) -> bool:
         there_is_transitive_closure = False
         for triple in triples:
             if variable in triple and triple.index(variable) == 2:
-                if isinstance(triple[0], URIRef):
+                if triple[0].startswith('<') and triple[0].endswith('>'):
                     return True
-                elif isinstance(triple[0], Variable):
+                elif triple[0].startswith('?'):
                     other_triples = {t for t in triples if t != triple}
                     there_is_transitive_closure = self._there_is_transitive_closure(triple[0], other_triples)
         return there_is_transitive_closure
 
-    def _rebuild_relevant_entity(self, entity:URIRef | Literal) -> None:
-        if isinstance(entity, URIRef) and entity not in self.reconstructed_entities:
-            self.reconstructed_entities.add(entity)
-            result = self._reconstruct_entity_state(entity)
-            if result is not None:
-                self._merge_entity_result(entity, *result)
+    def _rebuild_relevant_entity(self, entity_n3: str) -> None:
+        if entity_n3.startswith('<') and entity_n3.endswith('>'):
+            entity_uri = entity_n3[1:-1]
+            if entity_uri not in self.reconstructed_entities:
+                self.reconstructed_entities.add(entity_uri)
+                result = self._reconstruct_entity_state(entity_uri)
+                if result is not None:
+                    self._merge_entity_result(entity_uri, *result)
 
-    def _reconstruct_entity_state(self, entity: URIRef) -> tuple[dict, dict] | None:
-        agnostic_entity = AgnosticEntity(entity, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+    def _reconstruct_entity_state(self, entity_uri: str) -> tuple[dict, dict] | None:
+        agnostic_entity = AgnosticEntity(entity_uri, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
         if self.on_time:
             entity_graphs, _entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
             return entity_graphs, other_snapshots
         entity_history = agnostic_entity.get_history(include_prov_metadata=True)
         return entity_history[0], {}
 
-    def _merge_entity_result(self, entity: URIRef, entity_graphs: dict, other_snapshots: dict) -> None:
+    def _merge_entity_result(self, entity_uri: str, entity_graphs: dict, other_snapshots: dict) -> None:
         if other_snapshots:
             self.other_snapshots_metadata.update(other_snapshots)
         if self.on_time:
             if entity_graphs:
-                for relevant_timestamp, cg in entity_graphs.items():
-                    self.relevant_entities_graphs.setdefault(entity, {})[relevant_timestamp] = cg
+                for relevant_timestamp, quad_set in entity_graphs.items():
+                    self.relevant_entities_graphs.setdefault(entity_uri, {})[relevant_timestamp] = quad_set
         else:
-            if entity_graphs.get(entity):
+            if entity_graphs.get(entity_uri):
                 self.relevant_entities_graphs.update(entity_graphs)
 
-    def _get_present_entities(self, triple: tuple) -> set:
-        solvable_triple = [el.n3() for el in triple]
-        variables = [el for el in triple if isinstance(el, Variable)]
-        var_names_n3 = [el.n3() for el in variables]
-        query = f"SELECT {' '.join(var_names_n3)} WHERE {{{solvable_triple[0]} {solvable_triple[1]} {solvable_triple[2]}}}"
+    def _get_present_entities(self, triple: tuple) -> set[str]:
+        variables = [el for el in triple if el.startswith('?')]
+        query = f"SELECT {' '.join(variables)} WHERE {{{triple[0]} {triple[1]} {triple[2]}}}"
         results = Sparql(query, self.config).run_select_query()
         bindings = results['results']['bindings']
-        if isinstance(triple[1], InvPath):
-            if isinstance(triple[2], Variable):
-                var_name = str(triple[2])
-                return {URIRef(b[var_name]['value']) for b in bindings if var_name in b and b[var_name]['type'] == 'uri'}
-            return {triple[2]} if bindings else set()
-        var_name = str(triple[0])
-        return {URIRef(b[var_name]['value']) for b in bindings if var_name in b and b[var_name]['type'] == 'uri'}
+        if triple[1].startswith('^'):
+            if triple[2].startswith('?'):
+                var_name = triple[2][1:]
+                return {b[var_name]['value'] for b in bindings if var_name in b and b[var_name]['type'] == 'uri'}
+            return {triple[2][1:-1]} if bindings else set()
+        var_name = triple[0][1:]
+        return {b[var_name]['value'] for b in bindings if var_name in b and b[var_name]['type'] == 'uri'}
 
-    def _is_a_new_triple(self, triple:tuple, triples_checked:set) -> bool:
-        uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
+    def _is_a_new_triple(self, triple: tuple, triples_checked: set) -> bool:
+        uris_in_triple = {el for el in triple if el.startswith('<') and el.endswith('>')}
         for triple_checked in triples_checked:
-            uris_in_triple_checked = {el for el in triple_checked if isinstance(el, URIRef)}
+            uris_in_triple_checked = {el for el in triple_checked if el.startswith('<') and el.endswith('>')}
             if not uris_in_triple.difference(uris_in_triple_checked):
                 return False
         return True
 
-    def _get_query_to_update_queries(self, triple:tuple) -> str:
-        uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
-        query_to_identify = self.get_full_text_search(uris_in_triple)
-        return query_to_identify
+    def _get_query_to_update_queries(self, triple: tuple) -> str:
+        uris_n3 = {el for el in triple if el.startswith('<') and el.endswith('>')}
+        return self.get_full_text_search(uris_n3)
 
-    def get_full_text_search(self, uris_in_triple:set) -> str:
-        uris_in_triple = {str(el) for el in uris_in_triple}
+    def get_full_text_search(self, uris_in_triple: set) -> str:
+        uris_in_triple = {el[1:-1] if el.startswith('<') and el.endswith('>') else el for el in uris_in_triple}
         if self.blazegraph_full_text_search:
             query_to_identify = f'''
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
@@ -524,9 +560,8 @@ class AgnosticQuery:
         return query_to_identify
 
     def _find_entity_uris_in_update_queries(self, triple: tuple, entities: set) -> None:
-        uris_in_triple = {el for el in triple if isinstance(el, URIRef)}
-        uris_str = {str(el) for el in uris_in_triple}
-        uris_n3 = {el.n3() for el in uris_in_triple}
+        uris_n3 = {el for el in triple if el.startswith('<') and el.endswith('>')}
+        uris_str = {el[1:-1] for el in uris_n3}
         if not any([self.blazegraph_full_text_search, self.fuseki_full_text_search,
                      self.virtuoso_full_text_search, self.graphdb_connector_name]):
             filter_clauses = ".".join(
@@ -541,7 +576,7 @@ class AgnosticQuery:
             """
             results = Sparql(query, self.config).run_select_query()
             for binding in results['results']['bindings']:
-                entities.add(URIRef(binding['entity']['value']))
+                entities.add(binding['entity']['value'])
             return
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config).run_select_query()
@@ -552,18 +587,17 @@ class AgnosticQuery:
                     for quad in quads:
                         quad_uris = {el for el in quad[:3] if el.startswith('<') and el.endswith('>')}
                         if uris_n3.issubset(quad_uris):
-                            entities.add(URIRef(quad[0][1:-1]))
+                            entities.add(quad[0][1:-1])
 
-    def _find_entities_in_update_queries(self, triple:tuple, present_entities:set | None = None):
+    def _find_entities_in_update_queries(self, triple: tuple, present_entities: set | None = None):
         if present_entities is None:
             present_entities = set()
         relevant_entities_found = present_entities
         self._find_entity_uris_in_update_queries(triple, relevant_entities_found)
         if relevant_entities_found:
             args_list = [
-                (entity, self.config, self.on_time, self.other_snapshots)
-                for entity in relevant_entities_found
-                if isinstance(entity, URIRef)
+                (entity_uri, self.config, self.on_time, self.other_snapshots)
+                for entity_uri in relevant_entities_found
             ]
             for result in _run_in_parallel(_reconstruct_entity_worker, args_list):
                 if result is not None:
@@ -585,33 +619,30 @@ class AgnosticQuery:
     def _there_are_variables(self) -> bool:
         for triples in self.vars_to_explicit_by_time.values():
             for triple in triples:
-                vars = [el for el in triple if isinstance(el, Variable)]
-                if vars:
+                if any(el.startswith('?') for el in triple):
                     return True
         return False
 
     def _explicit_solvable_variables(self) -> dict:
-        explicit_triples:dict[str, dict[str, set]] = {}
+        explicit_triples: dict[str, dict[str, set]] = {}
         for se, triples in self.vars_to_explicit_by_time.items():
             for triple in triples:
-                variables = [el for el in triple if isinstance(el, Variable)]
+                variables = [el for el in triple if el.startswith('?')]
                 if len(variables) == 1:
-                    solvable_triple = [el.n3() for el in triple]
                     variable = variables[0]
                     variable_index = triple.index(variable)
                     if variable_index == 2:
-                        var_n3 = solvable_triple[2]
-                        select_query = f"SELECT {var_n3} WHERE {{{solvable_triple[0]} {solvable_triple[1]} {var_n3}.}}"
-                        select_results = list(self.relevant_graphs[se].query(select_query))
-                        query_results = [(triple[0], triple[1], row[variable]) for row in select_results]  # type: ignore[call-overload]
+                        matching = [q for q in self.relevant_graphs[se]
+                                    if q[0] == triple[0] and q[1] == triple[1]]
+                        query_results = [(triple[0], triple[1], q[2]) for q in matching]
                         for row in query_results:
                             explicit_triples.setdefault(se, {})
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(row)
                         args_list = [
-                            (row[2], self.config, self.on_time, self.other_snapshots)
+                            (row[2][1:-1], self.config, self.on_time, self.other_snapshots)
                             for row in query_results
-                            if isinstance(row[2], URIRef) and row[2] not in self.reconstructed_entities
+                            if row[2].startswith('<') and row[2].endswith('>') and row[2][1:-1] not in self.reconstructed_entities
                         ]
                         for result_data in _run_in_parallel(_reconstruct_entity_worker, args_list):
                             if result_data is not None:
@@ -621,39 +652,31 @@ class AgnosticQuery:
         return explicit_triples
 
     def _align_snapshots(self) -> None:
-        # Merge entities based on snapshots
         for snapshots in self.relevant_entities_graphs.values():
-            for snapshot, graph in snapshots.items():
+            for snapshot, quad_set in snapshots.items():
                 if snapshot in self.relevant_graphs:
-                    for quad in graph.quads():
-                        self.relevant_graphs[snapshot].add(quad)
+                    self.relevant_graphs[snapshot].update(quad_set)
                 else:
-                    self.relevant_graphs[snapshot] = graph
-        # Propagate unchanged entities across timestamps: copy from tn to tn+1
-        # when the entity hasn't changed (not deleted, just absent from that snapshot).
-        # With a single timestamp there is nothing to propagate.
+                    self.relevant_graphs[snapshot] = set(quad_set)
         if len(self.relevant_graphs) <= 1:
             return
-        ordered_data = self._sort_relevant_graphs()
-        for index, se_cg in enumerate(ordered_data):
-            se = se_cg[0]
-            cg = se_cg[1]
-            if index > 0:
-                previous_se = ordered_data[index-1][0]
-                for subject in self.relevant_graphs[previous_se].subjects():
-                    if (subject, None, None, None) not in cg and subject in self.relevant_entities_graphs and se not in self.relevant_entities_graphs[subject]:
-                                for quad in self.relevant_graphs[previous_se].quads((subject, None, None, None)):
-                                    self.relevant_graphs[se].add(quad)
-
-    def _sort_relevant_graphs(self):
-        ordered_data: list[tuple[str, ConjunctiveGraph]] = sorted(
+        ordered_data = sorted(
             self.relevant_graphs.items(),
             key=lambda x: _parse_datetime(x[0]),
-            reverse=False # That is, from past to present, assuming that the past influences the present and not the opposite like in Dark
         )
-        return ordered_data
+        for index, (se, quad_set) in enumerate(ordered_data):
+            if index > 0:
+                previous_se = ordered_data[index - 1][0]
+                prev_subjects = {q[0] for q in self.relevant_graphs[previous_se]}
+                cur_subjects = {q[0] for q in quad_set}
+                for subject_n3 in prev_subjects:
+                    subject_uri = subject_n3[1:-1] if subject_n3.startswith('<') else subject_n3
+                    if subject_n3 not in cur_subjects and subject_uri in self.relevant_entities_graphs and se not in self.relevant_entities_graphs[subject_uri]:
+                        for quad in self.relevant_graphs[previous_se]:
+                            if quad[0] == subject_n3:
+                                self.relevant_graphs[se].add(quad)
 
-    def _update_vars_to_explicit(self, solved_variables:dict):
+    def _update_vars_to_explicit(self, solved_variables: dict):
         vars_to_explicit_by_time: dict = {}
         for se, triples in self.vars_to_explicit_by_time.items():
             vars_to_explicit_by_time.setdefault(se, set())
@@ -671,7 +694,7 @@ class AgnosticQuery:
                                 else:
                                     new_triple = (solved_triple[2], triple[1], triple[2])
                                 new_triples.add(new_triple)
-                        elif not any(isinstance(el, Variable) for el in triple) or not any(var for var in solved_variables[se] if var in triple):
+                        elif not any(el.startswith('?') for el in triple) or not any(var for var in solved_variables[se] if var in triple):
                             new_triples.add(triple)
             vars_to_explicit_by_time[se] = new_triples
         self.vars_to_explicit_by_time = vars_to_explicit_by_time
@@ -683,12 +706,12 @@ class AgnosticQuery:
                 if relevant_triples is None:
                     relevant_triples = set()
                     for triple in self.triples:
-                        if any(el for el in triple if isinstance(el, Variable) and not self._is_a_dead_end(el, triple)) and not self._is_isolated(triple):
+                        if any(el for el in triple if el.startswith('?') and not self._is_a_dead_end(el, triple)) and not self._is_isolated(triple):
                             relevant_triples.add(triple)
                 self.vars_to_explicit_by_time[se] = set(relevant_triples)
 
-    def _is_a_dead_end(self, el:URIRef | Variable | Literal, triple:tuple) -> bool:
-        return isinstance(el, Variable) and triple.index(el) == 2 and not any(triple for triple in self.triples if el in triple if triple.index(el) == 0)
+    def _is_a_dead_end(self, el: str, triple: tuple) -> bool:
+        return el.startswith('?') and triple.index(el) == 2 and not any(t for t in self.triples if el in t if t.index(el) == 0)
 
 
 class VersionQuery(AgnosticQuery):
@@ -711,7 +734,7 @@ class VersionQuery(AgnosticQuery):
         if self.on_time is not None:
             if (len(self.triples) == 1
                     and self._is_isolated(self.triples[0])
-                    and not isinstance(self.triples[0][1], InvPath)
+                    and not self.triples[0][1].startswith('^')
                     and not self.other_snapshots):
                 self._rebuild_vm_batch()
                 return
@@ -733,8 +756,8 @@ class VersionQuery(AgnosticQuery):
             fut_prov = executor.submit(self._find_entity_uris_in_update_queries, triple, entities_set)
             present_entities = fut_present.result()
             fut_prov.result()
-            all_entities = {str(e) for e in present_entities if isinstance(e, URIRef)}
-            all_entities.update(str(e) for e in entities_set if isinstance(e, URIRef))
+            all_entities = set(present_entities)
+            all_entities.update(entities_set)
 
         return all_entities
 
@@ -759,19 +782,78 @@ class VersionQuery(AgnosticQuery):
             entity_bindings[entity_str] = per_ts
         self._streaming_results = _merge_entity_bindings(entity_bindings)
 
-    def _extract_bindings(self, graph) -> list[dict]:
-        query_results = graph.query(self.query)
-        assert query_results.vars is not None
-        vars_list = [str(var) for var in query_results.vars]
-        output = []
-        for result in query_results.bindings:
-            binding = {}
-            for var in vars_list:
-                val = result.get(Variable(var))
-                if val is not None:
-                    binding[var] = Sparql._format_result_value(val)
-            output.append(binding)
-        return output
+    def _extract_bindings(self, quads: set[tuple[str, ...]]) -> list[dict]:
+        # Match the SPARQL query patterns against the quad set.
+        # Phase 1: mandatory triples. Start with an empty binding and for each
+        # pattern keep only the quads that are compatible with what was already
+        # matched.
+        bindings: list[dict[str, str]] = [{}]
+        for pattern in self._mandatory_triples:
+            new_bindings: list[dict[str, str]] = []
+            for binding in bindings:
+                for quad in quads:
+                    new_binding = self._try_match(pattern, quad, binding)
+                    if new_binding is not None:
+                        new_bindings.append(new_binding)
+            bindings = new_bindings
+        # Phase 2: OPTIONAL groups. Try to extend each binding, but if nothing
+        # matches, keep the binding as-is (no data is lost).
+        for opt_group in self._optional_groups:
+            bindings = self._left_join(bindings, opt_group, quads)
+        # Phase 3: project to SELECT variables and deduplicate.
+        seen: set[frozenset] = set()
+        result: list[dict] = []
+        for b in bindings:
+            projected_n3: dict[str, str] = {}
+            for var in self._select_vars:
+                key = '?' + var
+                if key in b:
+                    projected_n3[var] = b[key]
+            frozen = frozenset(projected_n3.items())
+            if frozen not in seen:
+                seen.add(frozen)
+                result.append({var: _n3_to_binding(val) for var, val in projected_n3.items()})
+        return result
+
+    def _left_join(self, bindings: list[dict], opt_triples: list[tuple], quads: set[tuple[str, ...]]) -> list[dict]:
+        # For each binding, try to add values from the optional patterns.
+        # If a quad matches, the binding grows with new variables.
+        # If nothing matches, the binding is kept unchanged.
+        result: list[dict] = []
+        for binding in bindings:
+            extended: list[dict] = [dict(binding)]
+            for pattern in opt_triples:
+                new_extended: list[dict] = []
+                for b in extended:
+                    matched = False
+                    for quad in quads:
+                        new_b = self._try_match(pattern, quad, b)
+                        if new_b is not None:
+                            new_extended.append(new_b)
+                            matched = True
+                    if not matched:
+                        new_extended.append(b)
+                extended = new_extended
+            result.extend(extended)
+        return result
+
+    @staticmethod
+    def _try_match(pattern: tuple, quad: tuple, binding: dict) -> dict | None:
+        # Check if a triple pattern (s, p, o) matches a quad.
+        new_binding = dict(binding)
+        for expected, actual in zip(pattern[:3], quad[:3]):
+            is_variable = expected.startswith('?')
+            if is_variable and expected in new_binding:
+                # Variable already bound: check consistency
+                if new_binding[expected] != actual:
+                    return None
+            elif is_variable:
+                # New variable: bind it
+                new_binding[expected] = actual
+            elif expected != actual:
+                # Fixed term: must match exactly
+                return None
+        return new_binding
 
     def _rebuild_streaming(self) -> None:
         triples_checked = set()
@@ -779,15 +861,15 @@ class VersionQuery(AgnosticQuery):
         use_fast_path = (
             len(self.triples) == 1
             and self._is_isolated(self.triples[0])
-            and not isinstance(self.triples[0][1], InvPath)
+            and not self.triples[0][1].startswith('^')
         )
         for triple in self.triples:
             if self._is_a_new_triple(triple, triples_checked):
                 present_entities = self._get_present_entities(triple)
                 prov_entities: set = set()
                 self._find_entity_uris_in_update_queries(triple, prov_entities)
-                all_entity_strs.update(str(e) for e in present_entities if isinstance(e, URIRef))
-                all_entity_strs.update(str(e) for e in prov_entities if isinstance(e, URIRef))
+                all_entity_strs.update(present_entities)
+                all_entity_strs.update(prov_entities)
             triples_checked.add(triple)
         if not all_entity_strs:
             self._streaming_results = {}
@@ -808,11 +890,10 @@ class VersionQuery(AgnosticQuery):
         else:
             entity_bindings = {}
             for entity_str in all_entity_strs:
-                entity_uri = URIRef(entity_str)
-                ae = AgnosticEntity(entity_uri, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+                ae = AgnosticEntity(entity_str, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
                 per_ts = {}
-                for ts, graph in ae.iter_versions():
-                    per_ts[ts] = self._extract_bindings(graph)
+                for ts, quad_set in ae.iter_versions():
+                    per_ts[ts] = self._extract_bindings(quad_set)
                 entity_bindings[entity_str] = per_ts
         self._streaming_results = _merge_entity_bindings(entity_bindings)
 
@@ -936,7 +1017,7 @@ class DeltaQuery(AgnosticQuery):
 
         :returns Dict[str, Set[Tuple]] -- The output is a dictionary that reports the modified entities, when they were created, modified, and deleted. Changes are reported as SPARQL UPDATE queries. If the entity was not created or deleted within the indicated range, the "created" or "deleted" value is None. On the other hand, if the entity does not exist within the input interval, the "modified" value is an empty dictionary.
         """
-        entity_uris = {str(e) for e in self.reconstructed_entities}
+        entity_uris = set(self.reconstructed_entities)
         if not entity_uris:
             return {}
         prov_data = _batch_query_dm_provenance(entity_uris, self.config)
@@ -954,13 +1035,8 @@ class DeltaQuery(AgnosticQuery):
             output.update(result)
         return output
 
-def get_insert_query(graph_iri: URIRef, data: Graph) -> tuple[str, int]:
-    num_of_statements: int = len(data)
-    if num_of_statements <= 0:
+def get_insert_query(graph_iri: str, data: set[tuple[str, ...]]) -> tuple[str, int]:
+    if not data:
         return "", 0
-    else:
-        statements: str = data.serialize(format="nt11", encoding="utf-8") \
-            .decode("utf-8") \
-            .replace('\n\n', '')
-        insert_string: str = f"INSERT DATA {{ GRAPH <{graph_iri}> {{ {statements} }} }}"
-        return insert_string, num_of_statements
+    statements = "\n".join(f"{q[0]} {q[1]} {q[2]} ." for q in data)
+    return f"INSERT DATA {{ GRAPH <{graph_iri}> {{ {statements} }} }}", len(data)

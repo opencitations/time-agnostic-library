@@ -20,9 +20,29 @@ from datetime import datetime, timezone
 from functools import lru_cache
 
 from dateutil import parser
-from rdflib import Dataset, Literal
 
 CONFIG_PATH = './config.json'
+
+_NT_TERM_RE = re.compile(
+    r'<([^>]+)>'
+    r'|"((?:[^"\\]|\\.)*)"\^\^<([^>]+)>'
+    r'|"((?:[^"\\]|\\.)*)"@([a-zA-Z][\w-]*)'
+    r'|"((?:[^"\\]|\\.)*)"'
+    r'|(_:\S+)',
+    re.DOTALL,
+)
+
+
+def _nt_match_to_n3(match: re.Match) -> str:
+    if match.group(1) is not None:
+        return f"<{match.group(1)}>"
+    if match.group(2) is not None:
+        return f'"{match.group(2)}"^^<{match.group(3)}>'
+    if match.group(4) is not None:
+        return f'"{match.group(4)}"@{match.group(5)}'
+    if match.group(6) is not None:
+        return f'"{match.group(6)}"'
+    return match.group(7)
 
 
 def generate_config_file(
@@ -73,45 +93,59 @@ def convert_to_datetime(time_string: str | None, stringify: bool = False) -> dat
         return time
     return None
 
-def _to_nt_sorted_list(cg:Dataset) -> list | None:
-    if cg is None:
+def _strip_literal_datatype(n3: str) -> str:
+    if not n3.startswith('"'):
+        return n3
+    i = 1
+    while i < len(n3):
+        if n3[i] == '\\':
+            i += 2
+            continue
+        if n3[i] == '"':
+            rest = n3[i + 1:]
+            if rest.startswith('@'):
+                return n3
+            return n3[:i + 1]
+        i += 1
+    return n3
+
+def _to_nt_sorted_list(quads) -> list | None:
+    if quads is None:
         return None
-    normalized_cg = Dataset(default_union=True)
-    for quad in cg.quads():
-        normalized_quad = tuple(Literal(str(el), datatype=None) if isinstance(el, Literal) else el for el in quad)
-        normalized_cg.add(normalized_quad)  # type: ignore[arg-type]
-    nt_list = re.split(r'\s?\.?\n+', normalized_cg.serialize(format='nt'))
-    nt_list = filter(None, nt_list)
-    sorted_nt_list = sorted(nt_list)
-    return sorted_nt_list
+    lines = set()
+    for q in quads:
+        parts = [_strip_literal_datatype(el) for el in q[:3]]
+        lines.add(' '.join(parts))
+    return sorted(lines)
 
 def _to_dict_of_nt_sorted_lists(dictionary: dict) -> dict:
-    dict_of_nt_sorted_lists = {}
+    result = {}
     for key, value in dictionary.items():
-        if isinstance(value, Dataset):
-            dict_of_nt_sorted_lists[key] = _to_nt_sorted_list(value)
+        if isinstance(value, set):
+            result[key] = _to_nt_sorted_list(value)
         else:
-            for snapshot, cg in value.items():
-                dict_of_nt_sorted_lists.setdefault(key, {})
-                dict_of_nt_sorted_lists[key][snapshot] = _to_nt_sorted_list(cg)
-    return dict_of_nt_sorted_lists
+            result.setdefault(key, {})
+            for snapshot, quad_set in value.items():
+                result[key][snapshot] = _to_nt_sorted_list(quad_set)
+    return result
 
-def _to_dataset(nt_list:list[str]) -> Dataset:
-    cg = Dataset(default_union=True)
-    for triple in nt_list:
-        cg.parse(data=triple + '.', format='nt')
-    return cg
+def _nt_list_to_quad_set(nt_list: list[str]) -> set[tuple[str, ...]]:
+    result = set()
+    for line in nt_list:
+        if not line.strip():
+            continue
+        matches = list(_NT_TERM_RE.finditer(line))
+        if len(matches) >= 3:
+            result.add(tuple(_nt_match_to_n3(m) for m in matches[:3]))
+    return result
 
-def _to_dict_of_datasets(dictionary: dict) -> dict:
-    dict_of_datasets = {}
+def _to_dict_of_quad_sets(dictionary: dict) -> dict:
+    result = {}
     for key, value in dictionary.items():
         if isinstance(value, list):
-            cg = _to_dataset(value)
-            dict_of_datasets.setdefault(key, {})
-            dict_of_datasets[key] = cg
+            result[key] = _nt_list_to_quad_set(value)
         else:
+            result.setdefault(key, {})
             for snapshot, triples in value.items():
-                cg = _to_dataset(triples)
-                dict_of_datasets.setdefault(key, {})
-                dict_of_datasets[key][snapshot] = cg
-    return dict_of_datasets
+                result[key][snapshot] = _nt_list_to_quad_set(triples)
+    return result
