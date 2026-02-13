@@ -1,3 +1,57 @@
+# [6.0.0](https://github.com/opencitations/time-agnostic-library/compare/5.0.7...6.0.0) (2026-02-13)
+
+
+* build!: migrate from Poetry to uv and drop Python 3.9 ([866c7e6](https://github.com/opencitations/time-agnostic-library/commit/866c7e6e6b7199d81935d2ed14da5a9de429dab1))
+* refactor!: replace python-dateutil with datetime.fromisoformat ([7f2bf30](https://github.com/opencitations/time-agnostic-library/commit/7f2bf309df4e7508eae613aa5e882a3118e9bb8c))
+
+
+### Bug Fixes
+
+* correct version materialization and cross-version query results ([5434750](https://github.com/opencitations/time-agnostic-library/commit/54347509e6f8af400effe0d616fa57578ea77792))
+* handle language-tagged literals and safe triple removal ([ed38d74](https://github.com/opencitations/time-agnostic-library/commit/ed38d749f4b32a6c317e275511363a74d7a9de36))
+* prune stale SPARQL clients from dead executor threads ([1de40de](https://github.com/opencitations/time-agnostic-library/commit/1de40defa9156c838037b792a2a531acf722dce3))
+* remove SPARQL client pooling that caused flaky CI failures ([b829dc4](https://github.com/opencitations/time-agnostic-library/commit/b829dc4929787a16148b2d5eb6b4afe0dcb1b00d))
+* replace copy.deepcopy with _copy_dataset to prevent rdflib index corruption ([eccafba](https://github.com/opencitations/time-agnostic-library/commit/eccafba920227f4103850877e753bf3b4c36d40c))
+
+
+### Features
+
+* add BEAR benchmark suite with QLever backend ([49975fb](https://github.com/opencitations/time-agnostic-library/commit/49975fb71c1f0fa4fefe87c9264a27d79b952c50))
+* add include_all_timestamps option to VersionQuery ([4d703a1](https://github.com/opencitations/time-agnostic-library/commit/4d703a1c4ea00d9a60188eb6e6f1cdcbc8a67da1))
+* **benchmark:** add CLI arguments, resume support, and subprocess isolation for VQ queries ([743bac2](https://github.com/opencitations/time-agnostic-library/commit/743bac2fd1dcded90e5f32a1018d24e30ceb948e))
+* **benchmark:** add multi-granularity support and comparison plots ([9d55845](https://github.com/opencitations/time-agnostic-library/commit/9d55845d2ed5e81ecd9536dd955ae3e5b62bab88))
+* **benchmark:** add OSTRICH comparison and ingestion timing ([67844cc](https://github.com/opencitations/time-agnostic-library/commit/67844cc80c1d39207084a73157f330003c07f84b))
+* **benchmark:** enable OSTRICH multi-snapshot ingestion strategies ([0e9942e](https://github.com/opencitations/time-agnostic-library/commit/0e9942eaf4ba87439d8c69280e6b78db097cf46f))
+* extract OCDM converter into reusable library module ([9c8cee8](https://github.com/opencitations/time-agnostic-library/commit/9c8cee8d2eaaa07eea2227fec28a7d55a9d46b37))
+* switch VersionQuery results to SPARQL JSON bindings format ([514c93d](https://github.com/opencitations/time-agnostic-library/commit/514c93d4dd8614d3ab8d0963771a42aba9fbeb7e))
+
+
+### Performance Improvements
+
+* batch SPARQL queries and set-based reconstruction for VM/VQ/DM ([8bd7bf1](https://github.com/opencitations/time-agnostic-library/commit/8bd7bf11d99728d505be54640ce955d42d3368b6))
+* **converter:** optimize N-Triples parsing and I/O pipeline ([df713ba](https://github.com/opencitations/time-agnostic-library/commit/df713bad4580be9bf3750d5c2d39403b6cccdaf7))
+* normalize typed literals for O(1) graph removal in update queries ([0ff6557](https://github.com/opencitations/time-agnostic-library/commit/0ff65576e3be9402b1201d625704caabf83ac0cc))
+* reduce overhead from redundant copies, pyparsing, and sequential I/O ([4e9ff8f](https://github.com/opencitations/time-agnostic-library/commit/4e9ff8f6aae87997cf431f80df0dd36d1bfee790))
+* remove dead code and use server-side entity discovery in DeltaQuery ([094f942](https://github.com/opencitations/time-agnostic-library/commit/094f94267d47705ada844248da63c4bbd8d45a3c))
+* remove redundant DISTINCT from update query entity discovery ([c38c5f4](https://github.com/opencitations/time-agnostic-library/commit/c38c5f4851a4cdb9929aab067d77933c0fdd23b2))
+* replace pyparsing-based SPARQL UPDATE parser with regex ([572ba47](https://github.com/opencitations/time-agnostic-library/commit/572ba474236be1af4fad635e8ab2c60a7feb364a))
+* replace rdflib Dataset with N3 string sets for internal state ([3e698ac](https://github.com/opencitations/time-agnostic-library/commit/3e698ac84fa7211abbe09f59456b9200dcc1b5ac))
+* replace ThreadPoolExecutor with ProcessPoolExecutor on Linux ([6271087](https://github.com/opencitations/time-agnostic-library/commit/62710873ea6602f51634b4cd1d2f2b892da6cdfb))
+* simplify provenance query and remove DISTINCT from all internal queries ([beb91a7](https://github.com/opencitations/time-agnostic-library/commit/beb91a794d41c296aaa1e6be3bb739d98eba36d9))
+* stream cross-version VersionQuery to avoid O(N) dataset copies ([15c0bb2](https://github.com/opencitations/time-agnostic-library/commit/15c0bb23ef99d3b382d1e0cedbdfaa93ed663a05))
+* use set-based pattern matching for single-version VersionQuery ([ced44ca](https://github.com/opencitations/time-agnostic-library/commit/ced44ca607b6fa38cce2d6cc718dda280d11af54))
+* use tuple instead of frozenset and skip single-timestamp alignment ([6d2117b](https://github.com/opencitations/time-agnostic-library/commit/6d2117b7942b5dda632737ea466515c7539c98b2))
+
+
+### BREAKING CHANGES
+
+* date/time values must now be in ISO 8601 format.
+Non-ISO formats (e.g., "May 21, 2021") are no longer accepted.
+* get_state_at_time returns empty entity_snapshots
+dict when include_prov_metadata is False.
+* Python 3.9 is no longer supported. Minimum required
+version is now Python 3.10.
+
 ## [5.0.7](https://github.com/opencitations/time-agnostic-library/compare/5.0.6...5.0.7) (2025-11-12)
 
 

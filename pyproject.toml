@@ -1,6 +1,6 @@
 [project]
 name = "time-agnostic-library"
-version = "5.0.7"
+version = "6.0.0"
 description = "A Python library for performing time-travel queries on RDF datasets compliant with the OCDM v2.0.1 provenance specification."
 readme = "README.md"
 license = "ISC"
