@@ -94,6 +94,12 @@ else
     echo "Ingestion complete (log saved to $INGESTION_LOG)"
 fi
 
+# Measure OSTRICH store size
+STORE_BYTES=$(du -sb "$EVALRUN_DIR" | cut -f1)
+STORE_MB=$(awk "BEGIN {printf \"%.1f\", ${STORE_BYTES}/1048576}")
+echo "  Store size: ${STORE_BYTES} bytes (${STORE_MB} MB)"
+echo "{\"store_bytes\": ${STORE_BYTES}}" > "$DATA_DIR/ostrich_store_size_${GRANULARITY}.json"
+
 echo ""
 echo "=== Setup complete ==="
 echo "  OSTRICH store: $EVALRUN_DIR"

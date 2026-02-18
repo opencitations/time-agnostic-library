@@ -68,7 +68,18 @@ ${QLEVER} index \
 INDEX_END=$(date +%s)
 INDEX_ELAPSED=$((INDEX_END - INDEX_START))
 echo "  Indexing time: ${INDEX_ELAPSED}s"
-echo "{\"qlever_indexing_s\": ${INDEX_ELAPSED}}" > "${DATA_DIR}/qlever_indexing_time_${GRANULARITY}.json"
+
+# Measure QLever index size (all index files, excluding source .nq, logs, settings, metadata)
+INDEX_BYTES=$(find "${QLEVER_DIR}" \( \
+    -name "${INDEX_NAME}.index.*" -o \
+    -name "${INDEX_NAME}.internal.*" -o \
+    -name "${INDEX_NAME}.vocabulary.*" -o \
+    -name "${INDEX_NAME}.*.patterns" \
+\) -exec stat --format='%s' {} + | awk '{s+=$1} END {print s}')
+INDEX_MB=$(awk "BEGIN {printf \"%.1f\", ${INDEX_BYTES}/1048576}")
+echo "  Index size: ${INDEX_BYTES} bytes (${INDEX_MB} MB)"
+
+echo "{\"qlever_indexing_s\": ${INDEX_ELAPSED}, \"qlever_index_bytes\": ${INDEX_BYTES}}" > "${DATA_DIR}/qlever_indexing_time_${GRANULARITY}.json"
 
 echo "Starting QLever server on port ${PORT}..."
 # Remove any stale container on this port

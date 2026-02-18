@@ -130,8 +130,14 @@ def main():
 
     timing_file = SCRIPT_DIR / "data" / f"ocdm_conversion_time_{args.granularity}.json"
     timing_file.parent.mkdir(parents=True, exist_ok=True)
+    timing_data = {
+        "ocdm_conversion_s": round(elapsed_s, 2),
+        "strategy": args.strategy,
+        "dataset_bytes": dataset_output.stat().st_size,
+        "provenance_bytes": provenance_output.stat().st_size,
+    }
     with open(timing_file, "w", encoding="utf-8") as f:
-        json.dump({"ocdm_conversion_s": round(elapsed_s, 2), "strategy": args.strategy}, f, indent=2)
+        json.dump(timing_data, f, indent=2)
     console.print(f"Conversion time: {elapsed_s:.2f}s (saved to {timing_file})")
 
 

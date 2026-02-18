@@ -1,14 +1,17 @@
 import argparse
+import glob
 import json
 import os
 import platform
-import resource
+import shutil
 import statistics
 import subprocess
 import sys
 import time
+import tracemalloc
+from collections.abc import Callable
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
 
 from rich.console import Console
 from rich.progress import (
@@ -46,10 +49,6 @@ PROGRESS_COLUMNS = (
 )
 
 
-def get_peak_rss_kb() -> int:
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-
-
 def get_hardware_info() -> dict[str, str | int]:
     info: dict[str, str | int] = {
         "platform": platform.platform(),
@@ -72,72 +71,93 @@ def get_hardware_info() -> dict[str, str | int]:
     return info
 
 
-def run_vm_query(sparql: str, on_time: tuple, config: dict) -> dict:
+def _measure_query(fn: Callable[[], dict]) -> dict:
+    tracemalloc.start()
+    tracemalloc.reset_peak()
     start = time.perf_counter()
-    vq = VersionQuery(sparql, on_time=on_time, config_dict=config)
-    result, _ = vq.run_agnostic_query()
+    result = fn()
     elapsed = time.perf_counter() - start
-    num_results = sum(len(v) for v in result.values())
-    return {"time_s": elapsed, "num_results": num_results}
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    result["time_s"] = elapsed
+    result["memory_peak_bytes"] = peak
+    return result
+
+
+def run_vm_query(sparql: str, on_time: tuple, config: dict) -> dict:
+    def fn() -> dict:
+        vq = VersionQuery(sparql, on_time=on_time, config_dict=config)
+        result, _ = vq.run_agnostic_query()
+        return {"num_results": sum(len(v) for v in result.values())}
+    return _measure_query(fn)
 
 
 def run_dm_query(sparql: str, on_time: tuple, config: dict) -> dict:
-    start = time.perf_counter()
-    dq = DeltaQuery(sparql, on_time=on_time, config_dict=config)
-    result = dq.run_agnostic_query()
-    elapsed = time.perf_counter() - start
-    num_entities = len(result)
-    return {"time_s": elapsed, "num_entities": num_entities}
+    def fn() -> dict:
+        dq = DeltaQuery(sparql, on_time=on_time, config_dict=config)
+        result = dq.run_agnostic_query()
+        return {"num_entities": len(result)}
+    return _measure_query(fn)
 
 
 def run_vq_query(sparql: str, config: dict) -> dict:
-    start = time.perf_counter()
-    vq = VersionQuery(sparql, config_dict=config)
-    result, _ = vq.run_agnostic_query()
-    elapsed = time.perf_counter() - start
-    num_results = sum(len(v) for v in result.values())
-    num_versions = len(result)
-    return {"time_s": elapsed, "num_results": num_results, "num_versions": num_versions}
+    def fn() -> dict:
+        vq = VersionQuery(sparql, config_dict=config)
+        result, _ = vq.run_agnostic_query()
+        return {"num_results": sum(len(v) for v in result.values()), "num_versions": len(result)}
+    return _measure_query(fn)
 
 
-def benchmark_queries(queries: List[dict], config: dict, num_runs: int = NUM_RUNS) -> List[dict]:
-    results = []
+def benchmark_queries(
+    queries: list[dict],
+    config: dict,
+    num_runs: int,
+    all_results: dict,
+    query_type: str,
+    output_file: Path,
+    skip: int = 0,
+) -> None:
+    if skip > 0:
+        console.print(f"[dim]Resuming from query {skip + 1}/{len(queries)}[/dim]")
 
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
-        task = progress.add_task("Running queries", total=len(queries))
-        for query_spec in queries:
-            query_type = query_spec["type"]
+        task = progress.add_task("Running queries", total=len(queries), completed=skip)
+        for query_spec in queries[skip:]:
+            qt = query_spec["type"]
             sparql = query_spec["sparql"]
             on_time = query_spec["on_time"]
 
-            # Warmup
             try:
-                if query_type == "vm":
+                if qt == "vm":
                     run_vm_query(sparql, tuple(on_time), config)
-                elif query_type == "dm":
+                elif qt == "dm":
                     run_dm_query(sparql, tuple(on_time), config)
-                elif query_type == "vq":
+                elif qt == "vq":
                     run_vq_query(sparql, config)
             except Exception as e:
                 console.print(f"    [yellow]Warmup error: {e}")
 
             times = []
+            memory_peaks = []
             last_result: dict | None = None
             for run_idx in range(num_runs):
                 try:
-                    if query_type == "vm":
+                    if qt == "vm":
                         last_result = run_vm_query(sparql, tuple(on_time), config)
-                    elif query_type == "dm":
+                    elif qt == "dm":
                         last_result = run_dm_query(sparql, tuple(on_time), config)
-                    elif query_type == "vq":
+                    elif qt == "vq":
                         last_result = run_vq_query(sparql, config)
                     if last_result:
                         times.append(last_result["time_s"])
+                        memory_peaks.append(last_result["memory_peak_bytes"])
                 except Exception as e:
                     console.print(f"    [red]Run {run_idx + 1} error: {e}")
                     times.append(None)
+                    memory_peaks.append(None)
 
             valid_times = [t for t in times if t is not None]
+            valid_memory = [m for m in memory_peaks if m is not None]
             entry = {
                 **query_spec,
                 "runs": num_runs,
@@ -145,14 +165,16 @@ def benchmark_queries(queries: List[dict], config: dict, num_runs: int = NUM_RUN
                 "mean_s": statistics.mean(valid_times) if valid_times else None,
                 "std_s": statistics.stdev(valid_times) if len(valid_times) > 1 else 0.0,
                 "median_s": statistics.median(valid_times) if valid_times else None,
-                "peak_rss_kb": get_peak_rss_kb(),
+                "memory_peak_bytes": memory_peaks,
+                "mean_memory_bytes": statistics.mean(valid_memory) if valid_memory else None,
+                "median_memory_bytes": statistics.median(valid_memory) if valid_memory else None,
+                "max_memory_bytes": max(valid_memory) if valid_memory else None,
             }
             if last_result:
                 entry["num_results"] = last_result.get("num_results", last_result.get("num_entities", 0))
-            results.append(entry)
+            all_results["results"][query_type].append(entry)
+            save_results(all_results, output_file)
             progress.advance(task)
-
-    return results
 
 
 def save_results(all_results: dict, output_file: Path) -> None:
@@ -183,11 +205,17 @@ def print_summary_table(all_results: dict) -> None:
     console.print(table)
 
 
-def load_existing_results(output_file: Path) -> dict | None:
-    if output_file.exists():
-        with open(output_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+def find_latest_run(granularity: str) -> Path | None:
+    pattern = str(DATA_DIR / f"benchmark_runs_{granularity}_*.json")
+    matches = sorted(glob.glob(pattern))
+    if matches:
+        return Path(matches[-1])
     return None
+
+
+def create_run_file(granularity: str) -> Path:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    return DATA_DIR / f"benchmark_runs_{granularity}_{timestamp}.json"
 
 
 def main():
@@ -195,11 +223,11 @@ def main():
     parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
     parser.add_argument("--only", choices=ALL_QUERY_TYPES, nargs="+", help="Run only specified query types (e.g. --only vq)")
     parser.add_argument("--runs", type=int, default=NUM_RUNS, help="Number of repetitions per query (default: 5)")
-    parser.add_argument("--resume", action="store_true", help="Resume from existing results, skip already completed query types")
+    parser.add_argument("--resume", action="store_true", help="Resume from latest run file, continuing from where it stopped")
     args = parser.parse_args()
 
     queries_file = DATA_DIR / f"parsed_queries_{args.granularity}.json"
-    output_file = DATA_DIR / f"benchmark_results_{args.granularity}.json"
+    canonical_file = DATA_DIR / f"benchmark_results_{args.granularity}.json"
 
     query_types = args.only if args.only else ALL_QUERY_TYPES
 
@@ -220,21 +248,44 @@ def main():
     hardware = get_hardware_info()
     console.print(f"[bold]Hardware:[/bold] {hardware}")
 
-    existing = load_existing_results(output_file) if args.resume else None
-    all_results = existing or {"hardware": hardware, "results": {}}
+    if args.resume:
+        run_file = find_latest_run(args.granularity)
+        if run_file:
+            console.print(f"[bold]Resuming from {run_file}[/bold]")
+            with open(run_file, "r", encoding="utf-8") as f:
+                all_results = json.load(f)
+        else:
+            console.print("[yellow]No previous run file found, starting fresh[/yellow]")
+            run_file = create_run_file(args.granularity)
+            all_results = {"hardware": hardware, "results": {}}
+    else:
+        run_file = create_run_file(args.granularity)
+        all_results = {"hardware": hardware, "results": {}}
 
     for query_type in query_types:
-        if args.resume and query_type in all_results["results"]:
-            console.print(f"[dim]Skipping {query_type.upper()} (already completed)[/dim]")
-            continue
         queries = all_queries.get(query_type, [])
-        console.rule(f"[bold]{query_type.upper()} queries[/bold] ({len(queries)} queries, {args.runs} runs each)")
-        results = benchmark_queries(queries, config, num_runs=args.runs)
-        all_results["results"][query_type] = results
-        save_results(all_results, output_file)
-        console.print(f"[green]Saved {query_type.upper()} results to {output_file}[/green]")
+        existing_count = len(all_results["results"].get(query_type, []))
 
-    console.print(f"\nAll results saved to {output_file}")
+        if existing_count >= len(queries):
+            console.print(f"[dim]Skipping {query_type.upper()} ({existing_count}/{len(queries)} already completed)[/dim]")
+            continue
+
+        if query_type not in all_results["results"]:
+            all_results["results"][query_type] = []
+
+        console.rule(f"[bold]{query_type.upper()} queries[/bold] ({len(queries)} queries, {args.runs} runs each)")
+        benchmark_queries(
+            queries, config,
+            num_runs=args.runs,
+            all_results=all_results,
+            query_type=query_type,
+            output_file=run_file,
+            skip=existing_count,
+        )
+        console.print(f"[green]Saved {query_type.upper()} results to {run_file}[/green]")
+
+    shutil.copy2(run_file, canonical_file)
+    console.print(f"\nAll results saved to {canonical_file}")
     print_summary_table(all_results)
 
 

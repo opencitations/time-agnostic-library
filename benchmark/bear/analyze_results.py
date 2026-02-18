@@ -84,11 +84,71 @@ def load_results(filepath: Path) -> dict:
         return json.load(f)
 
 
+def load_disk_usage(granularity: str) -> dict[str, int | None]:
+    usage: dict[str, int | None] = {
+        "ocdm_dataset_bytes": None,
+        "ocdm_provenance_bytes": None,
+        "qlever_index_bytes": None,
+        "ostrich_store_bytes": None,
+    }
+    ocdm_file = DATA_DIR / f"ocdm_conversion_time_{granularity}.json"
+    if ocdm_file.exists():
+        with open(ocdm_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        usage["ocdm_dataset_bytes"] = data.get("dataset_bytes")
+        usage["ocdm_provenance_bytes"] = data.get("provenance_bytes")
+    qlever_file = DATA_DIR / f"qlever_indexing_time_{granularity}.json"
+    if qlever_file.exists():
+        with open(qlever_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        usage["qlever_index_bytes"] = data.get("qlever_index_bytes")
+    ostrich_file = DATA_DIR / f"ostrich_store_size_{granularity}.json"
+    if ostrich_file.exists():
+        with open(ostrich_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        usage["ostrich_store_bytes"] = data.get("store_bytes")
+    return usage
+
+
+def _format_bytes(b: int | None) -> str:
+    if b is None:
+        return "---"
+    if b >= 1073741824:
+        return f"{b / 1073741824:.2f} GB"
+    if b >= 1048576:
+        return f"{b / 1048576:.2f} MB"
+    if b >= 1024:
+        return f"{b / 1024:.2f} KB"
+    return f"{b} B"
+
+
+def print_disk_usage_table(usage: dict[str, int | None]) -> None:
+    table = Table(title="Disk usage")
+    table.add_column("Component", style="bold")
+    table.add_column("Size", justify="right")
+    table.add_column("Bytes", justify="right")
+
+    ocdm_ds = usage["ocdm_dataset_bytes"]
+    ocdm_prov = usage["ocdm_provenance_bytes"]
+    ocdm_total = (ocdm_ds or 0) + (ocdm_prov or 0) if ocdm_ds is not None else None
+    qlever = usage["qlever_index_bytes"]
+    tal_total = (ocdm_total or 0) + (qlever or 0) if ocdm_total is not None or qlever is not None else None
+
+    table.add_row("OCDM dataset", _format_bytes(ocdm_ds), str(ocdm_ds or "---"))
+    table.add_row("OCDM provenance", _format_bytes(ocdm_prov), str(ocdm_prov or "---"))
+    table.add_row("OCDM total", _format_bytes(ocdm_total), str(ocdm_total or "---"))
+    table.add_row("QLever index", _format_bytes(qlever), str(qlever or "---"))
+    table.add_row("TAL total (OCDM + QLever)", _format_bytes(tal_total), str(tal_total or "---"), style="bold green")
+    table.add_row("OSTRICH store", _format_bytes(usage["ostrich_store_bytes"]), str(usage["ostrich_store_bytes"] or "---"))
+
+    console.print(table)
+
+
 def compute_aggregates(results: List[dict]) -> dict:
     valid_means = [r["mean_s"] * 1000 for r in results if r["mean_s"] is not None]
     if not valid_means:
         return {"count": 0}
-    return {
+    agg: dict = {
         "count": len(results),
         "mean_ms": statistics.mean(valid_means),
         "median_ms": statistics.median(valid_means),
@@ -96,6 +156,12 @@ def compute_aggregates(results: List[dict]) -> dict:
         "min_ms": min(valid_means),
         "max_ms": max(valid_means),
     }
+    valid_memory = [r["median_memory_bytes"] for r in results if r.get("median_memory_bytes") is not None]
+    if valid_memory:
+        agg["mean_memory_bytes"] = statistics.mean(valid_memory)
+        agg["median_memory_bytes"] = statistics.median(valid_memory)
+        agg["max_memory_bytes"] = max(valid_memory)
+    return agg
 
 
 def compute_aggregates_by_pattern(results: List[dict]) -> Dict[str, dict]:
@@ -331,7 +397,8 @@ def plot_by_pattern(tal_results: List[dict], ostrich_raw_files: List[Path],
     _save_plot(fig, plot_dir, f"{query_type}_by_pattern")
 
 
-def generate_plots(data: dict, ostrich_raw_files: List[Path], plot_dir: Path) -> None:
+def generate_plots(data: dict, ostrich_raw_files: List[Path], plot_dir: Path,
+                   disk_usage: dict[str, int | None] | None = None) -> None:
     results = data.get("results", {})
     vm_results = results.get("vm", [])
     dm_results = results.get("dm", [])
@@ -349,6 +416,71 @@ def generate_plots(data: dict, ostrich_raw_files: List[Path], plot_dir: Path) ->
                         plot_dir, "Version (delta from V0)", "version_end")
     if vq_results:
         plot_vq_comparison(vq_results, ostrich_raw_files, plot_dir)
+
+    # Storage and memory
+    if disk_usage:
+        plot_storage_comparison(disk_usage, plot_dir)
+    plot_memory_comparison(data, plot_dir)
+
+
+def plot_storage_comparison(disk_usage: dict[str, int | None], plot_dir: Path) -> None:
+    ocdm_ds = disk_usage["ocdm_dataset_bytes"]
+    ocdm_prov = disk_usage["ocdm_provenance_bytes"]
+    qlever = disk_usage["qlever_index_bytes"]
+    ostrich = disk_usage["ostrich_store_bytes"]
+
+    if ocdm_ds is None and qlever is None and ostrich is None:
+        console.print("  [dim]Skipping storage_comparison (no data)[/dim]")
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    systems = []
+    sizes_mb = []
+
+    if ocdm_ds is not None or qlever is not None:
+        ocdm_total = (ocdm_ds or 0) + (ocdm_prov or 0)
+        tal_total = ocdm_total + (qlever or 0)
+        systems.append("TAL\n(OCDM + QLever)")
+        sizes_mb.append(tal_total / 1048576)
+
+    if ostrich is not None:
+        systems.append("OSTRICH")
+        sizes_mb.append(ostrich / 1048576)
+
+    bars = ax.bar(systems, sizes_mb, color=["#1f77b4", "#ff7f0e"][:len(systems)])
+    for bar, val in zip(bars, sizes_mb):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.1f} MB",
+                ha="center", va="bottom", fontsize=9)
+    ax.set_ylabel("Storage (MB)")
+    ax.set_title("Storage comparison")
+    ax.grid(True, alpha=0.3, axis="y")
+    _save_plot(fig, plot_dir, "storage_comparison")
+
+
+def plot_memory_comparison(data: dict, plot_dir: Path) -> None:
+    results = data.get("results", {})
+    query_types = []
+    medians_kb = []
+    for qt in ["vm", "dm", "vq"]:
+        qt_results = results.get(qt, [])
+        valid = [r["median_memory_bytes"] for r in qt_results if r.get("median_memory_bytes") is not None]
+        if valid:
+            query_types.append(qt.upper())
+            medians_kb.append(statistics.median(valid) / 1024)
+
+    if not query_types:
+        console.print("  [dim]Skipping memory_comparison (no data)[/dim]")
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    bars = ax.bar(query_types, medians_kb)
+    for bar, val in zip(bars, medians_kb):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.0f} KB",
+                ha="center", va="bottom", fontsize=9)
+    ax.set_ylabel("Peak memory (KB)")
+    ax.set_title("TAL median peak memory by query type")
+    ax.grid(True, alpha=0.3, axis="y")
+    _save_plot(fig, plot_dir, "memory_comparison")
 
 
 def generate_comparison_table(tal_results: dict, ocdm_timing_file: Path, qlever_timing_file: Path) -> List[dict]:
@@ -500,16 +632,20 @@ def print_results_table(tal_aggregates: dict) -> None:
     table.add_column("Mean (ms)", justify="right")
     table.add_column("Median (ms)", justify="right")
     table.add_column("Std (ms)", justify="right")
+    table.add_column("Median mem (KB)", justify="right")
 
     for query_type in ["vm", "dm", "vq"]:
         agg = tal_aggregates.get(query_type)
         if agg and agg.get("count", 0) > 0:
+            mem = agg.get("median_memory_bytes")
+            mem_str = f"{mem / 1024:.0f}" if mem is not None else "---"
             table.add_row(
                 query_type.upper(),
                 str(agg["count"]),
                 format_val(agg["mean_ms"]),
                 format_val(agg["median_ms"]),
                 format_val(agg["std_ms"]),
+                mem_str,
             )
 
     console.print(table)
@@ -606,6 +742,11 @@ def main():
     data = load_results(results_file)
     load_measured_ostrich_results(ostrich_results_file)
 
+    # Disk usage
+    disk_usage = load_disk_usage(args.granularity)
+    console.rule("[bold]Disk usage")
+    print_disk_usage_table(disk_usage)
+
     tal_aggregates = {}
     for query_type in ["vm", "dm", "vq"]:
         results = data.get("results", {}).get(query_type, [])
@@ -631,6 +772,7 @@ def main():
         "tal_aggregates": tal_aggregates,
         "comparison": comparison,
         "hardware": data.get("hardware", {}),
+        "disk_usage": disk_usage,
     }
     summary_path = output_dir / "summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
@@ -643,7 +785,7 @@ def main():
     console.rule("[bold]Generating plots")
     ostrich_raw_files = [DATA_DIR / f"ostrich_raw_{pt}_{args.granularity}.txt" for pt in ["p", "po"]]
     plot_dir = output_dir / "plots"
-    generate_plots(data, ostrich_raw_files, plot_dir)
+    generate_plots(data, ostrich_raw_files, plot_dir, disk_usage)
 
 
 if __name__ == "__main__":
