@@ -187,6 +187,9 @@ class TestSparqlEdgeCases(unittest.TestCase):
 
     @patch('time_agnostic_library.sparql.SPARQLClient')
     def test_ask_query_with_triplestore_url(self, mock_sparql_client):
+        from time_agnostic_library.sparql import _close_all_clients
+        _close_all_clients()
+
         ask_config = CONFIG.copy()
         ask_config["dataset"]["triplestore_urls"] = ["http://127.0.0.1:9999/sparql"]
         ask_config["dataset"]["file_paths"] = []
@@ -199,12 +202,12 @@ class TestSparqlEdgeCases(unittest.TestCase):
 
         mock_client_instance = MagicMock()
         mock_client_instance.ask.return_value = True
-        mock_client_instance.__enter__ = MagicMock(return_value=mock_client_instance)
-        mock_client_instance.__exit__ = MagicMock(return_value=False)
         mock_sparql_client.return_value = mock_client_instance
 
         sparql = Sparql(query, config=ask_config)
         result = sparql.run_ask_query()
+
+        _close_all_clients()
 
         self.assertIsInstance(result, bool)
         self.assertTrue(result)

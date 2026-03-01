@@ -14,6 +14,7 @@
 # SOFTWARE.
 
 
+import atexit
 import json
 import multiprocessing
 import os
@@ -36,6 +37,9 @@ CONFIG_PATH = "./config.json"
 
 _MP_CONTEXT = multiprocessing.get_context('fork') if sys.platform != 'win32' else None
 _PARALLEL_THRESHOLD = os.cpu_count() or 1
+
+_IO_EXECUTOR = ThreadPoolExecutor(max_workers=2)
+atexit.register(_IO_EXECUTOR.shutdown, wait=False)
 
 
 def _create_executor(max_workers=None):
@@ -750,15 +754,13 @@ class VersionQuery(AgnosticQuery):
         self._rebuild_streaming()
 
     def _discover_entities_parallel(self, triple: tuple) -> set[str]:
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            fut_present = executor.submit(self._get_present_entities, triple)
-            entities_set: set = set()
-            fut_prov = executor.submit(self._find_entity_uris_in_update_queries, triple, entities_set)
-            present_entities = fut_present.result()
-            fut_prov.result()
-            all_entities = set(present_entities)
-            all_entities.update(entities_set)
-
+        fut_present = _IO_EXECUTOR.submit(self._get_present_entities, triple)
+        entities_set: set = set()
+        fut_prov = _IO_EXECUTOR.submit(self._find_entity_uris_in_update_queries, triple, entities_set)
+        present_entities = fut_present.result()
+        fut_prov.result()
+        all_entities = set(present_entities)
+        all_entities.update(entities_set)
         return all_entities
 
     def _rebuild_vm_batch(self) -> None:
@@ -767,11 +769,10 @@ class VersionQuery(AgnosticQuery):
         all_entity_strs = self._discover_entities_parallel(triple)
         if not all_entity_strs:
             return
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            fut_prov = executor.submit(_batch_query_provenance_snapshots, all_entity_strs, self.config)
-            fut_data = executor.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
-            prov_data = fut_prov.result()
-            dataset_data = fut_data.result()
+        fut_prov = _IO_EXECUTOR.submit(_batch_query_provenance_snapshots, all_entity_strs, self.config)
+        fut_data = _IO_EXECUTOR.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
+        prov_data = fut_prov.result()
+        dataset_data = fut_data.result()
         entity_bindings: dict[str, dict[str, list[dict]]] = {}
         for entity_str in all_entity_strs:
             per_ts: dict[str, list[dict]] = {}
@@ -875,11 +876,10 @@ class VersionQuery(AgnosticQuery):
             self._streaming_results = {}
             return
         if use_fast_path:
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                fut_prov = executor.submit(_batch_query_provenance_snapshots, all_entity_strs, self.config)
-                fut_data = executor.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
-                prov_data = fut_prov.result()
-                dataset_data = fut_data.result()
+            fut_prov = _IO_EXECUTOR.submit(_batch_query_provenance_snapshots, all_entity_strs, self.config)
+            fut_data = _IO_EXECUTOR.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
+            prov_data = fut_prov.result()
+            dataset_data = fut_data.result()
             triple = self.triples[0]
             entity_bindings: dict[str, dict[str, list[dict]]] = {}
             for entity_str in all_entity_strs:

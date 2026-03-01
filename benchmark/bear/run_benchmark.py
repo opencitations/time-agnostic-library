@@ -72,15 +72,16 @@ def get_hardware_info() -> dict[str, str | int]:
 
 
 def _measure_query(fn: Callable[[], dict]) -> dict:
-    tracemalloc.start()
+    if not tracemalloc.is_tracing():
+        tracemalloc.start()
     tracemalloc.reset_peak()
+    baseline = tracemalloc.get_traced_memory()[0]
     start = time.perf_counter()
     result = fn()
     elapsed = time.perf_counter() - start
     _, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
     result["time_s"] = elapsed
-    result["memory_peak_bytes"] = peak
+    result["memory_peak_bytes"] = peak - baseline
     return result
 
 

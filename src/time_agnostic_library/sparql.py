@@ -14,6 +14,8 @@
 # SOFTWARE.
 
 
+import atexit
+import threading
 import zipfile
 
 from rdflib import Dataset
@@ -32,6 +34,29 @@ __all__ = [
 CONFIG_PATH = "./config.json"
 
 _PROV_PROPERTY_STRINGS: tuple[str, ...] = tuple(ProvEntity.get_prov_properties())
+
+_client_cache: dict[tuple[str, int], SPARQLClient] = {}
+_client_lock = threading.Lock()
+
+
+def _get_client(url: str) -> SPARQLClient:
+    key = (url, threading.get_ident())
+    with _client_lock:
+        client = _client_cache.get(key)
+        if client is None:
+            client = SPARQLClient(url)
+            _client_cache[key] = client
+        return client
+
+
+def _close_all_clients() -> None:
+    with _client_lock:
+        for client in _client_cache.values():
+            client.close()
+        _client_cache.clear()
+
+
+atexit.register(_close_all_clients)
 
 
 def _escape_n3(v: str) -> str:
@@ -161,8 +186,7 @@ class Sparql:
     def _get_results_from_triplestores(self, output: dict) -> dict:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            with SPARQLClient(url) as client:
-                results = client.query(self.query)
+            results = _get_client(url).query(self.query)
             if not output['head']['vars']:
                 output['head']['vars'] = results['head']['vars']
             output['results']['bindings'].extend(results['results']['bindings'])
@@ -201,8 +225,7 @@ class Sparql:
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            with SPARQLClient(url) as client:
-                return client.ask(self.query)
+            return _get_client(url).ask(self.query)
         return False
 
     @classmethod
