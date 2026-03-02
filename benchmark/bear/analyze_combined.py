@@ -16,6 +16,9 @@ from analyze_results import (
     load_ostrich_dm_by_version,
     load_ostrich_vm_by_version,
     load_ostrich_vq_median,
+    load_r43ples_dm_by_version,
+    load_r43ples_vm_by_version,
+    load_r43ples_vq_median,
     load_results,
     load_tal_dm_by_version,
     load_tal_vm_by_version,
@@ -31,16 +34,19 @@ STYLES = {
     "tal_hourly": {"color": "#0072B2", "linestyle": (0, (8, 4)),  "label": "TAL hourly (1,299 ver.)"},
     "ost_daily":  {"color": "#D55E00", "linestyle": "-",          "label": "OSTRICH daily (89 ver.)"},
     "ost_hourly": {"color": "#D55E00", "linestyle": (0, (8, 4)),  "label": "OSTRICH hourly (1,299 ver.)"},
+    "r43_daily":  {"color": "#009E73", "linestyle": "-",          "label": "R43ples daily (89 ver.)"},
+    "r43_hourly": {"color": "#009E73", "linestyle": (0, (8, 4)),  "label": "R43ples hourly (1,299 ver.)"},
 }
 
 
-def _load_granularity_data(granularity: str) -> tuple[dict, list[Path]]:
+def _load_granularity_data(granularity: str) -> tuple[dict, list[Path], Path]:
     results_file = DATA_DIR / f"benchmark_results_{granularity}.json"
     ostrich_results_file = DATA_DIR / f"ostrich_benchmark_results_{granularity}.json"
     ostrich_raw_files = [DATA_DIR / f"ostrich_raw_{pt}_{granularity}.txt" for pt in ["p", "po"]]
+    r43ples_file = DATA_DIR / f"r43ples_benchmark_results_{granularity}.json"
     data = load_results(results_file)
     load_measured_ostrich_results(ostrich_results_file)
-    return data, ostrich_raw_files
+    return data, ostrich_raw_files, r43ples_file
 
 
 def _normalize_keys(data: dict[int, float]) -> tuple[list[float], list[float]]:
@@ -60,7 +66,9 @@ def _plot_line(ax: Axes, pct: list[float], vals: list[float], style_key: str) ->
 def _plot_line_chart(ax: Axes,
                      daily_data: dict[int, float], hourly_data: dict[int, float],
                      daily_ost_data: dict[int, float] | None,
-                     hourly_ost_data: dict[int, float] | None) -> None:
+                     hourly_ost_data: dict[int, float] | None,
+                     daily_r43_data: dict[int, float] | None = None,
+                     hourly_r43_data: dict[int, float] | None = None) -> None:
     pct_d, vals_d = _normalize_keys(daily_data)
     pct_h, vals_h = _normalize_keys(hourly_data)
     _plot_line(ax, pct_d, vals_d, "tal_daily")
@@ -71,18 +79,29 @@ def _plot_line_chart(ax: Axes,
     if hourly_ost_data:
         pct, vals = _normalize_keys(hourly_ost_data)
         _plot_line(ax, pct, vals, "ost_hourly")
+    if daily_r43_data:
+        pct, vals = _normalize_keys(daily_r43_data)
+        _plot_line(ax, pct, vals, "r43_daily")
+    if hourly_r43_data:
+        pct, vals = _normalize_keys(hourly_r43_data)
+        _plot_line(ax, pct, vals, "r43_hourly")
 
 
 def plot_vm_combined(daily_data: dict, daily_ost: list[Path],
                      hourly_data: dict, hourly_ost: list[Path],
-                     plot_dir: Path) -> None:
+                     plot_dir: Path,
+                     daily_r43: Path | None = None,
+                     hourly_r43: Path | None = None) -> None:
     fig, ax = plt.subplots(figsize=(8, 5))
     ost_d = load_ostrich_vm_by_version(daily_ost) if any(f.exists() for f in daily_ost) else None
     ost_h = load_ostrich_vm_by_version(hourly_ost) if any(f.exists() for f in hourly_ost) else None
+    r43_d = load_r43ples_vm_by_version(daily_r43) if daily_r43 else None
+    r43_h = load_r43ples_vm_by_version(hourly_r43) if hourly_r43 else None
     _plot_line_chart(ax,
                      load_tal_vm_by_version(daily_data["results"]["vm"]),
                      load_tal_vm_by_version(hourly_data["results"]["vm"]),
-                     ost_d, ost_h)
+                     ost_d, ost_h,
+                     r43_d or None, r43_h or None)
     _format_log_axis(ax)
     ax.set_xlabel("Version (% of total)")
     ax.set_ylabel("Lookup time (ms)")
@@ -95,14 +114,19 @@ def plot_vm_combined(daily_data: dict, daily_ost: list[Path],
 
 def plot_dm_combined(daily_data: dict, daily_ost: list[Path],
                      hourly_data: dict, hourly_ost: list[Path],
-                     plot_dir: Path) -> None:
+                     plot_dir: Path,
+                     daily_r43: Path | None = None,
+                     hourly_r43: Path | None = None) -> None:
     fig, ax = plt.subplots(figsize=(8, 5))
     ost_d = load_ostrich_dm_by_version(daily_ost) if any(f.exists() for f in daily_ost) else None
     ost_h = load_ostrich_dm_by_version(hourly_ost) if any(f.exists() for f in hourly_ost) else None
+    r43_d = load_r43ples_dm_by_version(daily_r43) if daily_r43 else None
+    r43_h = load_r43ples_dm_by_version(hourly_r43) if hourly_r43 else None
     _plot_line_chart(ax,
                      load_tal_dm_by_version(daily_data["results"]["dm"]),
                      load_tal_dm_by_version(hourly_data["results"]["dm"]),
-                     ost_d, ost_h)
+                     ost_d, ost_h,
+                     r43_d or None, r43_h or None)
     _format_log_axis(ax)
     ax.set_xlabel("Delta target version (% of total)")
     ax.set_ylabel("Lookup time (ms)")
@@ -115,15 +139,25 @@ def plot_dm_combined(daily_data: dict, daily_ost: list[Path],
 
 def plot_vq_combined(daily_data: dict, daily_ost: list[Path],
                      hourly_data: dict, hourly_ost: list[Path],
-                     plot_dir: Path) -> None:
+                     plot_dir: Path,
+                     daily_r43: Path | None = None,
+                     hourly_r43: Path | None = None) -> None:
     fig, ax = plt.subplots(figsize=(7, 5))
 
     has_ost_d = any(f.exists() for f in daily_ost)
     has_ost_h = any(f.exists() for f in hourly_ost)
+    r43_d_val = load_r43ples_vq_median(daily_r43) if daily_r43 else None
+    r43_h_val = load_r43ples_vq_median(hourly_r43) if hourly_r43 else None
+    has_r43 = r43_d_val is not None or r43_h_val is not None
 
     groups = ["TAL"]
+    colors = ["#0072B2"]
     if has_ost_d or has_ost_h:
         groups.append("OSTRICH")
+        colors.append("#D55E00")
+    if has_r43:
+        groups.append("R43ples")
+        colors.append("#009E73")
     x = np.arange(len(groups))
     width = 0.35
 
@@ -133,15 +167,14 @@ def plot_vq_combined(daily_data: dict, daily_ost: list[Path],
         daily_vals.append(load_ostrich_vq_median(daily_ost))
     if has_ost_h:
         hourly_vals.append(load_ostrich_vq_median(hourly_ost))
+    if has_r43:
+        daily_vals.append(r43_d_val if r43_d_val is not None else 0)
+        hourly_vals.append(r43_h_val if r43_h_val is not None else 0)
 
-    # Legend uses neutral gray so it does not imply a specific system color.
-    # Bars themselves use per-system colors on the x-axis labels.
     bars_d = ax.bar(x - width / 2, daily_vals, width,
-                    color=[("#0072B2", "#D55E00")[i] for i in range(len(groups))],
-                    edgecolor="black")
+                    color=colors, edgecolor="black")
     bars_h = ax.bar(x + width / 2, hourly_vals, width,
-                    color=[("#0072B2", "#D55E00")[i] for i in range(len(groups))],
-                    edgecolor="black", hatch="//")
+                    color=colors, edgecolor="black", hatch="//")
 
     legend_handles = [
         Patch(facecolor="white", edgecolor="black", label="Daily (89 ver.)"),
@@ -152,8 +185,9 @@ def plot_vq_combined(daily_data: dict, daily_ost: list[Path],
     for bars in [bars_d, bars_h]:
         for bar in bars:
             val = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.2f}",
-                    ha="center", va="bottom", fontsize=8)
+            if val > 0:
+                ax.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.2f}",
+                        ha="center", va="bottom", fontsize=8)
 
     ax.set_xticks(x)
     ax.set_xticklabels(groups)
@@ -169,13 +203,19 @@ def main() -> None:
     plot_dir = DATA_DIR / "analysis" / "combined" / "plots"
     console.rule("[bold]Loading data")
 
-    daily_data, daily_ost = _load_granularity_data("daily")
-    hourly_data, hourly_ost = _load_granularity_data("hourly")
+    daily_data, daily_ost, daily_r43 = _load_granularity_data("daily")
+    hourly_data, hourly_ost, hourly_r43 = _load_granularity_data("hourly")
+
+    daily_r43_path = daily_r43 if daily_r43.exists() else None
+    hourly_r43_path = hourly_r43 if hourly_r43.exists() else None
 
     console.rule("[bold]Generating combined plots")
-    plot_vm_combined(daily_data, daily_ost, hourly_data, hourly_ost, plot_dir)
-    plot_dm_combined(daily_data, daily_ost, hourly_data, hourly_ost, plot_dir)
-    plot_vq_combined(daily_data, daily_ost, hourly_data, hourly_ost, plot_dir)
+    plot_vm_combined(daily_data, daily_ost, hourly_data, hourly_ost, plot_dir,
+                     daily_r43_path, hourly_r43_path)
+    plot_dm_combined(daily_data, daily_ost, hourly_data, hourly_ost, plot_dir,
+                     daily_r43_path, hourly_r43_path)
+    plot_vq_combined(daily_data, daily_ost, hourly_data, hourly_ost, plot_dir,
+                     daily_r43_path, hourly_r43_path)
     console.print("[bold green]Done.[/bold green]")
 
 

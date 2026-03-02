@@ -90,6 +90,7 @@ def load_disk_usage(granularity: str) -> dict[str, int | None]:
         "ocdm_provenance_bytes": None,
         "qlever_index_bytes": None,
         "ostrich_store_bytes": None,
+        "r43ples_store_bytes": None,
     }
     ocdm_file = DATA_DIR / f"ocdm_conversion_time_{granularity}.json"
     if ocdm_file.exists():
@@ -107,6 +108,11 @@ def load_disk_usage(granularity: str) -> dict[str, int | None]:
         with open(ostrich_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         usage["ostrich_store_bytes"] = data.get("store_bytes")
+    r43ples_file = DATA_DIR / f"r43ples_ingestion_time_{granularity}.json"
+    if r43ples_file.exists():
+        with open(r43ples_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        usage["r43ples_store_bytes"] = data.get("store_bytes")
     return usage
 
 
@@ -140,6 +146,7 @@ def print_disk_usage_table(usage: dict[str, int | None]) -> None:
     table.add_row("QLever index", _format_bytes(qlever), str(qlever or "---"))
     table.add_row("TAL total (OCDM + QLever)", _format_bytes(tal_total), str(tal_total or "---"), style="bold green")
     table.add_row("OSTRICH store", _format_bytes(usage["ostrich_store_bytes"]), str(usage["ostrich_store_bytes"] or "---"))
+    table.add_row("R43ples store", _format_bytes(usage["r43ples_store_bytes"]), str(usage["r43ples_store_bytes"] or "---"))
 
     console.print(table)
 
@@ -275,6 +282,53 @@ def _ostrich_median_ms_by_version(patterns: List[dict], query_type: str, version
     return {v: statistics.median(vals) for v, vals in sorted(by_version.items())}
 
 
+def _load_r43ples_results(r43ples_file: Path) -> dict | None:
+    if not r43ples_file.exists():
+        return None
+    with open(r43ples_file, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def load_r43ples_vm_by_version(r43ples_file: Path, pattern_filter: str | None = None) -> Dict[int, float]:
+    data = _load_r43ples_results(r43ples_file)
+    if not data:
+        return {}
+    by_version: Dict[int, list] = {}
+    for entry in data.get("detail", {}).get("per_version_vm", []):
+        v = entry["version"]
+        for pat in entry["patterns"]:
+            if pattern_filter and pat["pattern_type"] != pattern_filter:
+                continue
+            by_version.setdefault(v, []).append(pat["median_ms"])
+    return {v: statistics.median(vals) for v, vals in sorted(by_version.items())}
+
+
+def load_r43ples_dm_by_version(r43ples_file: Path, pattern_filter: str | None = None) -> Dict[int, float]:
+    data = _load_r43ples_results(r43ples_file)
+    if not data:
+        return {}
+    by_version: Dict[int, list] = {}
+    for entry in data.get("detail", {}).get("per_delta_dm", []):
+        v = entry["version_end"]
+        for pat in entry["patterns"]:
+            if pattern_filter and pat["pattern_type"] != pattern_filter:
+                continue
+            by_version.setdefault(v, []).append(pat["median_ms"])
+    return {v: statistics.median(vals) for v, vals in sorted(by_version.items())}
+
+
+def load_r43ples_vq_median(r43ples_file: Path, pattern_filter: str | None = None) -> float | None:
+    data = _load_r43ples_results(r43ples_file)
+    if not data:
+        return None
+    entries = data.get("detail", {}).get("per_pattern_vq", [])
+    if pattern_filter:
+        entries = [e for e in entries if e["pattern_type"] == pattern_filter]
+    if not entries:
+        return None
+    return statistics.median(e["median_ms"] for e in entries)
+
+
 def load_ostrich_vm_by_version(raw_files: List[Path], pattern_filter: str | None = None) -> Dict[int, float]:
     patterns = _parse_ostrich_raw_files(raw_files)
     return _ostrich_median_ms_by_version(patterns, "vm", "patch", pattern_filter)
@@ -381,6 +435,7 @@ def generate_capabilities_table() -> List[dict]:
         {"system": "HDT-IC", "VM": "Y", "SV": "N", "CV": "N", "DM": "N", "SD": "N", "CD": "N"},
         {"system": "HDT-CB", "VM": "N", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
         {"system": "OSTRICH", "VM": "Y", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
+        {"system": "R43ples", "VM": "Y", "SV": "N", "CV": "N", "DM": "N", "SD": "N", "CD": "N"},
         {"system": "v-RDFCSA", "VM": "Y", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
         {"system": "TrieDF", "VM": "Y", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
         {"system": "TAL (ours)", "VM": "Y", "SV": "Y", "CV": "Y", "DM": "Y", "SD": "Y", "CD": "Y"},
@@ -527,6 +582,28 @@ def print_comparison_table(rows: List[dict]) -> None:
     console.print(table)
 
 
+def load_measured_r43ples_results(r43ples_results_file: Path) -> None:
+    if not r43ples_results_file.exists():
+        return
+    console.print("[bold]Loading measured R43ples results[/bold]")
+    with open(r43ples_results_file, "r", encoding="utf-8") as f:
+        r43ples_data = json.load(f)
+    results = r43ples_data["results"]
+    measured: dict = {"source": "measured (this hardware)"}
+    for qt in ["vm", "dm", "vq"]:
+        qt_data = results.get(qt)
+        if qt_data:
+            by_pattern = qt_data.get("by_pattern", {})
+            if by_pattern:
+                measured[f"{qt}_ms"] = {pt: v["mean_ms"] for pt, v in by_pattern.items()}
+            else:
+                measured[f"{qt}_ms"] = {"avg": qt_data["mean_ms"]}
+    ingestion_s = r43ples_data.get("ingestion_s")
+    measured["ingestion_s"] = ingestion_s
+    measured["notes"] = "measured on this hardware"
+    PUBLISHED_RESULTS["R43ples"] = measured
+
+
 def load_measured_ostrich_results(ostrich_results_file: Path) -> None:
     if not ostrich_results_file.exists():
         return
@@ -574,8 +651,11 @@ def main():
     qlever_timing_file = DATA_DIR / f"qlever_indexing_time_{args.granularity}.json"
     output_dir = DATA_DIR / "analysis" / args.granularity
 
+    r43ples_results_file = DATA_DIR / f"r43ples_benchmark_results_{args.granularity}.json"
+
     data = load_results(results_file)
     load_measured_ostrich_results(ostrich_results_file)
+    load_measured_r43ples_results(r43ples_results_file)
 
     # Disk usage
     disk_usage = load_disk_usage(args.granularity)
