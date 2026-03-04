@@ -19,7 +19,14 @@ import os
 import unittest
 from datetime import datetime, timezone
 
-from time_agnostic_library.support import convert_to_datetime, generate_config_file
+from time_agnostic_library.support import (
+    _NT_TERM_RE,
+    _nt_list_to_quad_set,
+    _nt_match_to_n3,
+    _strip_literal_datatype,
+    convert_to_datetime,
+    generate_config_file,
+)
 
 CONFIG_PATH = "tests/config_support_test.json"
 CONFIG_GRAPHDB = "tests/config_graphdb.json"
@@ -152,6 +159,33 @@ class Test_Support(unittest.TestCase):
             generated_config = json.load(f)
         self.assertEqual(config, expected_config_paths)
         self.assertEqual(generated_config, expected_config_paths)
+
+class TestSupportHelpers(unittest.TestCase):
+
+    def test_nt_match_to_n3_lang_literal(self):
+        match = _NT_TERM_RE.search('"hello"@en')
+        assert match is not None
+        result = _nt_match_to_n3(match)
+        self.assertEqual(result, '"hello"@en')
+
+    def test_nt_match_to_n3_bnode(self):
+        match = _NT_TERM_RE.search('_:b0')
+        assert match is not None
+        result = _nt_match_to_n3(match)
+        self.assertEqual(result, '_:b0')
+
+    def test_strip_literal_datatype_lang_tagged(self):
+        result = _strip_literal_datatype('"hello"@en')
+        self.assertEqual(result, '"hello"@en')
+
+    def test_strip_literal_datatype_no_closing_quote(self):
+        result = _strip_literal_datatype('"no close')
+        self.assertEqual(result, '"no close')
+
+    def test_nt_list_to_quad_set_empty_lines(self):
+        result = _nt_list_to_quad_set(['<http://s> <http://p> "o"', '', '  '])
+        self.assertEqual(result, {('<http://s>', '<http://p>', '"o"')})
+
 
 if __name__ == '__main__': # pragma: no cover
     unittest.main()

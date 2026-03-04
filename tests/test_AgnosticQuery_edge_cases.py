@@ -19,6 +19,8 @@ from unittest.mock import MagicMock, patch
 from time_agnostic_library.agnostic_query import (
     DeltaQuery,
     VersionQuery,
+    _build_delta_result,
+    _match_single_pattern,
     _reconstruct_at_time_as_sets,
     get_insert_query,
 )
@@ -268,6 +270,76 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             VersionQuery(query, config_dict=CONFIG)
         self.assertIn("specify at least one URI", str(ctx.exception))
+
+    def test_match_single_pattern_subject_filter(self):
+        quads = (
+            ('<http://a>', '<http://p>', '"val"', '<http://g>'),
+            ('<http://b>', '<http://p>', '"val"', '<http://g>'),
+        )
+        result = _match_single_pattern(('<http://a>', '<http://p>', '?o'), quads)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['o']['value'], 'val')
+
+    def test_collect_triples_flat_with_nested_optional(self):
+        query = "SELECT ?s ?o ?v WHERE { ?s <http://ex.com/p> <http://ex.com/o> OPTIONAL { ?s <http://ex.com/q> ?o OPTIONAL { ?o <http://ex.com/r> ?v } } }"
+        vq = VersionQuery(query, config_dict=CONFIG)
+        self.assertIsNotNone(vq.triples)
+
+    @patch('time_agnostic_library.agnostic_query.Sparql')
+    def test_get_present_entities_reverse_with_var_object(self, mock_sparql_class):
+        query = "SELECT ?s WHERE { ?s <http://ex.com/p> <http://ex.com/o> }"
+        vq = VersionQuery(query, config_dict=CONFIG)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        mock_sparql.run_select_query.return_value = {
+            'results': {'bindings': [
+                {'o': {'type': 'uri', 'value': 'http://ex.com/result'}},
+            ]}
+        }
+        result = vq._get_present_entities(('?s', '^<http://ex.com/p>', '?o'))
+        self.assertEqual(result, {'http://ex.com/result'})
+
+    def test_build_delta_result_break_after_before_dt(self):
+        snapshots = [
+            {'time': '2021-01-01T00:00:00+00:00', 'updateQuery': None},
+            {'time': '2021-06-01T00:00:00+00:00', 'updateQuery': 'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "v" . } }'},
+            {'time': '2021-12-01T00:00:00+00:00', 'updateQuery': 'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "late" . } }'},
+        ]
+        result = _build_delta_result('http://ex.com/e', snapshots, True, ('2021-01-01T00:00:00+00:00', '2021-07-01T00:00:00+00:00'), set())
+        self.assertIn('http://ex.com/e', result)
+        self.assertEqual(result['http://ex.com/e']['additions'], {('<http://s>', '<http://p>', '"v"', '<http://g/>')})
+
+    @patch('time_agnostic_library.agnostic_query.Sparql')
+    def test_find_entity_uris_in_update_queries_with_full_text_search(self, mock_sparql_class):
+        query = "SELECT ?s WHERE { ?s <http://ex.com/p> <http://ex.com/o> }"
+        config_fts = CONFIG.copy()
+        config_fts["blazegraph_full_text_search"] = "yes"
+        vq = VersionQuery(query, config_dict=config_fts)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        mock_sparql.run_select_query.return_value = {
+            'results': {'bindings': [
+                {
+                    'updateQuery': {'value': 'INSERT DATA { GRAPH <http://g/> { <http://ex.com/e1> <http://ex.com/p> <http://ex.com/o> . } }'},
+                },
+            ]}
+        }
+        entities = set()
+        triple = ('?s', '<http://ex.com/p>', '<http://ex.com/o>')
+        vq._find_entity_uris_in_update_queries(triple, entities)
+        self.assertEqual(entities, {'http://ex.com/e1'})
+
+    @patch('time_agnostic_library.agnostic_query.Sparql')
+    def test_find_entities_in_update_queries_default_none(self, mock_sparql_class):
+        query = "SELECT ?s WHERE { ?s <http://ex.com/p> <http://ex.com/o> }"
+        config_fts = CONFIG.copy()
+        config_fts["blazegraph_full_text_search"] = "yes"
+        vq = VersionQuery(query, config_dict=config_fts)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        mock_sparql.run_select_query.return_value = {'results': {'bindings': []}}
+        triple = ('?s', '<http://ex.com/p>', '<http://ex.com/o>')
+        vq._find_entities_in_update_queries(triple)
 
 
 if __name__ == '__main__':

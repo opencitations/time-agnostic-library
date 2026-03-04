@@ -19,7 +19,16 @@ import unittest
 import zipfile
 from unittest.mock import MagicMock, patch
 
-from time_agnostic_library.sparql import Sparql, _close_all_clients
+from time_agnostic_library.sparql import (
+    Sparql,
+    _binding_to_n3,
+    _close_all_clients,
+    _find_closing_quote,
+    _n3_to_binding,
+    _n3_value,
+    _parse_n3_literal,
+    _unescape_n3,
+)
 
 CONFIG = {
     "dataset": {
@@ -300,6 +309,57 @@ class TestSparqlEdgeCases(unittest.TestCase):
         output = set()
         Sparql._get_tuples_set({'x': 'plain_string', 'y': {'value': 'dict_val'}}, output, ['x', 'y', 'z'])
         self.assertEqual(output, {('plain_string', 'dict_val', None)})
+
+
+class TestSparqlHelpers(unittest.TestCase):
+
+    def test_binding_to_n3_bnode(self):
+        result = _binding_to_n3({'type': 'bnode', 'value': 'b0'})
+        self.assertEqual(result, '_:b0')
+
+    def test_binding_to_n3_lang_literal(self):
+        result = _binding_to_n3({'type': 'literal', 'value': 'ciao', 'xml:lang': 'it'})
+        self.assertEqual(result, '"ciao"@it')
+
+    def test_find_closing_quote_no_close(self):
+        self.assertEqual(_find_closing_quote('"no close'), -1)
+
+    def test_unescape_n3_carriage_return(self):
+        self.assertEqual(_unescape_n3('a\\rb'), 'a\rb')
+
+    def test_unescape_n3_backslash(self):
+        self.assertEqual(_unescape_n3('a\\\\b'), 'a\\b')
+
+    def test_unescape_n3_unknown_escape(self):
+        self.assertEqual(_unescape_n3('a\\xb'), 'a\\xb')
+
+    def test_parse_n3_literal_no_closing_quote(self):
+        value, rest = _parse_n3_literal('"no close')
+        self.assertEqual(value, '"no close')
+        self.assertEqual(rest, '')
+
+    def test_n3_value_bnode(self):
+        self.assertEqual(_n3_value('_:b0'), 'b0')
+
+    def test_n3_to_binding_bnode(self):
+        self.assertEqual(_n3_to_binding('_:b0'), {'type': 'bnode', 'value': 'b0'})
+
+    def test_n3_to_binding_lang_literal(self):
+        result = _n3_to_binding('"hello"@en')
+        self.assertEqual(result, {'type': 'literal', 'value': 'hello', 'xml:lang': 'en'})
+
+    @patch('time_agnostic_library.sparql.Sparql.run_select_query')
+    def test_run_select_to_quad_set_skips_missing_var(self, mock_query):
+        mock_query.return_value = {
+            'head': {'vars': ['s', 'p', 'o']},
+            'results': {'bindings': [
+                {'s': {'type': 'uri', 'value': 'http://ex.com/s'}, 'p': {'type': 'uri', 'value': 'http://ex.com/p'}},
+                {'s': {'type': 'uri', 'value': 'http://ex.com/s'}, 'p': {'type': 'uri', 'value': 'http://ex.com/p'}, 'o': {'type': 'literal', 'value': 'val'}},
+            ]}
+        }
+        sparql = Sparql("SELECT ?s ?p ?o WHERE { ?s ?p ?o }", config=CONFIG)
+        result = sparql.run_select_to_quad_set()
+        self.assertEqual(result, {('<http://ex.com/s>', '<http://ex.com/p>', '"val"')})
 
 
 if __name__ == '__main__':

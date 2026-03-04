@@ -18,9 +18,11 @@ from unittest.mock import MagicMock, patch
 
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity,
+    _compose_update_queries,
     _fast_parse_update,
     _filter_timestamps_by_interval,
     _find_matching_close_brace,
+    _find_related_object_uris,
 )
 from time_agnostic_library.prov_entity import ProvEntity
 
@@ -445,6 +447,118 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         )
         versions = list(entity.iter_versions())
         self.assertEqual(versions, [])
+
+
+    def test_compose_update_queries_delete_cancels_add(self):
+        queries = [
+            'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "v" . } }',
+            'DELETE DATA { GRAPH <http://g/> { <http://s> <http://p> "v" . } }',
+        ]
+        additions, deletions = _compose_update_queries(queries)
+        self.assertEqual(additions, set())
+        self.assertEqual(deletions, set())
+
+    def test_compose_update_queries_insert_cancels_delete(self):
+        queries = [
+            'DELETE DATA { GRAPH <http://g/> { <http://s> <http://p> "v" . } }',
+            'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "v" . } }',
+        ]
+        additions, deletions = _compose_update_queries(queries)
+        self.assertEqual(additions, set())
+        self.assertEqual(deletions, set())
+
+    def test_find_related_object_uris_none_quad_set(self):
+        graphs = {
+            'ts1': None,
+            'ts2': {('<http://e>', '<http://p>', '<http://o>', '<http://g>')},
+        }
+        result = _find_related_object_uris('http://e', graphs)
+        self.assertEqual(result, {'http://o'})
+
+    @patch('time_agnostic_library.agnostic_entity.Sparql')
+    def test_get_history_none_quad_set_replaced(self, mock_sparql_class):
+        entity_uri = "https://example.com/entity/1"
+        entity = AgnosticEntity(entity_uri, config=CONFIG)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        mock_sparql.run_select_query.return_value = {'results': {'bindings': []}}
+        mock_sparql.run_select_to_quad_set.return_value = set()
+        entity._get_entity_current_state = MagicMock(return_value=[
+            {entity_uri: {'2021-01-01': None}},
+            {},
+        ])
+        entity._get_old_graphs = MagicMock(return_value=[
+            {entity_uri: {'2021-01-01': None}},
+            {},
+        ])
+        result = entity.get_history()
+        self.assertEqual(result[0][entity_uri]['2021-01-01'], set())
+
+    @patch('time_agnostic_library.agnostic_entity.Sparql')
+    def test_get_delta_entity_exists_before_start(self, mock_sparql_class):
+        entity_uri = "https://example.com/entity/1"
+        entity = AgnosticEntity(entity_uri, config=CONFIG)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        mock_sparql.run_select_query.return_value = {
+            'results': {'bindings': [
+                {'time': {'value': '2020-01-01T00:00:00+00:00'}},
+                {'time': {'value': '2021-06-01T00:00:00+00:00'}, 'updateQuery': {'value': 'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "new" . } }'}},
+                {'time': {'value': '2021-08-01T00:00:00+00:00'}, 'updateQuery': {'value': 'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "later" . } }'}},
+            ]}
+        }
+        additions, deletions = entity.get_delta('2021-05-01T00:00:00+00:00', '2021-07-01T00:00:00+00:00')
+        self.assertEqual(additions, {('<http://s>', '<http://p>', '"new"', '<http://g/>')})
+        self.assertEqual(deletions, set())
+
+    @patch('time_agnostic_library.agnostic_entity.Sparql')
+    def test_get_delta_entity_created_after_start_no_state_at_end(self, mock_sparql_class):
+        entity_uri = "https://example.com/entity/1"
+        entity = AgnosticEntity(entity_uri, config=CONFIG)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        mock_sparql.run_select_query.return_value = {
+            'results': {'bindings': [
+                {'time': {'value': '2021-06-01T00:00:00+00:00'}},
+            ]}
+        }
+        mock_sparql.run_select_to_quad_set.return_value = set()
+        entity._get_entity_state_at_time = MagicMock(return_value=({}, {}, {}))
+        additions, deletions = entity.get_delta('2021-01-01T00:00:00+00:00', '2021-07-01T00:00:00+00:00')
+        self.assertEqual(additions, set())
+        self.assertEqual(deletions, set())
+
+    def test_filter_timestamps_by_interval_none(self):
+        data = [{'time': {'value': '2021-05-07T09:59:15.000Z'}}]
+        result = _filter_timestamps_by_interval(None, data, time_index='time')
+        self.assertEqual(result, data)
+
+    @patch('time_agnostic_library.agnostic_entity.Sparql')
+    def test_get_state_at_time_earlier_snapshot_used(self, mock_sparql_class):
+        entity_uri = "https://example.com/entity/1"
+        entity = AgnosticEntity(entity_uri, config=CONFIG)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+
+        snap_uri = f"{entity_uri}/prov/se/1"
+        gen_time = "2021-03-01T00:00:00+00:00"
+        mock_sparql.run_select_query.return_value = {
+            'results': {'bindings': [
+                {
+                    'snapshot': {'value': snap_uri},
+                    'time': {'value': gen_time},
+                    'responsibleAgent': {'value': 'https://orcid.org/0000-0002-8420-0696'},
+                }
+            ]}
+        }
+        mock_sparql.run_select_to_quad_set.return_value = {
+            ('<http://s>', '<http://p>', '"val"', '<http://g>'),
+        }
+
+        entity_graphs, _, _ = entity._get_entity_state_at_time(
+            ("2021-05-01T00:00:00+00:00", "2021-06-01T00:00:00+00:00"), False
+        )
+        self.assertIn(gen_time, entity_graphs)
 
 
 if __name__ == '__main__':

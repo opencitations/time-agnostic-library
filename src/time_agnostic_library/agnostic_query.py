@@ -21,6 +21,7 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
+from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 
 from time_agnostic_library.agnostic_entity import (
@@ -382,16 +383,8 @@ class AgnosticQuery:
         self._mandatory_triples = mandatory
         return all_triples
 
-    def _collect_patterns(self, node: dict, mandatory: list[tuple[str, ...]]) -> None:
-        # Walk the algebra tree recursively. Each node has a 'name' attribute
-        # that tells its type (LeftJoin, Join, BGP, etc.). Plain dicts are
-        # intermediate wrappers without a name, so we just recurse into them.
-        name = getattr(node, 'name', None)
-        if name is None:
-            for v in node.values():
-                if isinstance(v, dict):
-                    self._collect_patterns(v, mandatory)
-            return
+    def _collect_patterns(self, node: CompValue, mandatory: list[tuple[str, ...]]) -> None:
+        name = node.name
         if name == 'LeftJoin':
             # OPTIONAL = left join: p1 (left, mandatory) must match, p2 (right,
             # optional) extends the binding if possible, otherwise it's ignored
@@ -409,16 +402,14 @@ class AgnosticQuery:
             mandatory.extend(tuple(el.n3() for el in t) for t in node['triples'])
         else:
             for v in node.values():
-                if isinstance(v, dict):
+                if isinstance(v, CompValue):
                     self._collect_patterns(v, mandatory)
 
-    def _collect_triples_flat(self, node: dict, triples: list[tuple[str, ...]]) -> None:
-        # Collect all triples from a subtree without distinguishing
-        # mandatory/optional. Used to extract triples inside an OPTIONAL block.
+    def _collect_triples_flat(self, node: CompValue, triples: list[tuple[str, ...]]) -> None:
         if 'triples' in node:
             triples.extend(tuple(el.n3() for el in t) for t in node['triples'])
         for v in node.values():
-            if isinstance(v, dict):
+            if isinstance(v, CompValue):
                 self._collect_triples_flat(v, triples)
 
     def _rebuild_relevant_graphs(self) -> None:
