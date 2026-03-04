@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -17,9 +16,13 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from time_agnostic_library.agnostic_entity import (AgnosticEntity,
-                                                    _fast_parse_update,
-                                                    _find_matching_close_brace)
+from time_agnostic_library.agnostic_entity import (
+    AgnosticEntity,
+    _fast_parse_update,
+    _filter_timestamps_by_interval,
+    _find_matching_close_brace,
+)
+from time_agnostic_library.prov_entity import ProvEntity
 
 CONFIG = {
     "dataset": {
@@ -97,7 +100,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             }
         }
 
-        entity_graphs, entity_snapshots, other_snapshots = agnostic_entity._get_entity_state_at_time(
+        entity_graphs, entity_snapshots, _other_snapshots = agnostic_entity._get_entity_state_at_time(
             time_interval, include_prov_metadata=False
         )
 
@@ -131,7 +134,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             }
         }
 
-        entity_graphs, entity_snapshots, other_snapshots = agnostic_entity._get_entity_state_at_time(
+        entity_graphs, entity_snapshots, _other_snapshots = agnostic_entity._get_entity_state_at_time(
             time_interval, include_prov_metadata=False
         )
 
@@ -199,7 +202,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         mock_sparql_instance.run_select_to_quad_set.return_value = set()
 
         # Call the method - should use non-quadstore query
-        result = agnostic_entity._query_dataset(entity_uri)
+        agnostic_entity._query_dataset(entity_uri)
 
         # Verify SPARQL was called
         mock_sparql_class.assert_called_once()
@@ -260,7 +263,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         Test _filter_timestamps_by_interval when time binding has no value.
         This should exercise the continue statement at lines 990-992.
         """
-        from time_agnostic_library.agnostic_entity import _filter_timestamps_by_interval
+
 
         # Create test data with one entry missing 'value' in time binding
         iterator = [
@@ -284,7 +287,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         Test _filter_timestamps_by_interval when time_index is not in timestamp.
         This should exercise the continue statement at lines 991-992.
         """
-        from time_agnostic_library.agnostic_entity import _filter_timestamps_by_interval
+
 
         # Create test data where time_index 'timestamp' doesn't exist
         iterator = [
@@ -306,7 +309,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         Test _filter_timestamps_by_interval with only after_time (no before_time).
         This should exercise the conditional at lines 996-998.
         """
-        from time_agnostic_library.agnostic_entity import _filter_timestamps_by_interval
+
 
         iterator = [
             {'time': {'value': '2021-05-07T09:59:15.000Z'}},
@@ -337,7 +340,6 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         self.assertEqual(len(graph), 0)
 
     def test_include_prov_metadata_with_was_derived_from(self):
-        from time_agnostic_library.prov_entity import ProvEntity
 
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)

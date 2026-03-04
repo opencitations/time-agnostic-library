@@ -846,7 +846,7 @@ class VersionQuery(AgnosticQuery):
     def _try_match(pattern: tuple, quad: tuple, binding: dict) -> dict | None:
         # Check if a triple pattern (s, p, o) matches a quad.
         new_binding = dict(binding)
-        for expected, actual in zip(pattern[:3], quad[:3]):
+        for expected, actual in zip(pattern[:3], quad[:3], strict=True):
             is_variable = expected.startswith('?')
             if is_variable and expected in new_binding:
                 # Variable already bound: check consistency

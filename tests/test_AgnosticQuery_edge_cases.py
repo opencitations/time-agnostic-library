@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -17,7 +16,12 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery, get_insert_query, _reconstruct_at_time_as_sets
+from time_agnostic_library.agnostic_query import (
+    DeltaQuery,
+    VersionQuery,
+    _reconstruct_at_time_as_sets,
+    get_insert_query,
+)
 
 CONFIG = {
     "dataset": {
@@ -208,7 +212,7 @@ class TestAgnosticQueryEdgeCases(unittest.TestCase):
         """
 
         # Create DeltaQuery
-        delta_query = DeltaQuery(query, config_dict=CONFIG, changed_properties=set())
+        DeltaQuery(query, config_dict=CONFIG, changed_properties=set())
 
         # Mock SPARQL to return malformed update query
         mock_sparql_instance = MagicMock()

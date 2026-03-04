@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -20,7 +19,7 @@ import unittest
 import zipfile
 from unittest.mock import MagicMock, patch
 
-from time_agnostic_library.sparql import Sparql
+from time_agnostic_library.sparql import Sparql, _close_all_clients
 
 CONFIG = {
     "dataset": {
@@ -187,7 +186,6 @@ class TestSparqlEdgeCases(unittest.TestCase):
 
     @patch('time_agnostic_library.sparql.SPARQLClient')
     def test_ask_query_with_triplestore_url(self, mock_sparql_client):
-        from time_agnostic_library.sparql import _close_all_clients
         _close_all_clients()
 
         ask_config = CONFIG.copy()

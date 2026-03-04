@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -15,8 +14,9 @@
 # SOFTWARE.
 
 import unittest
-from time_agnostic_library.sparql import Sparql
+
 from time_agnostic_library.prov_entity import ProvEntity
+from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import _to_nt_sorted_list
 
 CONFIG = {
@@ -42,7 +42,7 @@ class Test_Sparql(unittest.TestCase):
         input = """
             SELECT ?p ?o
             WHERE {
-                BIND (<https://github.com/arcangelo7/time_agnostic/ar/15519> AS ?s) 
+                BIND (<https://github.com/arcangelo7/time_agnostic/ar/15519> AS ?s)
                 ?s ?p ?o
             }
         """
@@ -108,7 +108,7 @@ class Test_Sparql(unittest.TestCase):
         input_1 = f"""
             SELECT ?p ?o
             WHERE {{
-                BIND (<https://github.com/arcangelo7/time_agnostic/id/14/prov/se/1> AS ?s) 
+                BIND (<https://github.com/arcangelo7/time_agnostic/id/14/prov/se/1> AS ?s)
                 ?s ?p ?o;
                     a <{ProvEntity.iri_entity}>.
             }}
@@ -190,7 +190,7 @@ class Test_Sparql(unittest.TestCase):
         input_1 = """
             SELECT ?p ?o
             WHERE {
-                BIND (<https://github.com/arcangelo7/time_agnostic/id/14> AS ?s) 
+                BIND (<https://github.com/arcangelo7/time_agnostic/id/14> AS ?s)
                 ?s ?p ?o
             }
         """

@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -55,15 +54,15 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
             include_merged_entities=True,
             include_reverse_relations=True
         )
-        
+
         processed_entities = set()
         histories = {}
-        
+
         # Test the related objects recursion with depth 0
         agnostic_entity._collect_related_objects_recursively(
             entity_uri, processed_entities, histories, include_prov_metadata=False, depth=0
         )
-        
+
         self.assertEqual(len(processed_entities), 0)
         self.assertEqual(len(histories), 0)
 
@@ -80,15 +79,15 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
             include_merged_entities=True,
             include_reverse_relations=True
         )
-        
+
         processed_entities = set()
         histories = {}
-        
+
         # Test the related objects recursion with negative depth
         agnostic_entity._collect_related_objects_recursively(
             entity_uri, processed_entities, histories, include_prov_metadata=False, depth=-1
         )
-        
+
         self.assertEqual(len(processed_entities), 0)
         self.assertEqual(len(histories), 0)
 
@@ -105,16 +104,16 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
             include_merged_entities=True,
             include_reverse_relations=True
         )
-        
+
         processed_entities = set()
         histories = {}
         time_interval = ("2021-05-01T00:00:00+00:00", "2021-06-30T23:59:59+00:00")
-        
+
         # Test the related objects states at time recursion with depth 0
         agnostic_entity._collect_related_objects_states_at_time(
             entity_uri, processed_entities, histories, time_interval, include_prov_metadata=False, depth=0
         )
-        
+
         self.assertEqual(len(processed_entities), 0)
         self.assertEqual(len(histories), 0)
 
@@ -131,16 +130,16 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
             include_merged_entities=True,
             include_reverse_relations=True
         )
-        
+
         processed_entities = set()
         histories = {}
         time_interval = ("2021-05-01T00:00:00+00:00", "2021-06-30T23:59:59+00:00")
-        
+
         # Test the related objects states at time recursion with negative depth
         agnostic_entity._collect_related_objects_states_at_time(
             entity_uri, processed_entities, histories, time_interval, include_prov_metadata=False, depth=-5
         )
-        
+
         self.assertEqual(len(processed_entities), 0)
         self.assertEqual(len(histories), 0)
 
@@ -150,7 +149,7 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         This test ensures that the reverse relations functionality is properly integrated.
         """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        
+
         agnostic_entity = AgnosticEntity(
             entity_uri,
             config=CONFIG,
@@ -158,13 +157,13 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
             include_merged_entities=False,
             include_reverse_relations=True
         )
-        
+
         history, prov_metadata = agnostic_entity.get_history(include_prov_metadata=False)
-        
+
         self.assertIsInstance(history, dict)
         self.assertIn(entity_uri, history)
         self.assertIsInstance(history[entity_uri], dict)
-        
+
         self.assertEqual(prov_metadata, {})
 
     def test_get_state_at_time_with_reverse_relations(self):
@@ -173,7 +172,7 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         time_interval = ("2021-05-01T00:00:00+00:00", "2021-06-30T23:59:59+00:00")
-        
+
         agnostic_entity = AgnosticEntity(
             entity_uri,
             config=CONFIG,
@@ -181,14 +180,14 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
             include_merged_entities=False,
             include_reverse_relations=True
         )
-        
+
         entity_histories, entity_snapshots, other_snapshots = agnostic_entity.get_state_at_time(
             time_interval, include_prov_metadata=False
         )
-        
+
         self.assertIsInstance(entity_histories, dict)
         self.assertIsInstance(entity_snapshots, dict)
-        self.assertIsNone(other_snapshots) 
+        self.assertIsNone(other_snapshots)
 
     def test_find_reverse_related_entities_functionality(self):
         """
@@ -197,9 +196,9 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
-        
+
         reverse_entities = agnostic_entity._find_reverse_related_entities(entity_uri)
-        
+
         self.assertIsInstance(reverse_entities, set)
         for entity in reverse_entities:
             self.assertIsInstance(entity, str)
@@ -213,10 +212,10 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
-        
+
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
-        
+
         mock_response = {
             'results': {
                 'bindings': [
@@ -227,15 +226,15 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
             }
         }
         mock_sparql_instance.run_select_query.return_value = mock_response
-        
+
         reverse_entities = agnostic_entity._find_reverse_related_entities(entity_uri)
-        
+
         expected_entities = {
             'https://example.com/entity1',
             'https://example.com/entity2'
         }
         self.assertEqual(reverse_entities, expected_entities)
-        
+
         mock_sparql_class.assert_called_once()
         mock_sparql_instance.run_select_query.assert_called_once()
 
@@ -349,4 +348,4 @@ class TestAgnosticEntityDepthAndReverseRelations(unittest.TestCase):
         self.assertIsInstance(histories, dict)
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

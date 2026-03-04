@@ -352,7 +352,7 @@ class AgnosticEntity:
             if entity_uri == self.res:
                 continue
             related_sorted_times[entity_uri] = sorted(
-                ((t, _parse_datetime(t)) for t in entity_history.keys()),
+                ((t, _parse_datetime(t)) for t in entity_history),
                 key=lambda x: x[1]
             )
 
@@ -556,7 +556,7 @@ class AgnosticEntity:
             if entity_uri == self.res:
                 continue
             related_sorted_times[entity_uri] = sorted(
-                ((t, _parse_datetime(t)) for t in graphs_at_times.keys()),
+                ((t, _parse_datetime(t)) for t in graphs_at_times),
                 key=lambda x: x[1]
             )
 
@@ -822,12 +822,10 @@ class AgnosticEntity:
         if len(prov_quads) == 0:
             return
         dataset_quads = self._query_dataset(self.res)
-        working: set[tuple[str, ...]] = set()
-        working.update(prov_quads)
-        working.update(dataset_quads)
+        working: set[tuple[str, ...]] = set(dataset_quads)
         snapshots = _extract_snapshot_update_queries(prov_quads)
         ordered = sorted(snapshots.items(), key=lambda x: _parse_datetime(x[0]), reverse=True)
-        for i, (time_str, update_query) in enumerate(ordered):
+        for i, (time_str, _update_query) in enumerate(ordered):
             if i > 0:
                 prev_update = ordered[i - 1][1]
                 if prev_update is not None:

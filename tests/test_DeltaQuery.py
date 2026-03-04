@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -129,7 +128,7 @@ class Test_DeltaQuery(unittest.TestCase):
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}
         delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_PATH)
         agnostic_results = delta_query.run_agnostic_query()
-        expected_output = dict()
+        expected_output = {}
         self.assertEqual(agnostic_results, expected_output)
 
     def test_run_agnostic_query_on_deleted_entity(self):

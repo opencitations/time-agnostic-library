@@ -27,8 +27,8 @@ from time_agnostic_library.prov_entity import ProvEntity
 __all__ = [
     "Sparql",
     "_binding_to_n3",
-    "_n3_value",
     "_n3_to_binding",
+    "_n3_value",
 ]
 
 CONFIG_PATH = "./config.json"

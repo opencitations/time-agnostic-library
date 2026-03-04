@@ -19,7 +19,6 @@ import re
 from datetime import datetime, timezone
 from functools import lru_cache
 
-
 CONFIG_PATH = './config.json'
 
 _NT_TERM_RE = re.compile(

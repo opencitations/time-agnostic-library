@@ -1,10 +1,10 @@
 import gzip
 import re
 from collections import defaultdict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
 
 PROV_NS = "http://www.w3.org/ns/prov#"
 OCO_NS = "https://w3id.org/oc/ontology/"
@@ -35,8 +35,8 @@ _NT_RE = re.compile(
 
 def parse_ntriples_line(
     line: str,
-    object_normalizer: Optional[Callable[[str], str]] = None,
-) -> Optional[tuple[str, str, str]]:
+    object_normalizer: Callable[[str], str] | None = None,
+) -> tuple[str, str, str] | None:
     line = line.strip()
     if not line or line.startswith("#"):
         return None
@@ -126,16 +126,18 @@ def extract_subject_uri(s_term: str) -> str:
     return s_term
 
 
+def _open_ntriples(filepath: Path):
+    if filepath.suffix == ".gz":
+        return gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
+    return open(filepath, "r", encoding="utf-8", errors="replace")
+
+
 def read_ntriples_file(
     filepath: Path,
-    object_normalizer: Optional[Callable[[str], str]] = None,
+    object_normalizer: Callable[[str], str] | None = None,
 ) -> list[tuple[str, str, str]]:
     triples = []
-    if filepath.suffix == ".gz":
-        opener = lambda: gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
-    else:
-        opener = lambda: open(filepath, "r", encoding="utf-8", errors="replace")
-    with opener() as f:
+    with _open_ntriples(filepath) as f:
         for line in f:
             parsed = parse_ntriples_line(line, object_normalizer)
             if parsed:
@@ -155,15 +157,11 @@ def group_triples_by_subject(
 
 def _read_and_group(
     filepath: Path,
-    object_normalizer: Optional[Callable[[str], str]] = None,
+    object_normalizer: Callable[[str], str] | None = None,
 ) -> dict[str, set[tuple[str, str]]]:
     by_subject: dict[str, set[tuple[str, str]]] = defaultdict(set)
-    if filepath.suffix == ".gz":
-        opener = lambda: gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
-    else:
-        opener = lambda: open(filepath, "r", encoding="utf-8", errors="replace")
     match = _NT_RE.match
-    with opener() as f:
+    with _open_ntriples(filepath) as f:
         if object_normalizer:
             for line in f:
                 m = match(line)
@@ -228,7 +226,7 @@ class OCDMConverter:
         self,
         data_graph_uri: str,
         agent_uri: str,
-        object_normalizer: Optional[Callable[[str], str]] = None,
+        object_normalizer: Callable[[str], str] | None = None,
     ):
         self.data_graph_uri = data_graph_uri
         self.agent_uri = agent_uri

@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -46,20 +45,20 @@ class TestAgnosticEntityHistory(unittest.TestCase):
         expected_output = ({
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 '2021-06-01T18:46:41+00:00': [
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
-                ], 
+                ],
                 '2021-05-07T09:59:15+00:00': [
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
-                ], 
+                ],
                 '2021-05-31T18:19:47+00:00': [
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
                 ]
             }
@@ -74,20 +73,20 @@ class TestAgnosticEntityHistory(unittest.TestCase):
         expected_output_0 = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 '2021-06-01T18:46:41+00:00': [
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
-                ], 
+                ],
                 '2021-05-07T09:59:15+00:00': [
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
-                ], 
+                ],
                 '2021-05-31T18:19:47+00:00': [
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>', 
-                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>', 
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>',
+                    '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
                 ]
             }
@@ -96,29 +95,29 @@ class TestAgnosticEntityHistory(unittest.TestCase):
         expected_output_1 = {
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/3': {
-                    'generatedAtTime': '2021-06-01T18:46:41+00:00', 
-                    'invalidatedAtTime': None, 
-                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'hadPrimarySource': None, 
-                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.", 
+                    'generatedAtTime': '2021-06-01T18:46:41+00:00',
+                    'invalidatedAtTime': None,
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
+                    'hadPrimarySource': None,
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
                     'hasUpdateQuery': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }',
                     'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2']
-                }, 
+                },
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1': {
-                    'generatedAtTime': '2021-05-07T09:59:15+00:00', 
-                    'invalidatedAtTime': '2021-05-31T18:19:47+00:00', 
-                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'hadPrimarySource': None, 
-                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.", 
+                    'generatedAtTime': '2021-05-07T09:59:15+00:00',
+                    'invalidatedAtTime': '2021-05-31T18:19:47+00:00',
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
+                    'hadPrimarySource': None,
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been created.",
                     'hasUpdateQuery': None,
                     'wasDerivedFrom': []
-                }, 
+                },
                 'https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/2': {
-                    'generatedAtTime': '2021-05-31T18:19:47+00:00', 
-                    'invalidatedAtTime': '2021-06-01T18:46:41+00:00', 
-                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696', 
-                    'hadPrimarySource': None, 
-                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.", 
+                    'generatedAtTime': '2021-05-31T18:19:47+00:00',
+                    'invalidatedAtTime': '2021-06-01T18:46:41+00:00',
+                    'wasAttributedTo': 'https://orcid.org/0000-0002-8420-0696',
+                    'hadPrimarySource': None,
+                    'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified.",
                     'hasUpdateQuery': 'INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime> .} }',
                     'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ar/15519/prov/se/1']
                 }
@@ -127,7 +126,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
 
         self.assertEqual(output_0, expected_output_0)
         self.assertEqual(output_1, expected_output_1)
-    
+
     def test_get_history_with_related_entities_author_role(self):
         input_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         entity = AgnosticEntity(input_uri, include_related_objects=True, include_merged_entities=True, include_reverse_relations=False, config=CONFIG)
@@ -196,7 +195,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                 ]
             }
         }
-        
+
         self.assertEqual(history_dict, expected_history)
 
         expected_prov_metadata = {
@@ -286,7 +285,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     "hadPrimarySource": None,
                     "description": "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been merged with 'https://github.com/arcangelo7/time_agnostic/ra/15519'.",
                     "hasUpdateQuery": None,
-                    "wasDerivedFrom": ["https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1", 
+                    "wasDerivedFrom": ["https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1",
                                      "https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1"]
                 }
             },
@@ -392,7 +391,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                     'hadPrimarySource': None,
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ra/4' has been merged with 'https://github.com/arcangelo7/time_agnostic/ra/15519'.",
                     'hasUpdateQuery': None,
-                    'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1', 
+                    'wasDerivedFrom': ['https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1',
                                      'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1']
                 },
                 'https://github.com/arcangelo7/time_agnostic/ra/4/prov/se/1': {

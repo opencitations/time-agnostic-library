@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -82,7 +81,8 @@ class TestParseNtriplesLine(unittest.TestCase):
 
     def test_object_normalizer(self):
         line = '<http://example.com/s> <http://example.com/p> "value" .'
-        normalizer = lambda obj: obj.upper()
+        def normalizer(obj):
+            return obj.upper()
         result = parse_ntriples_line(line, object_normalizer=normalizer)
         assert result is not None
         self.assertEqual(result[2], '"VALUE"')
@@ -133,7 +133,8 @@ class TestParseNtriplesLineFallback(unittest.TestCase):
 
     def test_fallback_with_normalizer(self):
         line = '<http://s> <http://p> "value"'
-        normalizer = lambda obj: obj.upper()
+        def normalizer(obj):
+            return obj.upper()
         result = parse_ntriples_line(line, object_normalizer=normalizer)
         assert result is not None
         self.assertEqual(result[2], '"VALUE"')
@@ -241,7 +242,8 @@ class TestReadAndGroup(unittest.TestCase):
                 '<http://example.com/s1> <http://example.com/p> "abc" .\n'
                 '<http://example.com/s2> <http://example.com/p> "42"^^xsd:integer\n'
             )
-            normalizer = lambda obj: obj.upper()
+            def normalizer(obj):
+                return obj.upper()
             result = _read_and_group(path, normalizer)
             self.assertEqual(result['http://example.com/s1'], {('<http://example.com/p>', '"ABC"')})
             self.assertEqual(result['http://example.com/s2'], {('<http://example.com/p>', '"42"^^XSD:INTEGER')})

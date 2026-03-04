@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """Test data loading script for the time-agnostic-library test suite."""
 
 import time

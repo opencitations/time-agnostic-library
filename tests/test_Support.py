@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 # Copyright (c) 2022, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -16,11 +15,11 @@
 
 
 import json
+import os
 import unittest
 from datetime import datetime, timezone
 
-from time_agnostic_library.support import (convert_to_datetime,
-                                           generate_config_file)
+from time_agnostic_library.support import convert_to_datetime, generate_config_file
 
 CONFIG_PATH = "tests/config_support_test.json"
 CONFIG_GRAPHDB = "tests/config_graphdb.json"
@@ -52,7 +51,6 @@ class Test_Support(unittest.TestCase):
 
     def tearDown(self):
         try:
-            import os
             if os.path.exists(self.config_path):
                 os.remove(self.config_path)
         except Exception as e:
