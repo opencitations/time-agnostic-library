@@ -2,10 +2,13 @@ import argparse
 import glob
 import json
 import statistics
+import subprocess
 import time
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypeVar
 
 import requests
 from rich.console import Console
@@ -29,6 +32,8 @@ QUERIES_DIR = DATA_DIR / "queries"
 GRAPH_URI = "http://bear.benchmark/dataset"
 R43PLES_PORT = 9998
 DEFAULT_REPLICATIONS = 1
+MAX_RETRIES = 5
+RETRY_BACKOFF_S = 5
 
 NUM_VERSIONS_MAP = {"daily": 89, "hourly": 1299, "instant": 21046}
 DM_STEPS = {"daily": 5, "hourly": 100, "instant": 1500}
@@ -45,6 +50,44 @@ PROGRESS_COLUMNS = (
     TimeElapsedColumn(),
     TimeRemainingColumn(),
 )
+
+
+T = TypeVar("T")
+
+
+def _restart_container(granularity: str) -> None:
+    container = f"r43ples-bear-{granularity}"
+    console.print(f"[yellow]Restarting container {container}...")
+    subprocess.run(["docker", "restart", container], check=True, capture_output=True)
+    for i in range(1, 61):
+        try:
+            resp = requests.get(
+                f"http://localhost:{R43PLES_PORT}/r43ples/sparql",
+                timeout=2,
+            )
+            if resp.status_code < 500:
+                console.print(f"[green]R43ples ready after {i}s")
+                return
+        except requests.ConnectionError:
+            pass
+        time.sleep(1)
+    raise RuntimeError("R43ples failed to restart within 60s")
+
+
+def _with_retry(fn: Callable[[], T], granularity: str) -> T:
+    for attempt in range(MAX_RETRIES):
+        try:
+            return fn()
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt == MAX_RETRIES - 1:
+                raise
+            console.print(
+                f"[yellow]Connection failed (attempt {attempt + 1}/{MAX_RETRIES}), "
+                f"restarting container..."
+            )
+            _restart_container(granularity)
+            time.sleep(RETRY_BACKOFF_S)
+    raise RuntimeError("unreachable")
 
 
 def parse_bear_query_file(filepath: Path) -> list[tuple[str, str, str]]:
@@ -134,6 +177,7 @@ def global_warmup(
     num_versions: int,
     endpoint: str,
     revision_map: dict[int, int],
+    granularity: str,
 ) -> None:
     sample_versions = [1, num_versions // 2, num_versions]
     sample_patterns = patterns[:min(3, len(patterns))]
@@ -142,7 +186,7 @@ def global_warmup(
         revision = revision_map[v] if revision_map else v
         for pat in sample_patterns:
             sparql = build_sparql(pat, pattern_type, revision)
-            query_r43ples(session, sparql, endpoint)
+            _with_retry(lambda: query_r43ples(session, sparql, endpoint), granularity)
 
 
 def run_vm_benchmark(
@@ -155,10 +199,11 @@ def run_vm_benchmark(
     num_replications: int,
     state: dict,
     state_file: Path,
+    granularity: str,
     skip: int = 0,
 ) -> None:
     if skip == 0:
-        global_warmup(session, patterns, pattern_type, num_versions, endpoint, revision_map)
+        global_warmup(session, patterns, pattern_type, num_versions, endpoint, revision_map, granularity)
     total = num_versions * len(patterns)
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
         task = progress.add_task(f"VM {pattern_type}", total=total, completed=skip)
@@ -173,7 +218,7 @@ def run_vm_benchmark(
                 times = []
                 count = 0
                 for _ in range(num_replications):
-                    elapsed, count = timed_query(session, sparql, endpoint)
+                    elapsed, count = _with_retry(lambda: timed_query(session, sparql, endpoint), granularity)
                     times.append(elapsed)
                 median_ms = statistics.median(times) * 1000
                 state["detail"]["vm"].append({
@@ -199,12 +244,13 @@ def run_dm_benchmark(
     num_replications: int,
     state: dict,
     state_file: Path,
+    granularity: str,
     skip: int = 0,
 ) -> None:
     diff_versions = compute_dm_versions(num_versions, dm_step)
     rev_1 = revision_map[1] if revision_map else 1
     if skip == 0:
-        global_warmup(session, patterns, pattern_type, num_versions, endpoint, revision_map)
+        global_warmup(session, patterns, pattern_type, num_versions, endpoint, revision_map, granularity)
     total = len(diff_versions) * len(patterns)
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
         task = progress.add_task(f"DM {pattern_type}", total=total, completed=skip)
@@ -221,8 +267,8 @@ def run_dm_benchmark(
                 count = 0
                 for _ in range(num_replications):
                     start = time.perf_counter()
-                    results_v0 = query_r43ples(session, sparql_v0, endpoint)
-                    results_vn = query_r43ples(session, sparql_vn, endpoint)
+                    results_v0 = _with_retry(lambda: query_r43ples(session, sparql_v0, endpoint), granularity)
+                    results_vn = _with_retry(lambda: query_r43ples(session, sparql_vn, endpoint), granularity)
                     elapsed = time.perf_counter() - start
                     count = abs(results_vn - results_v0)
                     times.append(elapsed)
@@ -250,10 +296,11 @@ def run_vq_benchmark(
     num_replications: int,
     state: dict,
     state_file: Path,
+    granularity: str,
     skip: int = 0,
 ) -> None:
     if skip == 0:
-        global_warmup(session, patterns, pattern_type, num_versions, endpoint, revision_map)
+        global_warmup(session, patterns, pattern_type, num_versions, endpoint, revision_map, granularity)
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
         task = progress.add_task(f"VQ {pattern_type}", total=len(patterns), completed=skip)
         for pat_idx, pattern in enumerate(patterns):
@@ -267,7 +314,7 @@ def run_vq_benchmark(
                 for version in range(1, num_versions + 1):
                     revision = revision_map[version] if revision_map else version
                     sparql = build_sparql(pattern, pattern_type, revision)
-                    run_total += query_r43ples(session, sparql, endpoint)
+                    run_total += _with_retry(lambda: query_r43ples(session, sparql, endpoint), granularity)
                 elapsed = time.perf_counter() - start
                 total_count = run_total
                 times.append(elapsed)
@@ -459,7 +506,8 @@ def main():
                 console.rule(f"[bold]VM ({pattern_type})")
                 run_vm_benchmark(
                     session, patterns, pattern_type, num_versions, endpoint,
-                    revision_map, args.replications, state, run_file, skip=completed,
+                    revision_map, args.replications, state, run_file,
+                    args.granularity, skip=completed,
                 )
 
         if "dm" in query_types:
@@ -472,7 +520,8 @@ def main():
                 console.rule(f"[bold]DM ({pattern_type})")
                 run_dm_benchmark(
                     session, patterns, pattern_type, num_versions, dm_step,
-                    endpoint, revision_map, args.replications, state, run_file, skip=completed,
+                    endpoint, revision_map, args.replications, state, run_file,
+                    args.granularity, skip=completed,
                 )
 
         if "vq" in query_types:
@@ -484,7 +533,8 @@ def main():
                 console.rule(f"[bold]VQ ({pattern_type})")
                 run_vq_benchmark(
                     session, patterns, pattern_type, num_versions, endpoint,
-                    revision_map, args.replications, state, run_file, skip=completed,
+                    revision_map, args.replications, state, run_file,
+                    args.granularity, skip=completed,
                 )
 
     final = build_final_output(state)

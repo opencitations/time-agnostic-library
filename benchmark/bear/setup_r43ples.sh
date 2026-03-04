@@ -6,6 +6,7 @@ DATA_DIR="$SCRIPT_DIR/data"
 GRANULARITY="${1:-daily}"
 IMAGE_NAME="plttud/r43ples:latest"
 CONTAINER_NAME="r43ples-bear-${GRANULARITY}"
+VOLUME_NAME="r43ples-data-${GRANULARITY}"
 R43PLES_PORT=9998
 
 case "$GRANULARITY" in
@@ -14,6 +15,44 @@ case "$GRANULARITY" in
     instant) NUM_VERSIONS=21046 ;;
     *) echo "Error: unknown granularity '$GRANULARITY'. Use 'daily', 'hourly', or 'instant'."; exit 1 ;;
 esac
+
+wait_for_r43ples() {
+    echo "Waiting for R43ples to be ready..."
+    for i in $(seq 1 30); do
+        if curl -s -o /dev/null -w "" http://localhost:${R43PLES_PORT}/r43ples/sparql 2>/dev/null; then
+            echo "  R43ples is ready (took ${i}s)"
+            return 0
+        fi
+        if [ "$i" -eq 30 ]; then
+            echo "Error: R43ples failed to start within 30s"
+            docker logs "$CONTAINER_NAME" 2>&1 | tail -20
+            exit 1
+        fi
+        sleep 1
+    done
+}
+
+start_container() {
+    docker run -d \
+        --name "$CONTAINER_NAME" \
+        -p "${R43PLES_PORT}:9998" \
+        -v "${VOLUME_NAME}:/r43ples/database" \
+        "$IMAGE_NAME" \
+        java -Xmx8g -jar r43ples.jar
+}
+
+ensure_container_running() {
+    if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        echo "Container ${CONTAINER_NAME} is already running."
+    elif docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        echo "Container ${CONTAINER_NAME} exists but is stopped, restarting..."
+        docker start "$CONTAINER_NAME"
+    else
+        echo "Container ${CONTAINER_NAME} not found, recreating..."
+        start_container
+    fi
+    wait_for_r43ples
+}
 
 echo "=== R43ples benchmark setup (${GRANULARITY}, ${NUM_VERSIONS} versions) ==="
 
@@ -35,6 +74,7 @@ INGESTION_TIME_FILE="$DATA_DIR/r43ples_ingestion_time_${GRANULARITY}.json"
 if [ -f "$INGESTION_TIME_FILE" ]; then
     echo "Ingestion already completed (found $INGESTION_TIME_FILE), skipping."
     echo "Delete the file and the container to re-run."
+    ensure_container_running
     echo ""
     echo "Next: python benchmark/bear/run_r43ples_benchmark.py --granularity ${GRANULARITY}"
     exit 0
@@ -48,31 +88,12 @@ docker rm "$CONTAINER_NAME" 2>/dev/null || true
 docker pull "$IMAGE_NAME" 2>/dev/null || true
 
 # Start R43ples container with a named volume for persistence
-VOLUME_NAME="r43ples-data-${GRANULARITY}"
 docker volume rm "$VOLUME_NAME" 2>/dev/null || true
 docker volume create "$VOLUME_NAME" > /dev/null
 
 echo "Starting R43ples container..."
-docker run -d \
-    --name "$CONTAINER_NAME" \
-    -p "${R43PLES_PORT}:9998" \
-    -v "${VOLUME_NAME}:/r43ples/database" \
-    "$IMAGE_NAME" \
-    java -Xmx8g -jar r43ples.jar
-
-echo "Waiting for R43ples to be ready..."
-for i in $(seq 1 30); do
-    if curl -s -o /dev/null -w "" http://localhost:${R43PLES_PORT}/r43ples/sparql 2>/dev/null; then
-        echo "  R43ples is ready (took ${i}s)"
-        break
-    fi
-    if [ "$i" -eq 30 ]; then
-        echo "Error: R43ples failed to start within 30s"
-        docker logs "$CONTAINER_NAME" 2>&1 | tail -20
-        exit 1
-    fi
-    sleep 1
-done
+start_container
+wait_for_r43ples
 
 # Run Python ingestion script
 INGESTION_START=$(date +%s%N)
