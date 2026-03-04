@@ -121,6 +121,25 @@ The output is a two-element tuple:
 1. A dictionary containing all versions of the entity, keyed by entity URI. Each version is a `set[tuple[str, ...]]` of N3-encoded quad tuples
 2. All provenance metadata linked to that entity if `include_prov_metadata` is `True`, `None` if `False`
 
+## Get delta between versions
+
+To compute the net difference between two versions of an entity without materializing either state, use `get_delta()`:
+
+```python
+entity = AgnosticEntity(res=RES_URI, config=config)
+additions, deletions = entity.get_delta(
+    time_start="2023-01-01T00:00:00+00:00",
+    time_end="2023-06-01T00:00:00+00:00"
+)
+```
+
+The method composes the stored SPARQL UPDATE queries in the interval into a net delta. The output is a tuple of two sets:
+
+- `additions` (`set[tuple[str, ...]]`): quads present at `time_end` but not at `time_start`
+- `deletions` (`set[tuple[str, ...]]`): quads present at `time_start` but not at `time_end`
+
+If the entity was created within the range (no snapshot exists at or before `time_start`), all quads at `time_end` are returned as additions. If no changes occurred in the interval, both sets are empty.
+
 ## Related entities
 
 The history of an entity and all related entities can be obtained by setting the `include_*` parameters:

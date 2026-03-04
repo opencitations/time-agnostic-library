@@ -31,4 +31,4 @@ The library provides five types of queries:
 
 - [Version materialization](/time-agnostic-library/version_materialization/) - retrieve entity state at a given time
 - [Structured queries](/time-agnostic-library/structured_queries/) - run SPARQL queries on specific or all versions
-- [Delta queries](/time-agnostic-library/delta_queries/) - track changes over time
+- [Delta queries](/time-agnostic-library/delta_queries/) - compute net deltas between versions

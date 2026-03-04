@@ -25,6 +25,7 @@ from rdflib.plugins.sparql.processor import prepareQuery
 
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity,
+    _compose_update_queries,
     _fast_parse_update,
     _filter_timestamps_by_interval,
     _parse_datetime,
@@ -288,29 +289,32 @@ def _build_delta_result(
     )
     if not relevant_results:
         return output
-    output[entity_str] = {"created": None, "modified": {}, "deleted": None}
     creation_date = convert_to_datetime(sorted_results[0]['time'], stringify=True)
-    if not exists:
-        deletion_time = convert_to_datetime(sorted_results[-1]['time'], stringify=True)
-        output[entity_str]["deleted"] = deletion_time
     relevant_times = {r['time']['value'] for r in relevant_results}
+    update_queries: list[str] = []
+    created = None
     for snap in sorted_results:
         if snap['time'] not in relevant_times:
             continue
         time_val = convert_to_datetime(snap['time'], stringify=True)
-        if time_val != creation_date:
-            update_query = snap['updateQuery']
-            description = snap['description']
-            if update_query and changed_properties:
-                for changed_property in changed_properties:
-                    if changed_property in update_query:
-                        output[entity_str]["modified"][time_val] = update_query
-            elif update_query and not changed_properties:
-                output[entity_str]["modified"][time_val] = update_query
-            elif not update_query and not changed_properties:
-                output[entity_str]["modified"][time_val] = description
-        else:
-            output[entity_str]["created"] = creation_date
+        if time_val == creation_date:
+            created = creation_date
+        elif snap['updateQuery']:
+            update_queries.append(snap['updateQuery'])
+    additions, deletions = _compose_update_queries(update_queries)
+    if changed_properties:
+        prop_n3_set = {f"<{p}>" for p in changed_properties}
+        additions = {q for q in additions if q[1] in prop_n3_set}
+        deletions = {q for q in deletions if q[1] in prop_n3_set}
+    deleted = None
+    if not exists:
+        deleted = convert_to_datetime(sorted_results[-1]['time'], stringify=True)
+    output[entity_str] = {
+        "created": created,
+        "deleted": deleted,
+        "additions": additions,
+        "deletions": deletions,
+    }
     return output
 
 
@@ -978,45 +982,6 @@ class DeltaQuery(AgnosticQuery):
             self._solve_variables()
 
     def run_agnostic_query(self) -> dict:
-        """
-        Queries the deltas relevant to the query and the properties set
-        in the specified time interval. If no property was indicated,
-        any changes are considered. If no time interval was selected,
-        the whole dataset's history is considered.
-        The output has the following format: ::
-
-            {
-                RES_URI_1: {
-                    "created": TIMESTAMP_CREATION,
-                    "modified": {
-                        TIMESTAMP_1: UPDATE_QUERY_1,
-                        TIMESTAMP_2: UPDATE_QUERY_2,
-                        TIMESTAMP_N: UPDATE_QUERY_N
-                    },
-                    "deleted": TIMESTAMP_DELETION
-                },
-                RES_URI_2: {
-                    "created": TIMESTAMP_CREATION,
-                    "modified": {
-                        TIMESTAMP_1: UPDATE_QUERY_1,
-                        TIMESTAMP_2: UPDATE_QUERY_2,
-                        TIMESTAMP_N: UPDATE_QUERY_N
-                    },
-                    "deleted": TIMESTAMP_DELETION
-                },
-                RES_URI_N: {
-                    "created": TIMESTAMP_CREATION,
-                    "modified": {
-                        TIMESTAMP_1: UPDATE_QUERY_1,
-                        TIMESTAMP_2: UPDATE_QUERY_2,
-                        TIMESTAMP_N: UPDATE_QUERY_N
-                    },
-                    "deleted": TIMESTAMP_DELETION
-                },
-            }
-
-        :returns Dict[str, Set[Tuple]] -- The output is a dictionary that reports the modified entities, when they were created, modified, and deleted. Changes are reported as SPARQL UPDATE queries. If the entity was not created or deleted within the indicated range, the "created" or "deleted" value is None. On the other hand, if the entity does not exist within the input interval, the "modified" value is an empty dictionary.
-        """
         entity_uris = set(self.reconstructed_entities)
         if not entity_uris:
             return {}

@@ -148,6 +148,28 @@ def _fast_parse_update(update_query: str) -> list[tuple[str, list[tuple[str, str
     return operations
 
 
+def _compose_update_queries(
+    update_queries: list[str],
+) -> tuple[set[tuple[str, ...]], set[tuple[str, ...]]]:
+    additions: set[tuple[str, ...]] = set()
+    deletions: set[tuple[str, ...]] = set()
+    for uq in update_queries:
+        for op_type, quads in _fast_parse_update(uq):
+            if op_type == 'DeleteData':
+                for quad in quads:
+                    if quad in additions:
+                        additions.discard(quad)
+                    else:
+                        deletions.add(quad)
+            elif op_type == 'InsertData':
+                for quad in quads:
+                    if quad in deletions:
+                        deletions.discard(quad)
+                    else:
+                        additions.add(quad)
+    return additions, deletions
+
+
 CONFIG_PATH = "./config.json"
 
 
@@ -363,6 +385,55 @@ class AgnosticEntity:
             return self._get_merged_histories_at_time(histories, include_prov_metadata)
         else:
             return self._get_entity_state_at_time(time, include_prov_metadata)
+
+    def get_delta(
+        self,
+        time_start: str,
+        time_end: str,
+    ) -> tuple[set[tuple[str, ...]], set[tuple[str, ...]]]:
+        is_quadstore = self.config["provenance"]["is_quadstore"]
+        graph_statement = f"GRAPH <{self.res}/prov/>" if is_quadstore else ""
+        query_snapshots = f"""
+            SELECT ?time ?updateQuery
+            WHERE {{
+                {graph_statement}
+                {{
+                    ?snapshot <{ProvEntity.iri_specialization_of}> <{self.res}>;
+                        <{ProvEntity.iri_generated_at_time}> ?time.
+                    OPTIONAL {{
+                        ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                    }}
+                }}
+            }}
+        """
+        results = Sparql(query_snapshots, config=self.config).run_select_query()
+        bindings = results['results']['bindings']
+        if not bindings:
+            return set(), set()
+        sorted_snapshots = sorted(
+            bindings, key=lambda x: _parse_datetime(x['time']['value'])
+        )
+        start_dt = _parse_datetime(time_start)
+        end_dt = _parse_datetime(time_end)
+        first_snapshot_dt = _parse_datetime(sorted_snapshots[0]['time']['value'])
+        if first_snapshot_dt > start_dt:
+            entity_graphs, _, _ = self._get_entity_state_at_time(
+                (time_end, time_end), False
+            )
+            if not entity_graphs:
+                return set(), set()
+            state_at_end = next(iter(entity_graphs.values()))
+            return state_at_end, set()
+        update_queries: list[str] = []
+        for snap in sorted_snapshots:
+            snap_dt = _parse_datetime(snap['time']['value'])
+            if snap_dt <= start_dt:
+                continue
+            if snap_dt > end_dt:
+                break
+            if 'updateQuery' in snap and 'value' in snap['updateQuery']:
+                update_queries.append(snap['updateQuery']['value'])
+        return _compose_update_queries(update_queries)
 
     def _collect_all_related_entities_states_at_time(
         self,

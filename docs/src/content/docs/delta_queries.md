@@ -1,15 +1,15 @@
 ---
 title: Delta queries
-description: Track entity changes over time with single-delta and cross-delta queries
+description: Compute net deltas between versions with single-delta and cross-delta queries
 ---
 
-Delta queries track changes in entities over time, returning creation, modification, and deletion information.
+Delta queries compute the net difference between entity versions, returning added and removed triples along with creation and deletion timestamps.
 
 Only SELECT queries are allowed.
 
 ## Single-delta structured query
 
-A single-delta query runs on a specific change instance of the dataset, focusing on differences between two versions.
+A single-delta query computes the net delta between two versions of the dataset, identified by a time interval.
 
 Instantiate `DeltaQuery` with the SPARQL query string, the time of interest, an optional set of properties, and either a configuration file path or a configuration dictionary:
 
@@ -33,34 +33,30 @@ delta.run_agnostic_query()
 - `config_path` (`str`, default `"./config.json"`): path to a JSON configuration file
 - `config_dict` (`dict`, optional): pass a configuration dictionary directly instead of using `config_path`
 
-The output reports modified entities with creation, modification, and deletion timestamps. Changes are reported as SPARQL UPDATE queries:
+The output reports, for each entity, the net triples added and removed between the two versions. The delta is computed by composing the stored SPARQL UPDATE queries in the interval, without materializing any version state:
 
 ```python
 {
     RES_URI_1: {
         "created": TIMESTAMP_CREATION,
-        "modified": {
-            TIMESTAMP_1: UPDATE_QUERY_1,
-            TIMESTAMP_2: UPDATE_QUERY_2,
-            TIMESTAMP_N: UPDATE_QUERY_N
-        },
-        "deleted": TIMESTAMP_DELETION
+        "deleted": TIMESTAMP_DELETION,
+        "additions": {(subject, predicate, object, graph), ...},
+        "deletions": {(subject, predicate, object, graph), ...}
     },
     RES_URI_2: {
         "created": TIMESTAMP_CREATION,
-        "modified": {
-            TIMESTAMP_1: UPDATE_QUERY_1,
-            TIMESTAMP_2: UPDATE_QUERY_2,
-            TIMESTAMP_N: UPDATE_QUERY_N
-        },
-        "deleted": TIMESTAMP_DELETION
+        "deleted": TIMESTAMP_DELETION,
+        "additions": {(subject, predicate, object, graph), ...},
+        "deletions": {(subject, predicate, object, graph), ...}
     }
 }
 ```
 
+Each element of `additions` and `deletions` is a tuple of N3-encoded strings representing a quad `(subject, predicate, object, graph)`.
+
 ## Cross-delta structured query
 
-A cross-delta query runs across the entire history of the dataset, allowing for evolution studies.
+A cross-delta query computes the net delta across the entire history of the dataset.
 
 Instantiate `DeltaQuery` without the `on_time` parameter:
 
@@ -75,27 +71,15 @@ delta = DeltaQuery(
 delta.run_agnostic_query()
 ```
 
-The output follows the same format. If the entity was not created or deleted within the indicated range, the `created` or `deleted` value is `None`. If the entity does not exist within the input interval, the `modified` value is an empty dictionary:
+The output follows the same format. If the entity was not created or deleted within the indicated range, the `created` or `deleted` value is `None`. If no triples changed for a given property filter, `additions` and `deletions` are empty sets:
 
 ```python
 {
     RES_URI_1: {
         "created": TIMESTAMP_CREATION,
-        "modified": {
-            TIMESTAMP_1: UPDATE_QUERY_1,
-            TIMESTAMP_2: UPDATE_QUERY_2,
-            TIMESTAMP_N: UPDATE_QUERY_N
-        },
-        "deleted": TIMESTAMP_DELETION
-    },
-    RES_URI_2: {
-        "created": TIMESTAMP_CREATION,
-        "modified": {
-            TIMESTAMP_1: UPDATE_QUERY_1,
-            TIMESTAMP_2: UPDATE_QUERY_2,
-            TIMESTAMP_N: UPDATE_QUERY_N
-        },
-        "deleted": TIMESTAMP_DELETION
+        "deleted": TIMESTAMP_DELETION,
+        "additions": {(subject, predicate, object, graph), ...},
+        "deletions": {(subject, predicate, object, graph), ...}
     }
 }
 ```

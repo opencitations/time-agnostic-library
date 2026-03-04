@@ -97,7 +97,9 @@ def run_dm_query(sparql: str, on_time: tuple, config: dict) -> dict:
     def fn() -> dict:
         dq = DeltaQuery(sparql, on_time=on_time, config_dict=config)
         result = dq.run_agnostic_query()
-        return {"num_entities": len(result)}
+        total_additions = sum(len(v["additions"]) for v in result.values())
+        total_deletions = sum(len(v["deletions"]) for v in result.values())
+        return {"num_entities": len(result), "additions": total_additions, "deletions": total_deletions}
     return _measure_query(fn)
 
 
