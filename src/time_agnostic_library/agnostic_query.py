@@ -284,8 +284,7 @@ def _build_delta_result(
     sorted_results = sorted(snapshots, key=lambda x: _parse_datetime(x['time']))
     after_dt = _parse_datetime(on_time[0]) if on_time and on_time[0] else None
     before_dt = _parse_datetime(on_time[1]) if on_time and on_time[1] else None
-    creation_time = sorted_results[0]['time']
-    creation_dt = _parse_datetime(creation_time)
+    creation_dt = _parse_datetime(sorted_results[0]['time'])
     update_queries: list[str] = []
     created = None
     has_relevant = False
@@ -297,7 +296,7 @@ def _build_delta_result(
             break
         has_relevant = True
         if snap_dt == creation_dt:
-            created = convert_to_datetime(creation_time, stringify=True)
+            created = creation_dt.isoformat()
         elif snap['updateQuery']:
             update_queries.append(snap['updateQuery'])
     if not has_relevant:
@@ -309,7 +308,7 @@ def _build_delta_result(
         deletions = {q for q in deletions if q[1] in prop_n3_set}
     deleted = None
     if not exists:
-        deleted = convert_to_datetime(sorted_results[-1]['time'], stringify=True)
+        deleted = _parse_datetime(sorted_results[-1]['time']).isoformat()
     output[entity_str] = {
         "created": created,
         "deleted": deleted,
