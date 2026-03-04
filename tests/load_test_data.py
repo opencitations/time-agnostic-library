@@ -80,20 +80,21 @@ def load_data(data_file, endpoint="http://localhost:9999/sparql"):
             _process_chunk(triples[i:i + chunk_size], client, (i // chunk_size) + 1, total_chunks)
 
 
-def _verify_data_loaded(endpoint="http://localhost:9999/sparql", timeout=30):
-    """Wait until a broad sample of test data is queryable in Virtuoso."""
+def _verify_data_loaded(endpoint="http://localhost:9999/sparql", timeout=60):
+    """Wait until test data is fully queryable in Virtuoso via SELECT."""
     checks = [
-        'ASK { GRAPH <https://github.com/arcangelo7/time_agnostic/br/> { <https://github.com/arcangelo7/time_agnostic/br/2> ?p ?o } }',
-        'ASK { GRAPH <https://github.com/arcangelo7/time_agnostic/id/> { <https://github.com/arcangelo7/time_agnostic/id/27139> ?p ?o } }',
-        'ASK { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o } }',
+        ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/br/31830> ?p ?o } }', 1),
+        ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/id/27139> ?p ?o } }', 1),
+        ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o } }', 1),
     ]
     start_time = time.time()
     with SPARQLClient(endpoint) as client:
-        for check in checks:
+        for query, min_results in checks:
             while True:
                 if time.time() - start_time > timeout:
-                    raise TimeoutError(f"Data verification timed out: {check}")
-                if client.ask(check):
+                    raise TimeoutError(f"Data verification timed out: {query}")
+                result = client.query(query)
+                if len(result["results"]["bindings"]) >= min_results:
                     break
                 time.sleep(1)
     print("Data verification passed.")

@@ -45,5 +45,9 @@ docker exec test-virtuoso /opt/virtuoso-opensource/bin/isql -U dba -P dba exec="
 echo "Loading test data..."
 uv run python tests/load_test_data.py
 
+# Force Virtuoso to flush transaction log to disk
+echo "Running Virtuoso checkpoint..."
+docker exec test-virtuoso /opt/virtuoso-opensource/bin/isql -U dba -P dba exec="checkpoint;"
+
 echo "Setup completed."
-echo "Virtuoso DB: http://localhost:9999/sparql" 
+echo "Virtuoso DB: http://localhost:9999/sparql"
