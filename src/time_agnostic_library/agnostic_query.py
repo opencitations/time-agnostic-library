@@ -282,25 +282,26 @@ def _build_delta_result(
 ) -> dict:
     output: dict[str, dict] = {}
     sorted_results = sorted(snapshots, key=lambda x: _parse_datetime(x['time']))
-    relevant_results = _filter_timestamps_by_interval(
-        on_time,
-        [{'time': {'value': s['time']}} for s in snapshots],
-        time_index='time',
-    )
-    if not relevant_results:
-        return output
-    creation_date = convert_to_datetime(sorted_results[0]['time'], stringify=True)
-    relevant_times = {r['time']['value'] for r in relevant_results}
+    after_dt = _parse_datetime(on_time[0]) if on_time and on_time[0] else None
+    before_dt = _parse_datetime(on_time[1]) if on_time and on_time[1] else None
+    creation_time = sorted_results[0]['time']
+    creation_dt = _parse_datetime(creation_time)
     update_queries: list[str] = []
     created = None
+    has_relevant = False
     for snap in sorted_results:
-        if snap['time'] not in relevant_times:
+        snap_dt = _parse_datetime(snap['time'])
+        if after_dt and snap_dt < after_dt:
             continue
-        time_val = convert_to_datetime(snap['time'], stringify=True)
-        if time_val == creation_date:
-            created = creation_date
+        if before_dt and snap_dt > before_dt:
+            break
+        has_relevant = True
+        if snap_dt == creation_dt:
+            created = convert_to_datetime(creation_time, stringify=True)
         elif snap['updateQuery']:
             update_queries.append(snap['updateQuery'])
+    if not has_relevant:
+        return output
     additions, deletions = _compose_update_queries(update_queries)
     if changed_properties:
         prop_n3_set = {f"<{p}>" for p in changed_properties}
