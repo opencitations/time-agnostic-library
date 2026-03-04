@@ -742,17 +742,14 @@ class AgnosticEntity:
 
     def _get_entity_current_state(self, include_prov_metadata: bool = False) -> list:
         entity_current_state: list = [{self.res: {}}]
-        current_state: set[tuple[str, ...]] = set()
-        for quad in self._query_provenance(include_prov_metadata):
-            current_state.add(quad)
-        if len(current_state) == 0:
+        prov_quads = self._query_provenance(include_prov_metadata)
+        if len(prov_quads) == 0:
             entity_current_state.append({})
             return entity_current_state
-        for quad in self._query_dataset(self.res):
-            current_state.add(quad)
+        dataset_quads = self._query_dataset(self.res)
         gen_at_time_n3 = f"<{ProvEntity.iri_generated_at_time}>"
         triples_generated_at_time = [
-            quad for quad in current_state if quad[1] == gen_at_time_n3
+            quad for quad in prov_quads if quad[1] == gen_at_time_n3
         ]
         most_recent_time = None
         most_recent_time_str: str | None = None
@@ -767,17 +764,20 @@ class AgnosticEntity:
                 most_recent_time = snapshot_date_time
                 most_recent_time_str = snapshot_time_str
             entity_current_state[0][self.res][snapshot_time_str] = None
-        entity_current_state[0][self.res][most_recent_time_str] = current_state
+        entity_current_state[0][self.res][most_recent_time_str] = dataset_quads
         if include_prov_metadata:
             prov_metadata = self._include_prov_metadata(
-                triples_generated_at_time, current_state
+                triples_generated_at_time, prov_quads
             )
             entity_current_state.append(prov_metadata)
         else:
             entity_current_state.append(None)
+        entity_current_state.append(prov_quads)
         return entity_current_state
 
     def _get_old_graphs(self, entity_current_state: list) -> list:
+        prov_quads = entity_current_state.pop(2) if len(entity_current_state) > 2 else set()
+        snapshot_update_queries = _extract_snapshot_update_queries(prov_quads)
         ordered_data: list[tuple[str, set[tuple[str, ...]]]] = sorted(
             entity_current_state[0][self.res].items(),
             key=lambda x: _parse_datetime(str(x[0])),
@@ -785,8 +785,6 @@ class AgnosticEntity:
         )
         if not ordered_data:
             return entity_current_state
-        most_recent_graph = ordered_data[0][1]
-        snapshot_update_queries = _extract_snapshot_update_queries(most_recent_graph)
         for index, date_graph in enumerate(ordered_data):
             if index > 0:
                 next_snapshot = ordered_data[index-1][0]
@@ -797,24 +795,10 @@ class AgnosticEntity:
                 else:
                     self._manage_update_queries(previous_graph, update_query)
                     entity_current_state[0][self.res][date_graph[0]] = previous_graph
-        spec_of_n3 = f"<{ProvEntity.iri_specialization_of}>"
-        res_n3 = f"<{self.res}>"
         for time in list(entity_current_state[0][self.res]):
-            cg_no_pro = entity_current_state[0][self.res].pop(time)
-            prov_entities = set()
-            for quad in cg_no_pro:
-                if quad[1] == spec_of_n3 and quad[2] == res_n3:
-                    prov_entities.add(quad[0])
-
-            to_remove = set()
-            for prov_entity_n3 in prov_entities:
-                for quad in cg_no_pro:
-                    if quad[0] == prov_entity_n3:
-                        to_remove.add(quad)
-            cg_no_pro -= to_remove
-
+            quad_set = entity_current_state[0][self.res].pop(time)
             time_str = str(convert_to_datetime(str(time), stringify=True))
-            entity_current_state[0][self.res][time_str] = cg_no_pro
+            entity_current_state[0][self.res][time_str] = quad_set
         return entity_current_state
 
     def iter_versions(self):
