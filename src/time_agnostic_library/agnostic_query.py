@@ -489,7 +489,10 @@ class AgnosticQuery:
 
     def _get_present_entities(self, triple: tuple) -> set[str]:
         variables = [el for el in triple if el.startswith('?')]
-        query = f"SELECT {' '.join(variables)} WHERE {{{triple[0]} {triple[1]} {triple[2]}}}"
+        if self.config['dataset']['is_quadstore']:
+            query = f"SELECT {' '.join(variables)} WHERE {{GRAPH ?_g {{{triple[0]} {triple[1]} {triple[2]}}} FILTER(!CONTAINS(STR(?_g), '/prov/'))}}"
+        else:
+            query = f"SELECT {' '.join(variables)} WHERE {{{triple[0]} {triple[1]} {triple[2]}}}"
         results = Sparql(query, self.config).run_select_query()
         bindings = results['results']['bindings']
         if triple[1].startswith('^'):

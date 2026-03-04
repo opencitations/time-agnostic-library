@@ -80,6 +80,25 @@ def load_data(data_file, endpoint="http://localhost:9999/sparql"):
             _process_chunk(triples[i:i + chunk_size], client, (i // chunk_size) + 1, total_chunks)
 
 
+def _verify_data_loaded(endpoint="http://localhost:9999/sparql", timeout=30):
+    """Wait until a broad sample of test data is queryable in Virtuoso."""
+    checks = [
+        'ASK { GRAPH <https://github.com/arcangelo7/time_agnostic/br/> { <https://github.com/arcangelo7/time_agnostic/br/2> ?p ?o } }',
+        'ASK { GRAPH <https://github.com/arcangelo7/time_agnostic/id/> { <https://github.com/arcangelo7/time_agnostic/id/27139> ?p ?o } }',
+        'ASK { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o } }',
+    ]
+    start_time = time.time()
+    with SPARQLClient(endpoint) as client:
+        for check in checks:
+            while True:
+                if time.time() - start_time > timeout:
+                    raise TimeoutError(f"Data verification timed out: {check}")
+                if client.ask(check):
+                    break
+                time.sleep(1)
+    print("Data verification passed.")
+
+
 def main():
     """Main entry point to load test data into the Virtuoso database."""
     # Wait for Virtuoso to be ready
@@ -101,6 +120,7 @@ def main():
         return
 
     load_data(data_file)
+    _verify_data_loaded()
     print("Data loading completed.")
 
 
