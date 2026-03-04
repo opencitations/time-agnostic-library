@@ -988,8 +988,10 @@ class DeltaQuery(AgnosticQuery):
         entity_uris = set(self.reconstructed_entities)
         if not entity_uris:
             return {}
-        prov_data = _batch_query_dm_provenance(entity_uris, self.config)
-        existence_data = _batch_check_existence(entity_uris, self.config)
+        prov_future = _IO_EXECUTOR.submit(_batch_query_dm_provenance, entity_uris, self.config)
+        existence_future = _IO_EXECUTOR.submit(_batch_check_existence, entity_uris, self.config)
+        prov_data = prov_future.result()
+        existence_data = existence_future.result()
         output = {}
         for entity_str in entity_uris:
             snapshots = prov_data[entity_str]
