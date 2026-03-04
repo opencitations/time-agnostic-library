@@ -57,10 +57,33 @@ def _normalize_keys(data: dict[int, float]) -> tuple[list[float], list[float]]:
     return pct, vals
 
 
+def _format_ms_label(ms: float) -> str:
+    if ms >= 60_000:
+        return f"{ms / 60_000:.1f} min"
+    if ms >= 1_000:
+        return f"{ms / 1_000:.1f} s"
+    return f"{ms:.1f} ms"
+
+
 def _plot_line(ax: Axes, pct: list[float], vals: list[float], style_key: str) -> None:
     s = STYLES[style_key]
     ax.plot(pct, vals, color=s["color"], linestyle=s["linestyle"],
             linewidth=1.5, label=s["label"])
+
+
+def _annotate_line_range(ax: Axes, pct: list[float], vals: list[float], color: str,
+                         x_pos: float | None = None) -> None:
+    min_val = min(vals)
+    max_val = max(vals)
+    if x_pos is not None:
+        closest_idx = min(range(len(pct)), key=lambda i: abs(pct[i] - x_pos))
+        y_val = vals[closest_idx]
+    else:
+        closest_idx = len(vals) // 2
+        y_val = vals[closest_idx]
+    label = f"{_format_ms_label(max_val)} \u2192 {_format_ms_label(min_val)}"
+    ax.annotate(label, xy=(pct[closest_idx], y_val), fontsize=8, color=color,
+                ha="center", va="bottom")
 
 
 def _plot_line_chart(ax: Axes,
@@ -72,7 +95,9 @@ def _plot_line_chart(ax: Axes,
     pct_d, vals_d = _normalize_keys(daily_data)
     pct_h, vals_h = _normalize_keys(hourly_data)
     _plot_line(ax, pct_d, vals_d, "tal_daily")
+    _annotate_line_range(ax, pct_d, vals_d, STYLES["tal_daily"]["color"], x_pos=20)
     _plot_line(ax, pct_h, vals_h, "tal_hourly")
+    _annotate_line_range(ax, pct_h, vals_h, STYLES["tal_hourly"]["color"], x_pos=75)
     if daily_ost_data:
         pct, vals = _normalize_keys(daily_ost_data)
         _plot_line(ax, pct, vals, "ost_daily")
@@ -82,9 +107,11 @@ def _plot_line_chart(ax: Axes,
     if daily_r43_data:
         pct, vals = _normalize_keys(daily_r43_data)
         _plot_line(ax, pct, vals, "r43_daily")
+        _annotate_line_range(ax, pct, vals, STYLES["r43_daily"]["color"])
     if hourly_r43_data:
         pct, vals = _normalize_keys(hourly_r43_data)
         _plot_line(ax, pct, vals, "r43_hourly")
+        _annotate_line_range(ax, pct, vals, STYLES["r43_hourly"]["color"])
 
 
 def plot_vm_combined(daily_data: dict, daily_ost: list[Path],
@@ -186,7 +213,8 @@ def plot_vq_combined(daily_data: dict, daily_ost: list[Path],
         for bar in bars:
             val = bar.get_height()
             if val > 0:
-                ax.text(bar.get_x() + bar.get_width() / 2, val, f"{val:.2f}",
+                ax.text(bar.get_x() + bar.get_width() / 2, val,
+                        _format_ms_label(val),
                         ha="center", va="bottom", fontsize=8)
 
     ax.set_xticks(x)
