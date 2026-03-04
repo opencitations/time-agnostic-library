@@ -410,12 +410,9 @@ class AgnosticEntity:
         bindings = results['results']['bindings']
         if not bindings:
             return set(), set()
-        sorted_snapshots = sorted(
-            bindings, key=lambda x: _parse_datetime(x['time']['value'])
-        )
         start_dt = _parse_datetime(time_start)
         end_dt = _parse_datetime(time_end)
-        first_snapshot_dt = _parse_datetime(sorted_snapshots[0]['time']['value'])
+        first_snapshot_dt = min(_parse_datetime(b['time']['value']) for b in bindings)
         if first_snapshot_dt > start_dt:
             entity_graphs, _, _ = self._get_entity_state_at_time(
                 (time_end, time_end), False
@@ -424,16 +421,13 @@ class AgnosticEntity:
                 return set(), set()
             state_at_end = next(iter(entity_graphs.values()))
             return state_at_end, set()
-        update_queries: list[str] = []
-        for snap in sorted_snapshots:
-            snap_dt = _parse_datetime(snap['time']['value'])
-            if snap_dt <= start_dt:
-                continue
-            if snap_dt > end_dt:
-                break
-            if 'updateQuery' in snap and 'value' in snap['updateQuery']:
-                update_queries.append(snap['updateQuery']['value'])
-        return _compose_update_queries(update_queries)
+        relevant = [
+            b for b in bindings
+            if start_dt < _parse_datetime(b['time']['value']) <= end_dt
+            and 'updateQuery' in b and 'value' in b['updateQuery']
+        ]
+        relevant.sort(key=lambda x: _parse_datetime(x['time']['value']))
+        return _compose_update_queries([b['updateQuery']['value'] for b in relevant])
 
     def _collect_all_related_entities_states_at_time(
         self,
