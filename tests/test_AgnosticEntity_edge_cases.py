@@ -13,8 +13,9 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest
 from unittest.mock import MagicMock, patch
+
+from triplestore_config import CONFIG
 
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity,
@@ -26,41 +27,16 @@ from time_agnostic_library.agnostic_entity import (
 )
 from time_agnostic_library.prov_entity import ProvEntity
 
-CONFIG = {
-    "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
-        "file_paths": [],
-        "is_quadstore": True
-    },
-    "provenance": {
-        "triplestore_urls": [],
-        "file_paths": ["tests/prov.json"],
-        "is_quadstore": False
-    },
-    "blazegraph_full_text_search": "no",
-    "fuseki_full_text_search": "no",
-    "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": ""
-}
 
-class TestAgnosticEntityEdgeCases(unittest.TestCase):
-    """
-    Test cases for edge cases in AgnosticEntity, including empty results and error handling.
-    """
-    maxDiff = None
+class TestAgnosticEntityEdgeCases:
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_get_state_at_time_with_no_snapshots(self, mock_sparql_class):
-        """
-        Test _get_entity_state_at_time when entity has no snapshots.
-        This should trigger the early return at line 560: if not bindings: return {}, {}, other_snapshots_metadata
-        """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/nonexistent/entity"
         time_interval = ("2021-05-01T00:00:00+00:00", "2021-06-30T23:59:59+00:00")
 
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
 
-        # Mock SPARQL to return empty results
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
         mock_sparql_instance.run_select_query.return_value = {
@@ -71,23 +47,17 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             time_interval, include_prov_metadata=False
         )
 
-        self.assertEqual(entity_graphs, {})
-        self.assertEqual(entity_snapshots, {})
-        self.assertEqual(other_snapshots, {})
+        assert entity_graphs == {}
+        assert entity_snapshots == {}
+        assert other_snapshots == {}
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_get_state_at_time_with_no_relevant_results_before_time(self, mock_sparql_class):
-        """
-        Test _get_entity_state_at_time when no snapshots exist before the requested time.
-        This should trigger the return at line 584: return {}, {}, other_snapshots_metadata
-        """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/test/entity"
-        # Request time before any snapshots exist
         time_interval = ("2020-01-01T00:00:00+00:00", "2020-01-31T23:59:59+00:00")
 
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
 
-        # Mock SPARQL to return snapshots after the requested time
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
         mock_sparql_instance.run_select_query.return_value = {
@@ -106,22 +76,16 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             time_interval, include_prov_metadata=False
         )
 
-        self.assertEqual(entity_graphs, {})
-        self.assertEqual(entity_snapshots, {})
+        assert entity_graphs == {}
+        assert entity_snapshots == {}
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_get_state_at_time_with_no_relevant_results_and_no_start_time(self, mock_sparql_class):
-        """
-        Test _get_entity_state_at_time when no relevant results and interval start is None.
-        This should trigger the return at line 586: return {}, {}, other_snapshots_metadata
-        """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/test/entity"
-        # Time interval with None start
         time_interval = (None, "2020-01-31T23:59:59+00:00")
 
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
 
-        # Mock SPARQL to return snapshots after the requested time
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
         mock_sparql_instance.run_select_query.return_value = {
@@ -140,99 +104,73 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             time_interval, include_prov_metadata=False
         )
 
-        self.assertEqual(entity_graphs, {})
-        self.assertEqual(entity_snapshots, {})
-
+        assert entity_graphs == {}
+        assert entity_snapshots == {}
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_find_merged_entities_with_sparql_error(self, mock_sparql_class):
-        """
-        Test _find_merged_entities when SPARQL execution raises an exception.
-        This should exercise the exception handling at lines 932-933.
-        """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/test/entity"
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
 
-        # Mock SPARQL to raise an exception
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
         mock_sparql_instance.run_select_query.side_effect = Exception("SPARQL execution error")
 
-        # Should return empty set on error
         merged_entities = agnostic_entity._find_merged_entities(entity_uri)
 
-        self.assertEqual(merged_entities, set())
+        assert merged_entities == set()
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_find_reverse_related_entities_with_sparql_error(self, mock_sparql_class):
-        """
-        Test _find_reverse_related_entities when SPARQL execution raises an exception.
-        This should exercise the exception handling at lines 973-974.
-        """
         entity_uri = "https://github.com/arcangelo7/time_agnostic/test/entity"
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
 
-        # Mock SPARQL to raise an exception
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
         mock_sparql_instance.run_select_query.side_effect = Exception("SPARQL execution error")
 
-        # Should return empty set on error
         reverse_entities = agnostic_entity._find_reverse_related_entities(entity_uri)
 
-        self.assertEqual(reverse_entities, set())
+        assert reverse_entities == set()
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_query_dataset_with_non_quadstore(self, mock_sparql_class):
-        """
-        Test _query_dataset with is_quadstore=False configuration.
-        This should exercise the query construction at line 859-865 (non-quadstore path).
-        """
         non_quadstore_config = CONFIG.copy()
         non_quadstore_config["dataset"] = {
-            "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
+            "triplestore_urls": ["http://127.0.0.1:41720/sparql"],
             "file_paths": [],
-            "is_quadstore": False  # Test non-quadstore configuration
+            "is_quadstore": False
         }
 
         entity_uri = "https://github.com/arcangelo7/time_agnostic/test/entity"
         agnostic_entity = AgnosticEntity(entity_uri, config=non_quadstore_config)
 
-        # Mock SPARQL to return empty set
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
         mock_sparql_instance.run_select_to_quad_set.return_value = set()
 
-        # Call the method - should use non-quadstore query
         agnostic_entity._query_dataset(entity_uri)
 
-        # Verify SPARQL was called
         mock_sparql_class.assert_called_once()
         call_args = mock_sparql_class.call_args
         query = call_args[0][0]
 
-        # Verify the query doesn't contain GRAPH clause (non-quadstore)
-        self.assertNotIn("GRAPH ?g", query)
-        self.assertIn("SELECT ?s ?p ?o", query)
-        self.assertNotIn("?g", query)  # No graph variable in non-quadstore query
+        assert "GRAPH ?g" not in query
+        assert "SELECT ?s ?p ?o" in query
+        assert "?g" not in query
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_find_reverse_related_entities_with_non_quadstore(self, mock_sparql_class):
-        """
-        Test _find_reverse_related_entities with is_quadstore=False configuration.
-        This should exercise the query construction at line 957-963 (non-quadstore path).
-        """
         non_quadstore_config = CONFIG.copy()
         non_quadstore_config["dataset"] = {
-            "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
+            "triplestore_urls": ["http://127.0.0.1:41720/sparql"],
             "file_paths": [],
-            "is_quadstore": False  # Test non-quadstore configuration
+            "is_quadstore": False
         }
 
         entity_uri = "https://github.com/arcangelo7/time_agnostic/test/entity"
         agnostic_entity = AgnosticEntity(entity_uri, config=non_quadstore_config)
 
-        # Mock SPARQL to return some results
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
         mock_sparql_instance.run_select_query.return_value = {
@@ -244,33 +182,22 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             }
         }
 
-        # Call the method - should use non-quadstore query
         result = agnostic_entity._find_reverse_related_entities(entity_uri)
 
-        # Verify results
-        self.assertEqual(result, {'https://example.com/reverse1', 'https://example.com/reverse2'})
+        assert result == {'https://example.com/reverse1', 'https://example.com/reverse2'}
 
-        # Verify SPARQL was called with non-quadstore query
         mock_sparql_class.assert_called_once()
         call_args = mock_sparql_class.call_args
         query = call_args[0][0]
 
-        # Verify the query doesn't contain GRAPH clause (non-quadstore)
-        self.assertNotIn("GRAPH", query)
-        self.assertIn("SELECT ?subject", query)
+        assert "GRAPH" not in query
+        assert "SELECT ?subject" in query
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_filter_timestamps_with_missing_time_value(self, mock_sparql_class):
-        """
-        Test _filter_timestamps_by_interval when time binding has no value.
-        This should exercise the continue statement at lines 990-992.
-        """
-
-
-        # Create test data with one entry missing 'value' in time binding
         iterator = [
             {'time': {'value': '2021-05-07T09:59:15.000Z'}},
-            {'time': {}},  # Missing 'value' key - should be skipped at line 990
+            {'time': {}},
             {'time': {'value': '2021-06-01T18:46:41.000Z'}},
         ]
 
@@ -278,71 +205,49 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
 
         result = _filter_timestamps_by_interval(interval, iterator, time_index='time')
 
-        # Should only return entries with valid time values
-        self.assertEqual(len(result), 2)
-        self.assertEqual(result[0]['time']['value'], '2021-05-07T09:59:15.000Z')
-        self.assertEqual(result[1]['time']['value'], '2021-06-01T18:46:41.000Z')
+        assert len(result) == 2
+        assert result[0]['time']['value'] == '2021-05-07T09:59:15.000Z'
+        assert result[1]['time']['value'] == '2021-06-01T18:46:41.000Z'
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_filter_timestamps_with_missing_time_index(self, mock_sparql_class):
-        """
-        Test _filter_timestamps_by_interval when time_index is not in timestamp.
-        This should exercise the continue statement at lines 991-992.
-        """
-
-
-        # Create test data where time_index 'timestamp' doesn't exist
         iterator = [
-            {'time': {'value': '2021-05-07T09:59:15.000Z'}},  # Wrong key
-            {'other_key': {'value': '2021-06-01T18:46:41.000Z'}},  # Wrong key
+            {'time': {'value': '2021-05-07T09:59:15.000Z'}},
+            {'other_key': {'value': '2021-06-01T18:46:41.000Z'}},
         ]
 
         interval = ("2021-05-01T00:00:00+00:00", "2021-06-30T23:59:59+00:00")
 
-        # Using time_index='timestamp' which doesn't exist in the data
         result = _filter_timestamps_by_interval(interval, iterator, time_index='timestamp')
 
-        # Should return empty list as no entries have the correct time_index
-        self.assertEqual(len(result), 0)
+        assert len(result) == 0
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_filter_timestamps_with_only_after_time(self, mock_sparql_class):
-        """
-        Test _filter_timestamps_by_interval with only after_time (no before_time).
-        This should exercise the conditional at lines 996-998.
-        """
-
-
         iterator = [
             {'time': {'value': '2021-05-07T09:59:15.000Z'}},
             {'time': {'value': '2021-06-01T18:46:41.000Z'}},
             {'time': {'value': '2021-07-15T12:00:00.000Z'}},
         ]
 
-        # Only after_time, no before_time
         interval = ("2021-06-01T00:00:00+00:00", None)
 
         result = _filter_timestamps_by_interval(interval, iterator, time_index='time')
 
-        # Should return only entries after June 1st
-        self.assertEqual(len(result), 2)
-        self.assertEqual(result[0]['time']['value'], '2021-06-01T18:46:41.000Z')
-        self.assertEqual(result[1]['time']['value'], '2021-07-15T12:00:00.000Z')
-
+        assert len(result) == 2
+        assert result[0]['time']['value'] == '2021-06-01T18:46:41.000Z'
+        assert result[1]['time']['value'] == '2021-07-15T12:00:00.000Z'
 
     def test_manage_update_queries_with_malformed_query(self):
         graph = set()
 
-        # Malformed SPARQL query
         malformed_query = "THIS IS NOT VALID SPARQL { DELETE SOMETHING }"
 
         AgnosticEntity._manage_update_queries(graph, malformed_query)
 
-        # Graph should remain unchanged
-        self.assertEqual(len(graph), 0)
+        assert len(graph) == 0
 
     def test_include_prov_metadata_with_was_derived_from(self):
-
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
 
@@ -363,7 +268,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
 
         result = agnostic_entity._include_prov_metadata(triples_generated_at_time, current_state)
 
-        self.assertIsInstance(result, dict)
+        assert isinstance(result, dict)
 
     def test_fast_parse_update_with_lang_tagged_literal(self):
         query = (
@@ -371,10 +276,10 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             '<http://ex.com/s> <http://ex.com/p> "hello"@en . } }'
         )
         ops = _fast_parse_update(query)
-        self.assertEqual(len(ops), 1)
+        assert len(ops) == 1
         op_type, quads = ops[0]
-        self.assertEqual(op_type, 'DeleteData')
-        self.assertEqual(quads[0][2], '"hello"@en')
+        assert op_type == 'DeleteData'
+        assert quads[0][2] == '"hello"@en'
 
     def test_fast_parse_update_with_escaped_literal(self):
         query = (
@@ -382,34 +287,34 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             '<http://ex.com/s> <http://ex.com/p> "line1\\nline2"^^<http://www.w3.org/2001/XMLSchema#string> . } }'
         )
         ops = _fast_parse_update(query)
-        self.assertEqual(len(ops), 1)
-        self.assertEqual(ops[0][1][0][2], '"line1\\nline2"^^<http://www.w3.org/2001/XMLSchema#string>')
+        assert len(ops) == 1
+        assert ops[0][1][0][2] == '"line1\\nline2"^^<http://www.w3.org/2001/XMLSchema#string>'
 
     def test_find_matching_close_brace_nested(self):
         text = '{ inner { deep } } after'
         pos = _find_matching_close_brace(text, 2)
-        self.assertEqual(text[pos], '}')
-        self.assertEqual(text[pos:], '} after')
+        assert text[pos] == '}'
+        assert text[pos:] == '} after'
 
     def test_find_matching_close_brace_with_quoted_braces(self):
         text = '{ "contains { brace" } after'
         pos = _find_matching_close_brace(text, 2)
-        self.assertEqual(text[pos], '}')
+        assert text[pos] == '}'
 
     def test_find_matching_close_brace_unclosed(self):
         text = '{ no closing brace'
         pos = _find_matching_close_brace(text, 2)
-        self.assertEqual(pos, len(text))
+        assert pos == len(text)
 
     def test_find_matching_close_brace_with_escaped_quote(self):
         text = '{ "escaped \\" quote" } after'
         pos = _find_matching_close_brace(text, 2)
-        self.assertEqual(text[pos], '}')
+        assert text[pos] == '}'
 
     def test_find_matching_close_brace_unterminated_string(self):
         text = '{ "unterminated string'
         pos = _find_matching_close_brace(text, 2)
-        self.assertEqual(pos, len(text))
+        assert pos == len(text)
 
     def test_get_state_at_time_with_related_objects_different_timestamps(self):
         entity = AgnosticEntity(
@@ -422,12 +327,12 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             include_prov_metadata=False,
         )
         entity_key = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        self.assertIn(entity_key, result)
+        assert entity_key in result
         ts_2021_05_31 = "2021-05-31T18:19:47+00:00"
-        self.assertIn(ts_2021_05_31, result[entity_key])
+        assert ts_2021_05_31 in result[entity_key]
         graph = result[entity_key][ts_2021_05_31]
         subjects = {q[0] for q in graph}
-        self.assertIn("<https://github.com/arcangelo7/time_agnostic/ra/4>", subjects)
+        assert "<https://github.com/arcangelo7/time_agnostic/ra/4>" in subjects
 
     def test_get_state_at_time_with_none_none_interval(self):
         entity = AgnosticEntity(
@@ -438,7 +343,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             time=(None, None),
             include_prov_metadata=False,
         )
-        self.assertEqual(len(result), 3)
+        assert len(result) == 3
 
     def test_iter_versions_nonexistent_entity(self):
         entity = AgnosticEntity(
@@ -446,8 +351,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             config=CONFIG,
         )
         versions = list(entity.iter_versions())
-        self.assertEqual(versions, [])
-
+        assert versions == []
 
     def test_compose_update_queries_delete_cancels_add(self):
         queries = [
@@ -455,8 +359,8 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             'DELETE DATA { GRAPH <http://g/> { <http://s> <http://p> "v" . } }',
         ]
         additions, deletions = _compose_update_queries(queries)
-        self.assertEqual(additions, set())
-        self.assertEqual(deletions, set())
+        assert additions == set()
+        assert deletions == set()
 
     def test_compose_update_queries_insert_cancels_delete(self):
         queries = [
@@ -464,8 +368,8 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "v" . } }',
         ]
         additions, deletions = _compose_update_queries(queries)
-        self.assertEqual(additions, set())
-        self.assertEqual(deletions, set())
+        assert additions == set()
+        assert deletions == set()
 
     def test_find_related_object_uris_none_quad_set(self):
         graphs = {
@@ -473,7 +377,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             'ts2': {('<http://e>', '<http://p>', '<http://o>', '<http://g>')},
         }
         result = _find_related_object_uris('http://e', graphs)
-        self.assertEqual(result, {'http://o'})
+        assert result == {'http://o'}
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_get_history_none_quad_set_replaced(self, mock_sparql_class):
@@ -492,7 +396,7 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             {},
         ])
         result = entity.get_history()
-        self.assertEqual(result[0][entity_uri]['2021-01-01'], set())
+        assert result[0][entity_uri]['2021-01-01'] == set()
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_get_delta_entity_exists_before_start(self, mock_sparql_class):
@@ -508,8 +412,8 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
             ]}
         }
         additions, deletions = entity.get_delta('2021-05-01T00:00:00+00:00', '2021-07-01T00:00:00+00:00')
-        self.assertEqual(additions, {('<http://s>', '<http://p>', '"new"', '<http://g/>')})
-        self.assertEqual(deletions, set())
+        assert additions == {('<http://s>', '<http://p>', '"new"', '<http://g/>')}
+        assert deletions == set()
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_get_delta_entity_created_after_start_no_state_at_end(self, mock_sparql_class):
@@ -525,13 +429,13 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         mock_sparql.run_select_to_quad_set.return_value = set()
         entity._get_entity_state_at_time = MagicMock(return_value=({}, {}, {}))
         additions, deletions = entity.get_delta('2021-01-01T00:00:00+00:00', '2021-07-01T00:00:00+00:00')
-        self.assertEqual(additions, set())
-        self.assertEqual(deletions, set())
+        assert additions == set()
+        assert deletions == set()
 
     def test_filter_timestamps_by_interval_none(self):
         data = [{'time': {'value': '2021-05-07T09:59:15.000Z'}}]
         result = _filter_timestamps_by_interval(None, data, time_index='time')
-        self.assertEqual(result, data)
+        assert result == data
 
     @patch('time_agnostic_library.agnostic_entity.Sparql')
     def test_get_state_at_time_earlier_snapshot_used(self, mock_sparql_class):
@@ -558,8 +462,4 @@ class TestAgnosticEntityEdgeCases(unittest.TestCase):
         entity_graphs, _, _ = entity._get_entity_state_at_time(
             ("2021-05-01T00:00:00+00:00", "2021-06-01T00:00:00+00:00"), False
         )
-        self.assertIn(gen_time, entity_graphs)
-
-
-if __name__ == '__main__':
-    unittest.main()
+        assert gen_time in entity_graphs

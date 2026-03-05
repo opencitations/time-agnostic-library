@@ -13,9 +13,9 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
+import copy
 import json
 import os
-import unittest
 import zipfile
 from unittest.mock import MagicMock, patch
 
@@ -29,32 +29,12 @@ from time_agnostic_library.sparql import (
     _parse_n3_literal,
     _unescape_n3,
 )
+from triplestore_config import CONFIG
 
-CONFIG = {
-    "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
-        "file_paths": [],
-        "is_quadstore": True
-    },
-    "provenance": {
-        "triplestore_urls": [],
-        "file_paths": [],
-        "is_quadstore": False
-    },
-    "blazegraph_full_text_search": "no",
-    "fuseki_full_text_search": "no",
-    "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": ""
-}
 
-class TestSparqlEdgeCases(unittest.TestCase):
-    """
-    Test cases for edge cases in Sparql class, including ZIP file handling and language tags.
-    """
-    maxDiff = None
+class TestSparqlEdgeCases:
 
-    def setUp(self):
-        """Set up test fixtures."""
+    def setup_method(self):
         self.test_zip_path = "tests/test_data.zip"
         self.test_jsonld_data = {
             "@context": {
@@ -70,22 +50,17 @@ class TestSparqlEdgeCases(unittest.TestCase):
             ]
         }
 
-    def tearDown(self):
-        """Clean up test files."""
+    def teardown_method(self):
         if os.path.exists(self.test_zip_path):
             os.remove(self.test_zip_path)
 
     def test_select_query_with_zip_file(self):
-        """
-        Test run_select_query with a ZIP file containing JSON-LD data.
-        This should exercise the ZIP file handling at lines 102-104.
-        """
         # Create a ZIP file with JSON-LD content
         with zipfile.ZipFile(self.test_zip_path, 'w') as zf:
             zf.writestr("data.json", json.dumps(self.test_jsonld_data))
 
         # Create config with ZIP file path
-        zip_config = CONFIG.copy()
+        zip_config = copy.deepcopy(CONFIG)
         zip_config["dataset"]["file_paths"] = [self.test_zip_path]
         zip_config["dataset"]["triplestore_urls"] = []
 
@@ -101,15 +76,14 @@ class TestSparqlEdgeCases(unittest.TestCase):
         sparql = Sparql(query, config=zip_config)
         results = sparql.run_select_query()
 
-        # Verify results structure
-        self.assertIn('results', results)
-        self.assertIn('bindings', results['results'])
+        assert 'results' in results
+        assert 'bindings' in results['results']
 
     def test_select_to_dataset_with_zip_file(self):
         with zipfile.ZipFile(self.test_zip_path, 'w') as zf:
             zf.writestr("data.json", json.dumps(self.test_jsonld_data))
 
-        zip_config = CONFIG.copy()
+        zip_config = copy.deepcopy(CONFIG)
         zip_config["dataset"]["file_paths"] = [self.test_zip_path]
         zip_config["dataset"]["triplestore_urls"] = []
 
@@ -124,14 +98,10 @@ class TestSparqlEdgeCases(unittest.TestCase):
         sparql = Sparql(query, config=zip_config)
         result = sparql.run_select_query()
 
-        self.assertIn('results', result)
-        self.assertIn('bindings', result['results'])
+        assert 'results' in result
+        assert 'bindings' in result['results']
 
     def test_select_query_with_language_tagged_literals(self):
-        """
-        Test run_select_query with literals that have language tags.
-        This should exercise the language tag handling at lines 140, 143.
-        """
         # Create JSON-LD with language-tagged literals
         jsonld_with_lang = {
             "@context": {
@@ -157,7 +127,7 @@ class TestSparqlEdgeCases(unittest.TestCase):
 
         try:
             # Create config with file path
-            lang_config = CONFIG.copy()
+            lang_config = copy.deepcopy(CONFIG)
             lang_config["dataset"]["file_paths"] = [temp_jsonld_path]
             lang_config["dataset"]["triplestore_urls"] = []
 
@@ -173,9 +143,8 @@ class TestSparqlEdgeCases(unittest.TestCase):
             sparql = Sparql(query, config=lang_config)
             results = sparql.run_select_query()
 
-            # Verify results contain language-tagged values
-            self.assertIn('results', results)
-            self.assertIn('bindings', results['results'])
+            assert 'results' in results
+            assert 'bindings' in results['results']
 
             # Check if any result has xml:lang attribute
             bindings = results['results']['bindings']
@@ -186,10 +155,9 @@ class TestSparqlEdgeCases(unittest.TestCase):
                     break
 
             # At least one result should have language tag
-            self.assertTrue(has_lang_tag or len(bindings) > 0)
+            assert has_lang_tag or len(bindings) > 0
 
         finally:
-            # Clean up
             if os.path.exists(temp_jsonld_path):
                 os.remove(temp_jsonld_path)
 
@@ -197,8 +165,8 @@ class TestSparqlEdgeCases(unittest.TestCase):
     def test_ask_query_with_triplestore_url(self, mock_sparql_client):
         _close_all_clients()
 
-        ask_config = CONFIG.copy()
-        ask_config["dataset"]["triplestore_urls"] = ["http://127.0.0.1:9999/sparql"]
+        ask_config = copy.deepcopy(CONFIG)
+        ask_config["dataset"]["triplestore_urls"] = ["http://127.0.0.1:41720/sparql"]
         ask_config["dataset"]["file_paths"] = []
 
         query = """
@@ -216,15 +184,11 @@ class TestSparqlEdgeCases(unittest.TestCase):
 
         _close_all_clients()
 
-        self.assertIsInstance(result, bool)
-        self.assertTrue(result)
+        assert isinstance(result, bool)
+        assert result
         mock_sparql_client.assert_called()
 
     def test_ask_query_with_only_file_paths_no_triplestore(self):
-        """
-        Test run_ask_query when only file paths are configured (no triplestore URLs).
-        This should exercise the fallback return at line 172.
-        """
         # Create temporary JSON-LD file
         temp_jsonld_path = "tests/test_ask.json"
         with open(temp_jsonld_path, 'w') as f:
@@ -232,7 +196,7 @@ class TestSparqlEdgeCases(unittest.TestCase):
 
         try:
             # Config with only file paths
-            file_only_config = CONFIG.copy()
+            file_only_config = copy.deepcopy(CONFIG)
             file_only_config["dataset"]["file_paths"] = [temp_jsonld_path]
             file_only_config["dataset"]["triplestore_urls"] = []
 
@@ -242,23 +206,16 @@ class TestSparqlEdgeCases(unittest.TestCase):
                 }
             """
 
-            # Execute ASK query - should use file-based query
             sparql = Sparql(query, config=file_only_config)
             result = sparql.run_ask_query()
 
-            # Should return a boolean (from file-based evaluation)
-            self.assertIsInstance(result, bool)
+            assert isinstance(result, bool)
 
         finally:
-            # Clean up
             if os.path.exists(temp_jsonld_path):
                 os.remove(temp_jsonld_path)
 
     def test_select_query_with_unknown_value_type(self):
-        """
-        Test run_select_query with unknown/uncommon RDF value types.
-        This should exercise the fallback at line 143 for unknown types.
-        """
         # Create JSON-LD with blank nodes and various value types
         jsonld_complex = {
             "@context": {
@@ -281,7 +238,7 @@ class TestSparqlEdgeCases(unittest.TestCase):
 
         try:
             # Create config with file path
-            complex_config = CONFIG.copy()
+            complex_config = copy.deepcopy(CONFIG)
             complex_config["dataset"]["file_paths"] = [temp_jsonld_path]
             complex_config["dataset"]["triplestore_urls"] = []
 
@@ -292,61 +249,58 @@ class TestSparqlEdgeCases(unittest.TestCase):
                 }
             """
 
-            # Execute query
             sparql = Sparql(query, config=complex_config)
             results = sparql.run_select_query()
 
-            # Verify results structure
-            self.assertIn('results', results)
-            self.assertIn('bindings', results['results'])
+            assert 'results' in results
+            assert 'bindings' in results['results']
 
         finally:
-            # Clean up
             if os.path.exists(temp_jsonld_path):
                 os.remove(temp_jsonld_path)
 
     def test_get_tuples_set_mixed_values(self):
         output = set()
         Sparql._get_tuples_set({'x': 'plain_string', 'y': {'value': 'dict_val'}}, output, ['x', 'y', 'z'])
-        self.assertEqual(output, {('plain_string', 'dict_val', None)})
+        assert output == {('plain_string', 'dict_val', None)}
 
 
-class TestSparqlHelpers(unittest.TestCase):
+class TestSparqlHelpers:
 
     def test_binding_to_n3_bnode(self):
         result = _binding_to_n3({'type': 'bnode', 'value': 'b0'})
-        self.assertEqual(result, '_:b0')
+        assert result == '_:b0'
 
     def test_binding_to_n3_lang_literal(self):
         result = _binding_to_n3({'type': 'literal', 'value': 'ciao', 'xml:lang': 'it'})
-        self.assertEqual(result, '"ciao"@it')
+        assert result == '"ciao"@it'
 
     def test_find_closing_quote_no_close(self):
-        self.assertEqual(_find_closing_quote('"no close'), -1)
+        assert _find_closing_quote('"no close') == -1
 
     def test_unescape_n3_carriage_return(self):
-        self.assertEqual(_unescape_n3('a\\rb'), 'a\rb')
+        assert _unescape_n3('a\\rb') == 'a\rb'
 
     def test_unescape_n3_backslash(self):
-        self.assertEqual(_unescape_n3('a\\\\b'), 'a\\b')
+        assert _unescape_n3('a\\\\b') == 'a\\b'
 
     def test_unescape_n3_unknown_escape(self):
-        self.assertEqual(_unescape_n3('a\\xb'), 'a\\xb')
+        assert _unescape_n3('a\\xb') == 'a\\xb'
 
     def test_parse_n3_literal_no_closing_quote(self):
         value, rest = _parse_n3_literal('"no close')
-        self.assertEqual(value, '"no close')
-        self.assertEqual(rest, '')
+        assert value == '"no close'
+        assert rest == ''
 
     def test_n3_value_bnode(self):
-        self.assertEqual(_n3_value('_:b0'), 'b0')
+        assert _n3_value('_:b0') == 'b0'
 
     def test_n3_to_binding_bnode(self):
-        self.assertEqual(_n3_to_binding('_:b0'), {'type': 'bnode', 'value': 'b0'})
+        assert _n3_to_binding('_:b0') == {'type': 'bnode', 'value': 'b0'}
 
     def test_n3_to_binding_lang_literal(self):
         result = _n3_to_binding('"hello"@en')
-        self.assertEqual(result, {'type': 'literal', 'value': 'hello', 'xml:lang': 'en'})
+        assert result == {'type': 'literal', 'value': 'hello', 'xml:lang': 'en'}
 
     @patch('time_agnostic_library.sparql.Sparql.run_select_query')
     def test_run_select_to_quad_set_skips_missing_var(self, mock_query):
@@ -359,8 +313,4 @@ class TestSparqlHelpers(unittest.TestCase):
         }
         sparql = Sparql("SELECT ?s ?p ?o WHERE { ?s ?p ?o }", config=CONFIG)
         result = sparql.run_select_to_quad_set()
-        self.assertEqual(result, {('<http://ex.com/s>', '<http://ex.com/p>', '"val"')})
-
-
-if __name__ == '__main__':
-    unittest.main()
+        assert result == {('<http://ex.com/s>', '<http://ex.com/p>', '"val"')}

@@ -13,30 +13,11 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest
-
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.support import _to_dict_of_nt_sorted_lists
+from triplestore_config import CONFIG
 
-CONFIG = {
-    "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
-        "file_paths": [],
-        "is_quadstore": True
-    },
-    "provenance": {
-        "triplestore_urls": [],
-        "file_paths": ["tests/prov.json"],
-        "is_quadstore": False
-    },
-    "blazegraph_full_text_search": "no",
-    "fuseki_full_text_search": "no",
-    "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": ""
-}
-
-class TestAgnosticEntityHistory(unittest.TestCase):
-    maxDiff = None
+class TestAgnosticEntityHistory:
 
     def test_get_history(self):
         input = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -63,7 +44,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                 ]
             }
         }, None)
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test_get_history_with_metadata(self):
         input = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -124,16 +105,14 @@ class TestAgnosticEntityHistory(unittest.TestCase):
             }
         }
 
-        self.assertEqual(output_0, expected_output_0)
-        self.assertEqual(output_1, expected_output_1)
+        assert output_0 == expected_output_0
+        assert output_1 == expected_output_1
 
     def test_get_history_with_related_entities_author_role(self):
         input_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         entity = AgnosticEntity(input_uri, include_related_objects=True, include_merged_entities=True, include_reverse_relations=False, config=CONFIG)
         history, prov_metadata = entity.get_history(include_prov_metadata=True)
-        # Convert results to normalized format for comparison
         history_dict = _to_dict_of_nt_sorted_lists(history)
-        # Expected snapshots for role entity
         expected_history = {
             "https://github.com/arcangelo7/time_agnostic/ar/15519": {
                 "2021-05-07T09:59:15+00:00": [
@@ -196,7 +175,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
             }
         }
 
-        self.assertEqual(history_dict, expected_history)
+        assert history_dict == expected_history
 
         expected_prov_metadata = {
             "https://github.com/arcangelo7/time_agnostic/ar/15519": {
@@ -311,7 +290,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                 }
             }
         }
-        self.assertEqual(prov_metadata, expected_prov_metadata)
+        assert prov_metadata == expected_prov_metadata
 
     def test_get_history_and_related_entities(self):
         input = "https://github.com/arcangelo7/time_agnostic/ra/4"
@@ -346,7 +325,7 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                 ]
             }
         }
-        self.assertEqual(output_0, expected_output_0)
+        assert output_0 == expected_output_0
 
     def test_get_history_and_related_entities_with_metadata(self):
         input = "https://github.com/arcangelo7/time_agnostic/ra/4"
@@ -446,5 +425,5 @@ class TestAgnosticEntityHistory(unittest.TestCase):
                 }
             }
         }
-        self.assertEqual(output_0, expected_output_0)
-        self.assertEqual(output_1, expected_output_1)
+        assert output_0 == expected_output_0
+        assert output_1 == expected_output_1

@@ -13,7 +13,6 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest
 
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.support import (
@@ -21,26 +20,10 @@ from time_agnostic_library.support import (
     _to_dict_of_nt_sorted_lists,
     _to_nt_sorted_list,
 )
+from triplestore_config import CONFIG
 
-CONFIG = {
-    "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
-        "file_paths": [],
-        "is_quadstore": True
-    },
-    "provenance": {
-        "triplestore_urls": [],
-        "file_paths": ["tests/prov.json"],
-        "is_quadstore": False
-    },
-    "blazegraph_full_text_search": "no",
-    "fuseki_full_text_search": "no",
-    "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": ""
-}
 
-class TestAgnosticEntityHelpers(unittest.TestCase):
-    maxDiff = None
+class TestAgnosticEntityHelpers:
 
     def test__get_entity_current_state(self):
         input = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -56,7 +39,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
                 ],
                 '2021-05-31T18:19:47+00:00': None,
                 '2021-05-07T09:59:15+00:00': None}}
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__old_graphs(self):
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -84,7 +67,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
                 ]
             }
         }
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__include_prov_metadata(self):
         triples_generated_at_time = [
@@ -146,7 +129,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
                 }
             }
         }
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__include_prov_metadata_if_prov_input(self):
         triples_generated_at_time = [
@@ -163,7 +146,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         agnostic_entity = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1", config=CONFIG)
         output = agnostic_entity._include_prov_metadata(triples_generated_at_time, current_state)
         expected_output = {}
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__manage_long_update_queries_insert_data_only(self):
         input_1 = set()
@@ -390,7 +373,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12848>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12849>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12850>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12851>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12852>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12853>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12854>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12855>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12856>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12857>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12858>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12859>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12860>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12861>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12862>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12863>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12864>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12865>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12866>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12867>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12868>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12869>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12870>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12871>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12872>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12873>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12874>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12875>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12876>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12877>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12878>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12879>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12880>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12881>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12882>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12883>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12884>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12885>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12886>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12887>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12888>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12889>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12890>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12891>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12892>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12893>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12894>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12895>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12896>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12897>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12898>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12899>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12900>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12901>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12902>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12903>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12904>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12905>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12906>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12907>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12908>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12909>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12910>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12911>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12912>',
             '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12913>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12914>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12915>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12916>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12917>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12918>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12919>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12920>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#part> <https://github.com/arcangelo7/time_agnostic/be/12921>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://purl.org/vocab/frbr/core#partOf> <https://github.com/arcangelo7/time_agnostic/br/15657>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/Expression>', '<https://github.com/arcangelo7/time_agnostic/br/15655> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/fabio/JournalArticle>'
         ]
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__manage_update_queries_if_short_query(self):
         input_1 = {(
@@ -414,7 +397,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         AgnosticEntity._manage_update_queries(input_1, input_2)
         output = _to_nt_sorted_list(input_1)
         expected_output = ['<https://github.com/arcangelo7/time_agnostic/id/1> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "10.1007/bf02028087"']
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test_manage_update_queries_if_multiple_delete_update(self):
         input_1 = set()
@@ -525,7 +508,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
         AgnosticEntity._manage_update_queries(input_1, input_2)
         output = _to_nt_sorted_list(input_1)
         expected_output = ['<https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/spar/cito/cites> <https://github.com/arcangelo7/time_agnostic/br/109427>', '<https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/spar/cito/cites> <https://github.com/arcangelo7/time_agnostic/br/109550>', '<https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/spar/cito/cites> <https://github.com/arcangelo7/time_agnostic/br/109551>', '<https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/spar/cito/cites> <https://github.com/arcangelo7/time_agnostic/br/116915>', '<https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/spar/cito/cites> <https://github.com/arcangelo7/time_agnostic/br/120237>', '<https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/spar/cito/cites> <https://github.com/arcangelo7/time_agnostic/br/120454>', '<https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/spar/cito/cites> <https://github.com/arcangelo7/time_agnostic/br/120456>', '<https://github.com/arcangelo7/time_agnostic/br/87430> <http://purl.org/spar/cito/cites> <https://github.com/arcangelo7/time_agnostic/br/121112>']
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__query_dataset(self):
         input = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ar/15519", config=CONFIG)
@@ -536,7 +519,7 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>',
             '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
         ]
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__query_provenance(self):
         input = AgnosticEntity("https://github.com/arcangelo7/time_agnostic/ra/15519", config=CONFIG)
@@ -549,7 +532,4 @@ class TestAgnosticEntityHelpers(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/1>',
             '<https://github.com/arcangelo7/time_agnostic/ra/15519/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ra/> { <https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/name> \\"Giulio Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/givenName> \\"Giulio\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://purl.org/spar/datacite/hasIdentifier> <https://github.com/arcangelo7/time_agnostic/id/85509> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://xmlns.com/foaf/0.1/familyName> \\"Marini\\"^^<http://www.w3.org/2001/XMLSchema#string> .\\n<https://github.com/arcangelo7/time_agnostic/ra/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Agent> .} }\"'
         ]
-        self.assertEqual(output, expected_output)
-
-if __name__ == '__main__': # pragma: no cover
-    unittest.main()
+        assert output == expected_output

@@ -15,7 +15,6 @@
 
 import gzip
 import tempfile
-import unittest
 from datetime import datetime
 from pathlib import Path
 
@@ -32,52 +31,49 @@ from time_agnostic_library.ocdm_converter import (
 )
 
 
-class TestParseNtriplesLine(unittest.TestCase):
+class TestParseNtriplesLine:
     def test_uri_triple(self):
         line = '<http://example.com/s> <http://example.com/p> <http://example.com/o> .'
-        self.assertEqual(
-            parse_ntriples_line(line),
-            ('<http://example.com/s>', '<http://example.com/p>', '<http://example.com/o>'),
-        )
+        assert parse_ntriples_line(line) == ('<http://example.com/s>', '<http://example.com/p>', '<http://example.com/o>')
 
     def test_literal_with_datatype(self):
         line = '<http://example.com/s> <http://example.com/p> "42"^^<http://www.w3.org/2001/XMLSchema#integer> .'
         result = parse_ntriples_line(line)
         assert result is not None
-        self.assertEqual(result[0], '<http://example.com/s>')
-        self.assertEqual(result[1], '<http://example.com/p>')
-        self.assertIn('42', result[2])
+        assert result[0] == '<http://example.com/s>'
+        assert result[1] == '<http://example.com/p>'
+        assert '42' in result[2]
 
     def test_literal_with_lang_tag(self):
         line = '<http://example.com/s> <http://example.com/p> "hello"@en .'
         result = parse_ntriples_line(line)
         assert result is not None
-        self.assertEqual(result[2], '"hello"@en')
+        assert result[2] == '"hello"@en'
 
     def test_plain_literal(self):
         line = '<http://example.com/s> <http://example.com/p> "plain text" .'
         result = parse_ntriples_line(line)
         assert result is not None
-        self.assertEqual(result[2], '"plain text"')
+        assert result[2] == '"plain text"'
 
     def test_blank_node_subject(self):
         line = '_:b0 <http://example.com/p> <http://example.com/o> .'
         result = parse_ntriples_line(line)
         assert result is not None
-        self.assertEqual(result[0], '_:b0')
+        assert result[0] == '_:b0'
 
     def test_blank_node_object(self):
         line = '<http://example.com/s> <http://example.com/p> _:b1 .'
         result = parse_ntriples_line(line)
         assert result is not None
-        self.assertEqual(result[2], '_:b1')
+        assert result[2] == '_:b1'
 
     def test_comment_line(self):
-        self.assertIsNone(parse_ntriples_line('# This is a comment'))
+        assert parse_ntriples_line('# This is a comment') is None
 
     def test_empty_line(self):
-        self.assertIsNone(parse_ntriples_line(''))
-        self.assertIsNone(parse_ntriples_line('   '))
+        assert parse_ntriples_line('') is None
+        assert parse_ntriples_line('   ') is None
 
     def test_object_normalizer(self):
         line = '<http://example.com/s> <http://example.com/p> "value" .'
@@ -85,51 +81,51 @@ class TestParseNtriplesLine(unittest.TestCase):
             return obj.upper()
         result = parse_ntriples_line(line, object_normalizer=normalizer)
         assert result is not None
-        self.assertEqual(result[2], '"VALUE"')
+        assert result[2] == '"VALUE"'
 
     def test_escaped_literal(self):
         line = r'<http://example.com/s> <http://example.com/p> "line1\nline2" .'
         result = parse_ntriples_line(line)
         assert result is not None
-        self.assertIn('line1', result[2])
+        assert 'line1' in result[2]
 
 
-class TestParseNtriplesLineFallback(unittest.TestCase):
+class TestParseNtriplesLineFallback:
     def test_non_uri_datatype_fallback(self):
         line = '<http://s> <http://p> "42"^^xsd:integer .'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '"42"^^xsd:integer'))
+        assert result == ('<http://s>', '<http://p>', '"42"^^xsd:integer')
 
     def test_no_trailing_dot(self):
         line = '<http://s> <http://p> <http://o>'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '<http://o>'))
+        assert result == ('<http://s>', '<http://p>', '<http://o>')
 
     def test_fallback_literal_with_datatype_uri(self):
         line = '<http://s> <http://p> "val"^^<http://type>'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '"val"^^<http://type>'))
+        assert result == ('<http://s>', '<http://p>', '"val"^^<http://type>')
 
     def test_fallback_literal_with_lang_tag(self):
         line = '<http://s> <http://p> "hello"@en'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '"hello"@en'))
+        assert result == ('<http://s>', '<http://p>', '"hello"@en')
 
     def test_fallback_plain_literal(self):
         line = '<http://s> <http://p> "text"'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '"text"'))
+        assert result == ('<http://s>', '<http://p>', '"text"')
 
     def test_fallback_blank_node(self):
         line = '_:b0 <http://p> _:b1'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('_:b0', '<http://p>', '_:b1'))
+        assert result == ('_:b0', '<http://p>', '_:b1')
 
     def test_fallback_escaped_literal(self):
         line = r'<http://s> <http://p> "line1\"quoted"'
         result = parse_ntriples_line(line)
         assert result is not None
-        self.assertIn('quoted', result[2])
+        assert 'quoted' in result[2]
 
     def test_fallback_with_normalizer(self):
         line = '<http://s> <http://p> "value"'
@@ -137,63 +133,63 @@ class TestParseNtriplesLineFallback(unittest.TestCase):
             return obj.upper()
         result = parse_ntriples_line(line, object_normalizer=normalizer)
         assert result is not None
-        self.assertEqual(result[2], '"VALUE"')
+        assert result[2] == '"VALUE"'
 
     def test_fallback_incomplete_line(self):
         line = '<http://s> <http://p>'
         result = parse_ntriples_line(line)
-        self.assertIsNone(result)
+        assert result is None
 
     def test_fallback_dot_no_space(self):
         line = '<http://s> <http://p> <http://o>.'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '<http://o>'))
+        assert result == ('<http://s>', '<http://p>', '<http://o>')
 
     def test_fallback_tab_separator(self):
         line = '<http://s>\t<http://p>\t<http://o>'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '<http://o>'))
+        assert result == ('<http://s>', '<http://p>', '<http://o>')
 
     def test_fallback_dot_no_space_non_uri_dtype(self):
         line = '<http://s> <http://p> "42"^^xsd:integer.'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '"42"^^xsd:integer'))
+        assert result == ('<http://s>', '<http://p>', '"42"^^xsd:integer')
 
     def test_fallback_non_uri_datatype_with_trailing(self):
         line = '<http://s> <http://p> "42"^^xsd:integer extra'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '"42"^^xsd:integer'))
+        assert result == ('<http://s>', '<http://p>', '"42"^^xsd:integer')
 
     def test_fallback_non_uri_datatype_no_space(self):
         line = '<http://s> <http://p> "42"^^xsd:integer'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '"42"^^xsd:integer'))
+        assert result == ('<http://s>', '<http://p>', '"42"^^xsd:integer')
 
     def test_fallback_lang_tag_with_trailing(self):
         line = '<http://s> <http://p> "hello"@en extra'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '"hello"@en'))
+        assert result == ('<http://s>', '<http://p>', '"hello"@en')
 
     def test_fallback_unknown_chars(self):
         line = 'foo <http://p> bar'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('foo', '<http://p>', 'bar'))
+        assert result == ('foo', '<http://p>', 'bar')
 
     def test_fallback_lang_tag_no_space(self):
         line = '<http://s> <http://p> "ciao"@it'
         result = parse_ntriples_line(line)
-        self.assertEqual(result, ('<http://s>', '<http://p>', '"ciao"@it'))
+        assert result == ('<http://s>', '<http://p>', '"ciao"@it')
 
 
-class TestExtractSubjectUri(unittest.TestCase):
+class TestExtractSubjectUri:
     def test_angle_bracket_uri(self):
-        self.assertEqual(extract_subject_uri('<http://example.com/s>'), 'http://example.com/s')
+        assert extract_subject_uri('<http://example.com/s>') == 'http://example.com/s'
 
     def test_blank_node(self):
-        self.assertEqual(extract_subject_uri('_:b0'), '_:b0')
+        assert extract_subject_uri('_:b0') == '_:b0'
 
 
-class TestReadNtriplesFile(unittest.TestCase):
+class TestReadNtriplesFile:
     def test_read_plain_file(self):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.nt', delete=False) as f:
             f.write('<http://example.com/s1> <http://example.com/p> <http://example.com/o1> .\n')
@@ -201,9 +197,9 @@ class TestReadNtriplesFile(unittest.TestCase):
             f.write('<http://example.com/s2> <http://example.com/p> "text" .\n')
             path = Path(f.name)
         result = read_ntriples_file(path)
-        self.assertEqual(len(result), 2)
-        self.assertEqual(result[0][0], '<http://example.com/s1>')
-        self.assertEqual(result[1][2], '"text"')
+        assert len(result) == 2
+        assert result[0][0] == '<http://example.com/s1>'
+        assert result[1][2] == '"text"'
         path.unlink()
 
 
@@ -213,10 +209,10 @@ class TestReadNtriplesFile(unittest.TestCase):
             with gzip.open(path, 'wt', encoding='utf-8') as f:
                 f.write('<http://example.com/s> <http://example.com/p> <http://example.com/o> .\n')
             result = read_ntriples_file(path)
-            self.assertEqual(result, [('<http://example.com/s>', '<http://example.com/p>', '<http://example.com/o>')])
+            assert result == [('<http://example.com/s>', '<http://example.com/p>', '<http://example.com/o>')]
 
 
-class TestGroupTriplesBySubject(unittest.TestCase):
+class TestGroupTriplesBySubject:
     def test_grouping(self):
         triples = [
             ('<http://example.com/s1>', '<http://example.com/p1>', '"a"'),
@@ -224,17 +220,11 @@ class TestGroupTriplesBySubject(unittest.TestCase):
             ('<http://example.com/s2>', '<http://example.com/p1>', '"c"'),
         ]
         result = group_triples_by_subject(triples)
-        self.assertEqual(
-            result['http://example.com/s1'],
-            {('<http://example.com/p1>', '"a"'), ('<http://example.com/p2>', '"b"')},
-        )
-        self.assertEqual(
-            result['http://example.com/s2'],
-            {('<http://example.com/p1>', '"c"')},
-        )
+        assert result['http://example.com/s1'] == {('<http://example.com/p1>', '"a"'), ('<http://example.com/p2>', '"b"')}
+        assert result['http://example.com/s2'] == {('<http://example.com/p1>', '"c"')}
 
 
-class TestReadAndGroup(unittest.TestCase):
+class TestReadAndGroup:
     def test_with_normalizer(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / 'test.nt'
@@ -245,8 +235,8 @@ class TestReadAndGroup(unittest.TestCase):
             def normalizer(obj):
                 return obj.upper()
             result = _read_and_group(path, normalizer)
-            self.assertEqual(result['http://example.com/s1'], {('<http://example.com/p>', '"ABC"')})
-            self.assertEqual(result['http://example.com/s2'], {('<http://example.com/p>', '"42"^^XSD:INTEGER')})
+            assert result['http://example.com/s1'] == {('<http://example.com/p>', '"ABC"')}
+            assert result['http://example.com/s2'] == {('<http://example.com/p>', '"42"^^XSD:INTEGER')}
 
 
     def test_gzip(self):
@@ -255,17 +245,17 @@ class TestReadAndGroup(unittest.TestCase):
             with gzip.open(path, 'wt', encoding='utf-8') as f:
                 f.write('<http://example.com/s> <http://example.com/p> <http://example.com/o> .\n')
             result = _read_and_group(path)
-            self.assertEqual(result['http://example.com/s'], {('<http://example.com/p>', '<http://example.com/o>')})
+            assert result['http://example.com/s'] == {('<http://example.com/p>', '<http://example.com/o>')}
 
     def test_fallback_no_normalizer(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / 'test.nt'
             path.write_text('<http://example.com/s> <http://example.com/p> "42"^^xsd:integer\n')
             result = _read_and_group(path)
-            self.assertEqual(result['http://example.com/s'], {('<http://example.com/p>', '"42"^^xsd:integer')})
+            assert result['http://example.com/s'] == {('<http://example.com/p>', '"42"^^xsd:integer')}
 
 
-class TestBuildUpdateQuery(unittest.TestCase):
+class TestBuildUpdateQuery:
     def test_delete_and_insert(self):
         result = _build_update_query(
             'http://example.com/s',
@@ -273,9 +263,9 @@ class TestBuildUpdateQuery(unittest.TestCase):
             {('<http://example.com/p>', '"old"')},
             {('<http://example.com/p>', '"new"')},
         )
-        self.assertIn('DELETE DATA', result)
-        self.assertIn('INSERT DATA', result)
-        self.assertIn('; ', result)
+        assert 'DELETE DATA' in result
+        assert 'INSERT DATA' in result
+        assert '; ' in result
 
     def test_delete_only(self):
         result = _build_update_query(
@@ -284,8 +274,8 @@ class TestBuildUpdateQuery(unittest.TestCase):
             {('<http://example.com/p>', '"old"')},
             set(),
         )
-        self.assertIn('DELETE DATA', result)
-        self.assertNotIn('INSERT DATA', result)
+        assert 'DELETE DATA' in result
+        assert 'INSERT DATA' not in result
 
     def test_insert_only(self):
         result = _build_update_query(
@@ -294,23 +284,23 @@ class TestBuildUpdateQuery(unittest.TestCase):
             set(),
             {('<http://example.com/p>', '"new"')},
         )
-        self.assertNotIn('DELETE DATA', result)
-        self.assertIn('INSERT DATA', result)
+        assert 'DELETE DATA' not in result
+        assert 'INSERT DATA' in result
 
 
-class TestEscapeSparql(unittest.TestCase):
+class TestEscapeSparql:
     def test_escapes(self):
         result = _escape_sparql_for_nquads('a"b\nc\\d\r\t')
-        self.assertEqual(result, 'a\\"b\\nc\\\\d\\r\\t')
+        assert result == 'a\\"b\\nc\\\\d\\r\\t'
 
 
-class TestFormatTimestamp(unittest.TestCase):
+class TestFormatTimestamp:
     def test_format(self):
         dt = datetime(2021, 5, 7, 9, 59, 15)
-        self.assertEqual(_format_timestamp(dt), '2021-05-07T09:59:15+00:00')
+        assert _format_timestamp(dt) == '2021-05-07T09:59:15+00:00'
 
 
-class TestOCDMConverterIC(unittest.TestCase):
+class TestOCDMConverterIC:
     def test_convert_from_ic(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
@@ -344,25 +334,25 @@ class TestOCDMConverterIC(unittest.TestCase):
             converter.convert_from_ic([v1, v2, v3], timestamps, dataset_out, prov_out)
 
             dataset_text = dataset_out.read_text()
-            self.assertIn('<http://example.com/e1>', dataset_text)
-            self.assertIn('value1_updated', dataset_text)
-            self.assertNotIn('<http://example.com/e2>', dataset_text)
+            assert '<http://example.com/e1>' in dataset_text
+            assert 'value1_updated' in dataset_text
+            assert '<http://example.com/e2>' not in dataset_text
 
             prov_text = prov_out.read_text()
-            self.assertIn('specializationOf', prov_text)
-            self.assertIn('generatedAtTime', prov_text)
-            self.assertIn('hasUpdateQuery', prov_text)
-            self.assertIn('wasDerivedFrom', prov_text)
-            self.assertIn('invalidatedAtTime', prov_text)
-            self.assertIn('The entity has been created.', prov_text)
-            self.assertIn('The entity has been modified.', prov_text)
+            assert 'specializationOf' in prov_text
+            assert 'generatedAtTime' in prov_text
+            assert 'hasUpdateQuery' in prov_text
+            assert 'wasDerivedFrom' in prov_text
+            assert 'invalidatedAtTime' in prov_text
+            assert 'The entity has been created.' in prov_text
+            assert 'The entity has been modified.' in prov_text
 
             entities_in_data = {'http://example.com/e1', 'http://example.com/e2'}
             for entity in entities_in_data:
-                self.assertIn(f'<{entity}/prov/se/1>', prov_text)
+                assert f'<{entity}/prov/se/1>' in prov_text
 
 
-class TestOCDMConverterCB(unittest.TestCase):
+class TestOCDMConverterCB:
     def test_convert_from_cb(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
@@ -401,13 +391,9 @@ class TestOCDMConverterCB(unittest.TestCase):
             )
 
             dataset_text = dataset_out.read_text()
-            self.assertIn('value1_new', dataset_text)
-            self.assertNotIn('value2', dataset_text)
+            assert 'value1_new' in dataset_text
+            assert 'value2' not in dataset_text
 
             prov_text = prov_out.read_text()
-            self.assertIn('specializationOf', prov_text)
-            self.assertIn('invalidatedAtTime', prov_text)
-
-
-if __name__ == '__main__':
-    unittest.main()
+            assert 'specializationOf' in prov_text
+            assert 'invalidatedAtTime' in prov_text

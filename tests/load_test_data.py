@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""Test data loading script for the time-agnostic-library test suite."""
-
+import os
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -8,16 +7,39 @@ from pathlib import Path
 from rdflib import Dataset
 from sparqlite import SPARQLClient, SPARQLError
 
+TRIPLESTORE = os.environ.get("TRIPLESTORE", "virtuoso")
 
-def wait_for_virtuoso(endpoint="http://localhost:9999/sparql", timeout=30):
-    """Wait for Virtuoso to be ready."""
+_ENDPOINTS = {
+    "virtuoso": "http://localhost:41720/sparql",
+    "blazegraph": "http://localhost:41730/bigdata/namespace/tal/sparql",
+}
+
+ENDPOINT = _ENDPOINTS[TRIPLESTORE]
+
+_CHECK_QUERY = """
+    ASK {
+        GRAPH <https://github.com/arcangelo7/time_agnostic/br/> {
+            <https://github.com/arcangelo7/time_agnostic/br/2>
+            <http://purl.org/dc/terms/title>
+            "Mapping the web relations of science centres and museums from Latin America"
+        }
+    }
+"""
+
+_VERIFY_QUERIES = [
+    ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/br/31830> ?p ?o } }', 1),
+    ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/id/27139> ?p ?o } }', 1),
+    ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o } }', 1),
+]
+
+
+def wait_for_triplestore(endpoint=ENDPOINT, timeout=60):
     start_time = time.time()
     while True:
         if time.time() - start_time > timeout:
             raise TimeoutError(
-                "Virtuoso did not become available within the timeout period"
+                f"{TRIPLESTORE} did not become available within {timeout}s"
             )
-
         try:
             with SPARQLClient(endpoint) as client:
                 client.ask("ASK { ?s ?p ?o }")
@@ -26,25 +48,15 @@ def wait_for_virtuoso(endpoint="http://localhost:9999/sparql", timeout=30):
             time.sleep(1)
 
 
-def check_data_exists(endpoint="http://localhost:9999/sparql"):
-    """Check if test data is already loaded."""
+def check_data_exists(endpoint=ENDPOINT):
     try:
         with SPARQLClient(endpoint) as client:
-            return client.ask("""
-                ASK {
-                    GRAPH <https://github.com/arcangelo7/time_agnostic/br/> {
-                        <https://github.com/arcangelo7/time_agnostic/br/2>
-                        <http://purl.org/dc/terms/title>
-                        "Mapping the web relations of science centres and museums from Latin America"
-                    }
-                }
-            """)
+            return client.ask(_CHECK_QUERY)
     except SPARQLError:
         return False
 
 
 def _process_chunk(chunk, client, chunk_num, total):
-    """Process a chunk of triples and insert them into the database."""
     graphs = defaultdict(list)
     for s, p, o, c in chunk:
         graphs[c].append((s, p, o))
@@ -64,9 +76,8 @@ def _process_chunk(chunk, client, chunk_num, total):
         return False
 
 
-def load_data(data_file, endpoint="http://localhost:9999/sparql"):
-    """Load data from .nq file into Virtuoso."""
-    print(f"Loading data from {data_file}...")
+def load_data(data_file, endpoint=ENDPOINT):
+    print(f"Loading data from {data_file} into {TRIPLESTORE}...")
 
     g = Dataset(default_union=True)
     g.parse(data_file, format="nquads")
@@ -80,16 +91,10 @@ def load_data(data_file, endpoint="http://localhost:9999/sparql"):
             _process_chunk(triples[i:i + chunk_size], client, (i // chunk_size) + 1, total_chunks)
 
 
-def _verify_data_loaded(endpoint="http://localhost:9999/sparql", timeout=60):
-    """Wait until test data is fully queryable in Virtuoso via SELECT."""
-    checks = [
-        ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/br/31830> ?p ?o } }', 1),
-        ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/id/27139> ?p ?o } }', 1),
-        ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o } }', 1),
-    ]
+def _verify_data_loaded(endpoint=ENDPOINT, timeout=60):
     start_time = time.time()
     with SPARQLClient(endpoint) as client:
-        for query, min_results in checks:
+        for query, min_results in _VERIFY_QUERIES:
             while True:
                 if time.time() - start_time > timeout:
                     raise TimeoutError(f"Data verification timed out: {query}")
@@ -101,20 +106,17 @@ def _verify_data_loaded(endpoint="http://localhost:9999/sparql", timeout=60):
 
 
 def main():
-    """Main entry point to load test data into the Virtuoso database."""
-    # Wait for Virtuoso to be ready
-    print("Waiting for Virtuoso to be ready...")
-    wait_for_virtuoso()
+    print(f"Setting up {TRIPLESTORE} at {ENDPOINT}...")
 
-    # Check if data already exists
+    print(f"Waiting for {TRIPLESTORE} to be ready...")
+    wait_for_triplestore()
+
     print("Checking if test data is already loaded...")
     if check_data_exists():
         print("Test data already present in the database.")
         return
-    else:
-        print("Test data not found in the database. Loading...")
 
-    # Load the data
+    print("Test data not found in the database. Loading...")
     data_file = Path(__file__).parent / "kb" / "data.nq"
     if not data_file.exists():
         print(f"Error: Test data file not found at {data_file}")

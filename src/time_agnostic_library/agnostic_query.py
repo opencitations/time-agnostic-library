@@ -236,12 +236,15 @@ def _merge_entity_bindings(entity_bindings: dict[str, dict[str, list[dict]]]) ->
 def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
     values = _sparql_values(entity_uris)
     query = f"""
-        SELECT ?entity ?time ?updateQuery
+        SELECT ?entity ?time ?updateQuery ?invalidatedAtTime
         WHERE {{
             ?se <{ProvEntity.iri_specialization_of}> ?entity;
                 <{ProvEntity.iri_generated_at_time}> ?time.
             OPTIONAL {{
                 ?se <{ProvEntity.iri_has_update_query}> ?updateQuery.
+            }}
+            OPTIONAL {{
+                ?se <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime.
             }}
             VALUES ?entity {{ {values} }}
         }}
@@ -253,29 +256,15 @@ def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str,
         entry = {
             'time': binding['time']['value'],
             'updateQuery': binding['updateQuery']['value'] if 'updateQuery' in binding else None,
+            'invalidatedAtTime': binding['invalidatedAtTime']['value'] if 'invalidatedAtTime' in binding else None,
         }
         output[entity_uri].append(entry)
     return output
 
 
-def _batch_check_existence(entity_uris: set[str], config: dict) -> dict[str, bool]:
-    values = _sparql_values(entity_uris)
-    query = f"""
-        SELECT DISTINCT ?entity
-        WHERE {{
-            VALUES ?entity {{ {values} }}
-            ?entity ?p ?o.
-        }}
-    """
-    results = Sparql(query, config).run_select_query()
-    existing = {binding['entity']['value'] for binding in results['results']['bindings']}
-    return {uri: uri in existing for uri in entity_uris}
-
-
 def _build_delta_result(
     entity_str: str,
     snapshots: list[dict],
-    exists: bool,
     on_time: tuple[str | None, str | None] | None,
     changed_properties: set[str],
 ) -> dict:
@@ -305,9 +294,8 @@ def _build_delta_result(
         prop_n3_set = {f"<{p}>" for p in changed_properties}
         additions = {q for q in additions if q[1] in prop_n3_set}
         deletions = {q for q in deletions if q[1] in prop_n3_set}
-    deleted = None
-    if not exists:
-        deleted = parsed_snaps[-1][1].isoformat()
+    last_snap = parsed_snaps[-1][0]
+    deleted = parsed_snaps[-1][1].isoformat() if last_snap['invalidatedAtTime'] else None
     output[entity_str] = {
         "created": created,
         "deleted": deleted,
@@ -977,18 +965,14 @@ class DeltaQuery(AgnosticQuery):
         entity_uris = set(self.reconstructed_entities)
         if not entity_uris:
             return {}
-        prov_future = _IO_EXECUTOR.submit(_batch_query_dm_provenance, entity_uris, self.config)
-        existence_future = _IO_EXECUTOR.submit(_batch_check_existence, entity_uris, self.config)
-        prov_data = prov_future.result()
-        existence_data = existence_future.result()
+        prov_data = _batch_query_dm_provenance(entity_uris, self.config)
         output = {}
         for entity_str in entity_uris:
             snapshots = prov_data[entity_str]
             if not snapshots:
                 continue
-            exists = existence_data[entity_str]
             result = _build_delta_result(
-                entity_str, snapshots, exists,
+                entity_str, snapshots,
                 self.on_time, self.changed_properties,
             )
             output.update(result)

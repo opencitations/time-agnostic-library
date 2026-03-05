@@ -13,33 +13,14 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest
-
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.support import (
     _to_dict_of_nt_sorted_lists,
     _to_nt_sorted_list,
 )
+from triplestore_config import CONFIG
 
-CONFIG = {
-    "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
-        "file_paths": [],
-        "is_quadstore": True
-    },
-    "provenance": {
-        "triplestore_urls": [],
-        "file_paths": ["tests/prov.json"],
-        "is_quadstore": False
-    },
-    "blazegraph_full_text_search": "no",
-    "fuseki_full_text_search": "no",
-    "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": ""
-}
-
-class TestAgnosticEntityStateAtTime(unittest.TestCase):
-    maxDiff = None
+class TestAgnosticEntityStateAtTime:
 
     def test_get_state_at_time_and_related_entities_with_metadata(self):
         input = "https://github.com/arcangelo7/time_agnostic/ra/4"
@@ -137,9 +118,9 @@ class TestAgnosticEntityStateAtTime(unittest.TestCase):
             }
         }
 
-        self.assertEqual(output_0, expected_output_0)
-        self.assertEqual(output_1, expected_output_1)
-        self.assertEqual(output_2, expected_output_2)
+        assert output_0 == expected_output_0
+        assert output_1 == expected_output_1
+        assert output_2 == expected_output_2
 
     def test_get_state_at_time_no_hooks(self):
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -156,7 +137,7 @@ class TestAgnosticEntityStateAtTime(unittest.TestCase):
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/pro/RoleInTime>',
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>']},
             {}, {})
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test_get_state_at_interval_no_hooks(self):
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -183,10 +164,9 @@ class TestAgnosticEntityStateAtTime(unittest.TestCase):
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/withRole> <http://purl.org/spar/pro/author>',
                     '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>']},
                 {}, {})
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test_get_state_before_time_with_hooks(self):
-        self.maxDiff = None
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
         input_2 = (None, "2021-05-31T19:19:47+00:00")
         output = AgnosticEntity(input_1, config=CONFIG).get_state_at_time(input_2, include_prov_metadata=True)
@@ -227,8 +207,4 @@ class TestAgnosticEntityStateAtTime(unittest.TestCase):
                     'hasUpdateQuery': 'DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/15519> .} }; INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/ar/> { <https://github.com/arcangelo7/time_agnostic/ar/15519> <http://purl.org/spar/pro/isHeldBy> <https://github.com/arcangelo7/time_agnostic/ra/4> .} }',
                     'hadPrimarySource': None,
                     'description': "The entity 'https://github.com/arcangelo7/time_agnostic/ar/15519' has been modified."}})
-        self.assertEqual(output, expected_output)
-
-
-if __name__ == '__main__': # pragma: no cover
-    unittest.main()
+        assert output == expected_output

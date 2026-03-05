@@ -32,6 +32,7 @@ dev = [
     "pebble>=5.2.0",
     "psutil>=7.2.2",
     "pyright>=1.1.408",
+    "pytest>=9.0.2",
     "qlever>=0.5.45",
     "requests>=2.32.5",
     "rich>=14.3.2",
@@ -73,6 +74,9 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["time_agnostic_library"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["hatchling"]

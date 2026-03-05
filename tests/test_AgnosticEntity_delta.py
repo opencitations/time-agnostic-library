@@ -13,26 +13,8 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest
-
 from time_agnostic_library.agnostic_entity import AgnosticEntity
-
-CONFIG = {
-    "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
-        "file_paths": [],
-        "is_quadstore": True
-    },
-    "provenance": {
-        "triplestore_urls": [],
-        "file_paths": ["tests/prov.json"],
-        "is_quadstore": False
-    },
-    "blazegraph_full_text_search": "no",
-    "fuseki_full_text_search": "no",
-    "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": ""
-}
+from triplestore_config import CONFIG
 
 _AR = "https://github.com/arcangelo7/time_agnostic/ar"
 _RA = "https://github.com/arcangelo7/time_agnostic/ra"
@@ -46,20 +28,20 @@ _AUTHOR = "<http://purl.org/spar/pro/author>"
 _HAS_NEXT = "<https://w3id.org/oc/ontology/hasNext>"
 
 
-class TestAgnosticEntityDelta(unittest.TestCase):
+class TestAgnosticEntityDelta:
     def test_get_delta_between_two_versions(self):
         entity = AgnosticEntity(f"{_AR}/15519", config=CONFIG)
         additions, deletions = entity.get_delta(
             "2021-05-07T09:59:15+00:00",
             "2021-06-01T18:46:41+00:00",
         )
-        self.assertEqual(additions, {
+        assert additions == {
             (_AR_15519, _HELD_BY, f"<{_RA}/4>", _AR_GRAPH),
             (_AR_15519, _RDF_TYPE, _ROLE_IN_TIME, _AR_GRAPH),
-        })
-        self.assertEqual(deletions, {
+        }
+        assert deletions == {
             (_AR_15519, _HELD_BY, f"<{_RA}/15519>", _AR_GRAPH),
-        })
+        }
 
     def test_get_delta_same_version(self):
         entity = AgnosticEntity(f"{_AR}/15519", config=CONFIG)
@@ -67,8 +49,8 @@ class TestAgnosticEntityDelta(unittest.TestCase):
             "2021-06-01T18:46:41+00:00",
             "2021-06-01T18:46:41+00:00",
         )
-        self.assertEqual(additions, set())
-        self.assertEqual(deletions, set())
+        assert additions == set()
+        assert deletions == set()
 
     def test_get_delta_nonexistent_entity(self):
         entity = AgnosticEntity("https://example.com/nonexistent", config=CONFIG)
@@ -76,8 +58,8 @@ class TestAgnosticEntityDelta(unittest.TestCase):
             "2021-05-07T09:59:15+00:00",
             "2021-06-01T18:46:41+00:00",
         )
-        self.assertEqual(additions, set())
-        self.assertEqual(deletions, set())
+        assert additions == set()
+        assert deletions == set()
 
     def test_get_delta_entity_created_within_range(self):
         entity = AgnosticEntity(f"{_AR}/15519", config=CONFIG)
@@ -85,14 +67,10 @@ class TestAgnosticEntityDelta(unittest.TestCase):
             "2020-01-01T00:00:00+00:00",
             "2021-06-01T18:46:41+00:00",
         )
-        self.assertEqual(additions, {
+        assert additions == {
             (_AR_15519, _HELD_BY, f"<{_RA}/4>", _AR_GRAPH),
             (_AR_15519, _WITH_ROLE, _AUTHOR, _AR_GRAPH),
             (_AR_15519, _RDF_TYPE, _ROLE_IN_TIME, _AR_GRAPH),
             (_AR_15519, _HAS_NEXT, f"<{_AR}/15520>", _AR_GRAPH),
-        })
-        self.assertEqual(deletions, set())
-
-
-if __name__ == '__main__': # pragma: no cover
-    unittest.main()
+        }
+        assert deletions == set()

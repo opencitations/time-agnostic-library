@@ -13,12 +13,8 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest
-
 from time_agnostic_library.agnostic_query import DeltaQuery
-
-CONFIG_PATH = "tests/config.json"
-CONFIG_VIRTUOSO = "tests/config_virtuoso.json"
+from triplestore_config import CONFIG, CONFIG_PROV_IN_TRIPLESTORE
 
 _AR = "https://github.com/arcangelo7/time_agnostic/ar"
 _RA = "https://github.com/arcangelo7/time_agnostic/ra"
@@ -50,7 +46,7 @@ _DELETED_ENTITY_DELETIONS = {
 }
 
 
-class Test_DeltaQuery(unittest.TestCase):
+class Test_DeltaQuery:
     def test_run_agnostic_query_cross_delta(self):
         query = """
             prefix pro: <http://purl.org/spar/pro/>
@@ -60,7 +56,7 @@ class Test_DeltaQuery(unittest.TestCase):
             }
         """
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}
-        delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_path=CONFIG_PATH)
+        delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_dict=CONFIG)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             f'{_AR}/15519': {
@@ -70,7 +66,7 @@ class Test_DeltaQuery(unittest.TestCase):
                 "deletions": {_ISHELDBY_DELETION},
             }
         }
-        self.assertEqual(agnostic_results, expected_output)
+        assert agnostic_results == expected_output
 
     def test_run_agnostic_query_single_delta_before(self):
         query = """
@@ -82,7 +78,7 @@ class Test_DeltaQuery(unittest.TestCase):
         """
         on_time = (None, "2021-06-02T18:46:41+00:00")
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_PATH)
+        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_dict=CONFIG)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             f'{_AR}/15519': {
@@ -92,7 +88,7 @@ class Test_DeltaQuery(unittest.TestCase):
                 "deletions": {_ISHELDBY_DELETION},
             }
         }
-        self.assertEqual(agnostic_results, expected_output)
+        assert agnostic_results == expected_output
 
     def test_run_agnostic_query_single_delta_interval(self):
         query = """
@@ -104,7 +100,7 @@ class Test_DeltaQuery(unittest.TestCase):
         """
         on_time = ("2021-06-01T00:00:00+00:00", "2021-06-02T18:46:41+00:00")
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_PATH)
+        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_dict=CONFIG)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             f'{_AR}/15519': {
@@ -114,7 +110,7 @@ class Test_DeltaQuery(unittest.TestCase):
                 "deletions": {_ISHELDBY_DELETION},
             }
         }
-        self.assertEqual(agnostic_results, expected_output)
+        assert agnostic_results == expected_output
 
     def test_run_agnostic_query_single_delta_after_no_results(self):
         query = """
@@ -126,10 +122,10 @@ class Test_DeltaQuery(unittest.TestCase):
         """
         on_time = ("2021-06-02T00:00:00+00:00", None)
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_path=CONFIG_PATH)
+        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_dict=CONFIG)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {}
-        self.assertEqual(agnostic_results, expected_output)
+        assert agnostic_results == expected_output
 
     def test_run_agnostic_query_on_deleted_entity(self):
         query = """
@@ -139,7 +135,7 @@ class Test_DeltaQuery(unittest.TestCase):
                 ?ra a foaf:Agent.
             }
         """
-        delta_query = DeltaQuery(query=query, config_path=CONFIG_VIRTUOSO)
+        delta_query = DeltaQuery(query=query, config_dict=CONFIG_PROV_IN_TRIPLESTORE)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
             f'{_RA}/15519': {
@@ -155,7 +151,7 @@ class Test_DeltaQuery(unittest.TestCase):
                 'deletions': set(),
             }
         }
-        self.assertEqual(agnostic_results, expected_output)
+        assert agnostic_results == expected_output
 
     def test_run_agnostic_query_with_concrete_subject(self):
         query = """
@@ -165,13 +161,13 @@ class Test_DeltaQuery(unittest.TestCase):
                 <https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o .
             }
         """
-        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        delta_query = DeltaQuery(query=query, config_dict=CONFIG)
         result = delta_query.run_agnostic_query()
         entity_key = f"{_AR}/15519"
-        self.assertIn(entity_key, result)
-        self.assertIn("created", result[entity_key])
-        self.assertIn("additions", result[entity_key])
-        self.assertIn("deletions", result[entity_key])
+        assert entity_key in result
+        assert "created" in result[entity_key]
+        assert "additions" in result[entity_key]
+        assert "deletions" in result[entity_key]
 
     def test_run_agnostic_query_with_non_isolated_triples(self):
         query = """
@@ -182,13 +178,13 @@ class Test_DeltaQuery(unittest.TestCase):
                 ?ar pro:isHeldBy ?agent .
             }
         """
-        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        delta_query = DeltaQuery(query=query, config_dict=CONFIG)
         result = delta_query.run_agnostic_query()
-        self.assertIsInstance(result, dict)
-        self.assertGreater(len(result), 0)
+        assert isinstance(result, dict)
+        assert len(result) > 0
         for entity_data in result.values():
-            self.assertIn("additions", entity_data)
-            self.assertIn("deletions", entity_data)
+            assert "additions" in entity_data
+            assert "deletions" in entity_data
 
     def test_run_agnostic_query_nonexistent_entity(self):
         query = """
@@ -196,9 +192,9 @@ class Test_DeltaQuery(unittest.TestCase):
                 <https://github.com/arcangelo7/time_agnostic/nonexistent/999999> ?p ?o .
             }
         """
-        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        delta_query = DeltaQuery(query=query, config_dict=CONFIG)
         result = delta_query.run_agnostic_query()
-        self.assertEqual(result, {})
+        assert result == {}
 
     def test_run_agnostic_query_nonexistent_type(self):
         query = """
@@ -206,10 +202,6 @@ class Test_DeltaQuery(unittest.TestCase):
                 ?o a <http://example.com/NonExistentType> .
             }
         """
-        delta_query = DeltaQuery(query=query, config_path=CONFIG_PATH)
+        delta_query = DeltaQuery(query=query, config_dict=CONFIG)
         result = delta_query.run_agnostic_query()
-        self.assertEqual(result, {})
-
-
-if __name__ == '__main__': # pragma: no cover
-    unittest.main()
+        assert result == {}

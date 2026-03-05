@@ -13,10 +13,9 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-
 import json
-import os
-import unittest
+
+import pytest
 from unittest.mock import patch
 
 from time_agnostic_library.agnostic_query import VersionQuery
@@ -24,32 +23,12 @@ from time_agnostic_library.support import (
     _to_dict_of_nt_sorted_lists,
     _to_dict_of_quad_sets,
 )
-
-CONFIG_PATH = os.path.join('tests', 'config.json')
-CONFIG_VIRTUOSO = os.path.join('tests', 'config_virtuoso.json')
-CONFIG = {
-    "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
-        "file_paths": [],
-        "is_quadstore": True
-    },
-    "provenance": {
-        "triplestore_urls": [],
-        "file_paths": ["tests/prov.json"],
-        "is_quadstore": False
-    },
-    "blazegraph_full_text_search": "no",
-    "fuseki_full_text_search": "no",
-    "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": ""
-}
+from triplestore_config import CONFIG, CONFIG_PROV_IN_TRIPLESTORE
 
 def _sort_bindings(bindings):
     return sorted(bindings, key=lambda b: json.dumps(b, sort_keys=True))
 
-
-class Test_VersionQuery(unittest.TestCase):
-    maxDiff = None
+class Test_VersionQuery:
 
     def test__collect_patterns_no_optional(self):
         query = """
@@ -59,12 +38,12 @@ class Test_VersionQuery(unittest.TestCase):
                 <https://github.com/arcangelo7/time_agnostic/ar/2> pro:isHeldBy ?o.
             }
         """
-        vq = VersionQuery(query, config_path=CONFIG_PATH)
+        vq = VersionQuery(query, config_dict=CONFIG)
         vq._process_query()
-        self.assertEqual(vq._mandatory_triples, [
+        assert vq._mandatory_triples == [
             ('<https://github.com/arcangelo7/time_agnostic/ar/2>', '<http://purl.org/spar/pro/isHeldBy>', '?o')
-        ])
-        self.assertEqual(vq._optional_groups, [])
+        ]
+        assert vq._optional_groups == []
 
     def test__collect_patterns_with_optional(self):
         query = """
@@ -76,14 +55,14 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/15519> rdf:type pro:RoleInTime.}
             }
         """
-        vq = VersionQuery(query, config_path=CONFIG_PATH)
+        vq = VersionQuery(query, config_dict=CONFIG)
         vq._process_query()
-        self.assertEqual(vq._mandatory_triples, [
+        assert vq._mandatory_triples == [
             ('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://purl.org/spar/pro/isHeldBy>', '?o')
-        ])
-        self.assertEqual(vq._optional_groups, [[
+        ]
+        assert vq._optional_groups == [[
             ('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>', '<http://purl.org/spar/pro/RoleInTime>')
-        ]])
+        ]]
 
     def test__collect_patterns_multiple_optionals(self):
         query = """
@@ -99,16 +78,16 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        vq = VersionQuery(query, config_path=CONFIG_PATH)
+        vq = VersionQuery(query, config_dict=CONFIG)
         vq._process_query()
-        self.assertEqual(vq._mandatory_triples, [
+        assert vq._mandatory_triples == [
             ('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://purl.org/spar/pro/isHeldBy>', '?o'),
             ('?o', '<http://purl.org/spar/datacite/hasIdentifier>', '?id')
-        ])
-        self.assertEqual(vq._optional_groups, [
+        ]
+        assert vq._optional_groups == [
             [('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>', '<http://purl.org/spar/pro/RoleInTime>')],
             [('?id', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?value')]
-        ])
+        ]
 
     def test__process_query(self):
         input = """
@@ -125,7 +104,7 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        vq = VersionQuery(input, config_path=CONFIG_PATH)
+        vq = VersionQuery(input, config_dict=CONFIG)
         output = vq._process_query()
         expected_output = [
             ('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://purl.org/spar/pro/isHeldBy>', '?o'),
@@ -133,16 +112,16 @@ class Test_VersionQuery(unittest.TestCase):
             ('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>', '<http://purl.org/spar/pro/RoleInTime>'),
             ('?id', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?value')
         ]
-        self.assertEqual(output, expected_output)
-        self.assertEqual(vq._mandatory_triples, [expected_output[0], expected_output[1]])
-        self.assertEqual(vq._optional_groups, [[expected_output[2]], [expected_output[3]]])
+        assert output == expected_output
+        assert vq._mandatory_triples == [expected_output[0], expected_output[1]]
+        assert vq._optional_groups == [[expected_output[2]], [expected_output[3]]]
 
     def test__process_query_valueError(self):
         input = """
             CONSTRUCT {<https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o}
             WHERE {<https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o}
         """
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             VersionQuery(input)._process_query()
 
     def test__align_snapshots(self):
@@ -160,7 +139,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.relevant_entities_graphs = _to_dict_of_quad_sets({
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 '2021-06-01T18:46:41+00:00': [
@@ -204,7 +183,7 @@ class Test_VersionQuery(unittest.TestCase):
                 '<https://github.com/arcangelo7/time_agnostic/ar/15519> <https://w3id.org/oc/ontology/hasNext> <https://github.com/arcangelo7/time_agnostic/ar/15520>'
             ]
         }
-        self.assertEqual(_to_dict_of_nt_sorted_lists(agnostic_query.relevant_graphs), expected_output)
+        assert _to_dict_of_nt_sorted_lists(agnostic_query.relevant_graphs) == expected_output
 
     def test__align_snapshots_non_overlapping(self):
         query = """
@@ -221,7 +200,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.relevant_entities_graphs = _to_dict_of_quad_sets({
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 '2021-06-01T18:46:41+00:00': [
@@ -357,7 +336,7 @@ class Test_VersionQuery(unittest.TestCase):
                 '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://xmlns.com/foaf/0.1/name> "Giulio Marini"'
             ]
         }
-        self.assertEqual(_to_dict_of_nt_sorted_lists(agnostic_query.relevant_graphs), expected_output)
+        assert _to_dict_of_nt_sorted_lists(agnostic_query.relevant_graphs) == expected_output
 
     def test___rebuild_relevant_entity(self):
         query = """
@@ -374,7 +353,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.relevant_entities_graphs = _to_dict_of_quad_sets({
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
                 '2021-05-31T18:19:47+00:00': [
@@ -445,7 +424,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.reconstructed_entities = {'https://github.com/arcangelo7/time_agnostic/ar/15519'}
         agnostic_query.relevant_entities_graphs = _to_dict_of_quad_sets({
             'https://github.com/arcangelo7/time_agnostic/ar/15519': {
@@ -537,7 +516,7 @@ class Test_VersionQuery(unittest.TestCase):
         }
         expected_reconstructed_entities = {'https://github.com/arcangelo7/time_agnostic/ar/15519', 'https://github.com/arcangelo7/time_agnostic/ra/15519', 'https://github.com/arcangelo7/time_agnostic/id/85509', 'https://github.com/arcangelo7/time_agnostic/ra/4', 'https://github.com/arcangelo7/time_agnostic/id/14'}
         agnostic_query._solve_variables()
-        self.assertEqual(_to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs), expected_relevant_entities_graphs)
+        assert _to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs) == expected_relevant_entities_graphs
         assert (agnostic_query.reconstructed_entities, _to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs)) == (expected_reconstructed_entities, expected_relevant_entities_graphs)
 
     def test__solve_variables_dead_end(self):
@@ -552,7 +531,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?o datacite:hasIdentifier ?id.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.reconstructed_entities = {'https://github.com/arcangelo7/time_agnostic/ar/15519999'}
         agnostic_query.relevant_entities_graphs = {}
         expected_reconstructed_entities = {'https://github.com/arcangelo7/time_agnostic/ar/15519999'}
@@ -575,7 +554,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.vars_to_explicit_by_time = {}
         agnostic_query.relevant_graphs = _to_dict_of_quad_sets({
             '2021-06-01T18:46:41+00:00': [
@@ -614,7 +593,7 @@ class Test_VersionQuery(unittest.TestCase):
                     ('?id', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?value')
                 }
             }
-        self.assertEqual(agnostic_query.vars_to_explicit_by_time, expected_output)
+        assert agnostic_query.vars_to_explicit_by_time == expected_output
 
     def test__there_are_variables_true(self):
         query = """
@@ -631,7 +610,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.vars_to_explicit_by_time = {
             '2021-06-01T18:46:41+00:00': {
                 ('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://purl.org/spar/pro/isHeldBy>', '?o'),
@@ -650,7 +629,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         }
         output = agnostic_query._there_are_variables()
-        self.assertEqual(output, True)
+        assert output == True
 
     def test__there_are_variables_false(self):
         query = """
@@ -667,9 +646,9 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         output = agnostic_query._there_are_variables()
-        self.assertEqual(output, False)
+        assert output == False
 
     def test__there_is_transitive_closure_false(self):
         query = """
@@ -687,12 +666,12 @@ class Test_VersionQuery(unittest.TestCase):
                 ?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/4>.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         variable = '?a'
         triple = ('?a', '<http://purl.org/spar/pro/isHeldBy>', '<https://github.com/arcangelo7/time_agnostic/ra/4>')
         other_triples = {t for t in agnostic_query.triples if t != triple}
         output = agnostic_query._there_is_transitive_closure(variable, other_triples)
-        self.assertEqual(output, False)
+        assert output == False
 
     def test__there_is_transitive_closure_true(self):
         query = """
@@ -709,12 +688,12 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         variable = '?id'
         triple = ('?id', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?value')
         other_triples = {t for t in agnostic_query.triples if t != triple}
         output = agnostic_query._there_is_transitive_closure(variable, other_triples)
-        self.assertEqual(output, True)
+        assert output == True
 
     def test__is_isolated_true_s(self):
         query = """
@@ -732,10 +711,10 @@ class Test_VersionQuery(unittest.TestCase):
                 ?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/4>.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         triple = ('?a', '<http://purl.org/spar/pro/isHeldBy>', '<https://github.com/arcangelo7/time_agnostic/ra/4>')
         output = agnostic_query._is_isolated(triple)
-        self.assertEqual(output, True)
+        assert output == True
 
     def test__is_isolated_true_s_o(self):
         query = """
@@ -748,10 +727,10 @@ class Test_VersionQuery(unittest.TestCase):
                 FILTER (?id_1 != ?id_2)
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         triple = ('?elt_1', '<http://purl.org/spar/datacite/hasIdentifier>', '?id_1')
         output = agnostic_query._is_isolated(triple)
-        self.assertEqual(output, True)
+        assert output == True
 
     def test__is_isolated_false(self):
         query = """
@@ -768,10 +747,10 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         triple = ('?id', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?value')
         output = agnostic_query._is_isolated(triple)
-        self.assertEqual(output, False)
+        assert output == False
 
     def test___is_a_dead_end(self):
         query = """
@@ -788,13 +767,13 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         triple_1 = ('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://purl.org/spar/pro/isHeldBy>', '?o')
         is_a_dead_end_1 = agnostic_query._is_a_dead_end('<https://github.com/arcangelo7/time_agnostic/ar/15519>', triple_1)
         triple_2 = ('?id', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?value')
         is_a_dead_end_2 = agnostic_query._is_a_dead_end('?value', triple_2)
         is_a_dead_end = (is_a_dead_end_1, is_a_dead_end_2)
-        self.assertEqual(is_a_dead_end, (False, True))
+        assert is_a_dead_end == (False, True)
 
     def test__explicit_solvable_variables(self):
         query = """
@@ -811,7 +790,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.vars_to_explicit_by_time = {
             '2021-06-01T18:46:41+00:00': {
                 ('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://purl.org/spar/pro/isHeldBy>', '?o'),
@@ -847,7 +826,7 @@ class Test_VersionQuery(unittest.TestCase):
                 }
             }
         }
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__update_vars_to_explicit(self):
         query = """
@@ -864,7 +843,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.vars_to_explicit_by_time = {
             '2021-06-01T18:46:41+00:00': {
                 ('<https://github.com/arcangelo7/time_agnostic/ar/15519>', '<http://purl.org/spar/pro/isHeldBy>', '?o'),
@@ -918,7 +897,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         }
 
-        self.assertEqual(agnostic_query.vars_to_explicit_by_time, expected_output)
+        assert agnostic_query.vars_to_explicit_by_time == expected_output
 
     def test__get_present_entities_inverse_property(self):
         query = """
@@ -928,10 +907,10 @@ class Test_VersionQuery(unittest.TestCase):
                 ?o ^pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ar/15519>.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         triple = agnostic_query._process_query()[0]
         present_entities = agnostic_query._get_present_entities(triple)
-        self.assertEqual(present_entities, {"https://github.com/arcangelo7/time_agnostic/ar/15519"})
+        assert present_entities == {"https://github.com/arcangelo7/time_agnostic/ar/15519"}
 
     def test__get_query_to_update_queries(self):
         query = """
@@ -942,7 +921,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         triple = ('?a', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?b')
-        query_to_identify = VersionQuery(query, config_path=CONFIG_PATH)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
+        query_to_identify = VersionQuery(query, config_dict=CONFIG)._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify = """
             SELECT ?updateQuery
             WHERE {
@@ -950,7 +929,7 @@ class Test_VersionQuery(unittest.TestCase):
                 FILTER CONTAINS (?updateQuery, 'http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue').
             }
         """.replace(" ", "").replace("\n", "")
-        self.assertEqual(query_to_identify, expected_query_to_identify)
+        assert query_to_identify == expected_query_to_identify
 
     def test__get_query_to_update_queries_blazegraph(self):
         query = """
@@ -961,7 +940,7 @@ class Test_VersionQuery(unittest.TestCase):
             }
         """
         triple = ('?a', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?b')
-        query_to_identify = VersionQuery(query, config_path='tests/config_blazegraph.json')._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
+        query_to_identify = VersionQuery(query, config_dict={**CONFIG, "blazegraph_full_text_search": "yes"})._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
         expected_query_to_identify_bds = """
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
             SELECT ?updateQuery
@@ -971,7 +950,7 @@ class Test_VersionQuery(unittest.TestCase):
                     bds:matchAllTerms 'true'.
             }
         """.replace(" ", "").replace("\n", "")
-        self.assertEqual(query_to_identify, expected_query_to_identify_bds)
+        assert query_to_identify == expected_query_to_identify_bds
 
     def test__find_entities_in_update_queries(self):
         query = """
@@ -987,7 +966,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.
             }
         """
-        agnostic_query = VersionQuery(query, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
         agnostic_query.relevant_entities_graphs = {}
         agnostic_query.reconstructed_entities = set()
         triple = ('?a', '<http://purl.org/spar/pro/isHeldBy>', '<https://github.com/arcangelo7/time_agnostic/ra/15519>')
@@ -1014,8 +993,8 @@ class Test_VersionQuery(unittest.TestCase):
             }
         expected_reconstructed_entities = {'https://github.com/arcangelo7/time_agnostic/ar/15519'}
         agnostic_query._find_entities_in_update_queries(triple, set())
-        self.assertEqual(agnostic_query.reconstructed_entities, expected_reconstructed_entities)
-        self.assertEqual(_to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs), expected_relevant_entities_graphs)
+        assert agnostic_query.reconstructed_entities == expected_reconstructed_entities
+        assert _to_dict_of_nt_sorted_lists(agnostic_query.relevant_entities_graphs) == expected_relevant_entities_graphs
 
     def test_run_agnostic_query_easy(self):
         query = """
@@ -1027,7 +1006,7 @@ class Test_VersionQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
             {
@@ -1040,10 +1019,10 @@ class Test_VersionQuery(unittest.TestCase):
             set())
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_optional(self):
         query = """
@@ -1055,7 +1034,7 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=True, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, other_snapshots=True, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
             {
@@ -1069,10 +1048,10 @@ class Test_VersionQuery(unittest.TestCase):
             set())
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_more_variables_and_more_optionals(self):
         query = """
@@ -1088,7 +1067,7 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-31T18:19:47+00:00': [
@@ -1106,10 +1085,10 @@ class Test_VersionQuery(unittest.TestCase):
         }, set())
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_obj_var(self):
         query = """
@@ -1125,7 +1104,7 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_VIRTUOSO)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG_PROV_IN_TRIPLESTORE)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-07T09:59:15+00:00': [
@@ -1139,10 +1118,10 @@ class Test_VersionQuery(unittest.TestCase):
         }, set())
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_p_obj_var(self):
         query = """
@@ -1158,7 +1137,7 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_VIRTUOSO)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG_PROV_IN_TRIPLESTORE)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-07T09:59:15+00:00': [
@@ -1171,10 +1150,10 @@ class Test_VersionQuery(unittest.TestCase):
         }, set())
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_subj_obj_var(self):
         query = """
@@ -1184,7 +1163,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?s pro:isHeldBy ?o.
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-07T09:59:15+00:00': [
@@ -1199,10 +1178,10 @@ class Test_VersionQuery(unittest.TestCase):
         }, set())
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_var_multi_cont_values(self):
         query = """
@@ -1216,7 +1195,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         br31830 = {'br': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/br/31830'},
                     'id': {'type': 'uri', 'value': 'https://github.com/arcangelo7/time_agnostic/id/4'},
@@ -1239,10 +1218,10 @@ class Test_VersionQuery(unittest.TestCase):
         }, set())
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_easy_on_time(self):
         query = """
@@ -1254,7 +1233,7 @@ class Test_VersionQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), other_snapshots=True, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
             {'2021-05-31T18:19:47+00:00': [
@@ -1262,10 +1241,10 @@ class Test_VersionQuery(unittest.TestCase):
             {'2021-06-01T18:46:41+00:00', '2021-05-07T09:59:15+00:00'})
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_easy_on_time_no_results(self):
         query = """
@@ -1277,12 +1256,12 @@ class Test_VersionQuery(unittest.TestCase):
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-06T00:00:00+00:00", "2021-05-06T00:00:00+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-06T00:00:00+00:00", "2021-05-06T00:00:00+00:00"), other_snapshots=True, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
             {},
             {'2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00', '2021-05-07T09:59:15+00:00'})
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test_run_agnostic_query_optional_on_time(self):
         query = """
@@ -1294,7 +1273,7 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {<https://github.com/arcangelo7/time_agnostic/ar/4> rdf:type pro:RoleInTime.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-06-01T18:46:41+00:00", "2021-06-01T18:46:41+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-06-01T18:46:41+00:00", "2021-06-01T18:46:41+00:00"), other_snapshots=True, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = (
             {'2021-06-01T18:46:41+00:00': [
@@ -1302,10 +1281,10 @@ class Test_VersionQuery(unittest.TestCase):
             {'2021-05-31T18:19:47+00:00', '2021-05-07T09:59:15+00:00'})
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_more_variables_and_more_optionals_on_time(self):
         query = """
@@ -1321,7 +1300,7 @@ class Test_VersionQuery(unittest.TestCase):
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), other_snapshots=True, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-07T09:59:15+00:00': [
@@ -1331,10 +1310,10 @@ class Test_VersionQuery(unittest.TestCase):
             {'2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00'})
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_obj_var_on_time(self):
         query = """
@@ -1351,7 +1330,7 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?a pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), other_snapshots=True, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-07T09:59:15+00:00': [
@@ -1360,10 +1339,10 @@ class Test_VersionQuery(unittest.TestCase):
             {'2021-06-01T18:46:41+00:00', '2021-05-31T18:19:47+00:00'})
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_p_obj_var_on_time(self):
         query = """
@@ -1379,7 +1358,7 @@ class Test_VersionQuery(unittest.TestCase):
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), other_snapshots=False, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"), other_snapshots=False, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-07T09:59:15+00:00': [
@@ -1388,10 +1367,10 @@ class Test_VersionQuery(unittest.TestCase):
         }, set())
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_subj_obj_var_on_time(self):
         query = """
@@ -1401,7 +1380,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?s pro:isHeldBy ?o.
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), other_snapshots=True, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), other_snapshots=True, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-31T18:19:47+00:00': [
@@ -1410,10 +1389,10 @@ class Test_VersionQuery(unittest.TestCase):
             {'2021-06-01T18:46:41+00:00', '2021-05-07T09:59:15+00:00'})
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     def test_run_agnostic_query_var_multi_cont_values_on_time(self):
         query = """
@@ -1427,7 +1406,7 @@ class Test_VersionQuery(unittest.TestCase):
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, on_time=("2021-05-30T19:41:57+00:00", "2021-05-30T19:41:57+00:00"), other_snapshots=False, config_path=CONFIG_PATH)
+        agnostic_query = VersionQuery(query, on_time=("2021-05-30T19:41:57+00:00", "2021-05-30T19:41:57+00:00"), other_snapshots=False, config_dict=CONFIG)
         output = agnostic_query.run_agnostic_query()
         expected_output = ({
             '2021-05-30T19:41:57+00:00': [
@@ -1437,10 +1416,10 @@ class Test_VersionQuery(unittest.TestCase):
         }, set())
         result, other = output
         expected_result, expected_other = expected_output
-        self.assertEqual(other, expected_other)
-        self.assertEqual(set(result.keys()), set(expected_result.keys()))
+        assert other == expected_other
+        assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
-            self.assertEqual(_sort_bindings(result[ts]), _sort_bindings(expected_result[ts]))
+            assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
 
     # def test_run_agnostic_query_updating_relevant_times(self):
     #     query = """
@@ -1454,7 +1433,7 @@ class Test_VersionQuery(unittest.TestCase):
     #             OPTIONAL {?id literal:hasLiteralValue ?value.}
     #         }
     #     """
-    #     agnostic_query = VersionQuery(query, other_snapshots=True, config_path=CONFIG_PATH)
+    #     agnostic_query = VersionQuery(query, other_snapshots=True, config_dict=CONFIG)
     #     output = agnostic_query.run_agnostic_query()
     #     expected_output = (
     #         {'2021-09-09T14:34:43': set(),
@@ -1528,7 +1507,6 @@ class Test_VersionQuery(unittest.TestCase):
     #             ('https://github.com/arcangelo7/time_agnostic/br/528727', 'https://github.com/arcangelo7/time_agnostic/id/282403', '10.3928/00220124-20100126-03')}}, set())
     #     self.assertEqual(output, expected_output)
 
-
     def test_run_agnostic_query_single_isolated_triple_on_time(self):
         query = """
             PREFIX pro: <http://purl.org/spar/pro/>
@@ -1544,11 +1522,11 @@ class Test_VersionQuery(unittest.TestCase):
             config_dict=CONFIG,
         )
         result, other = vq.run_agnostic_query()
-        self.assertEqual(other, set())
-        self.assertIn("2021-05-31T18:19:47+00:00", result)
+        assert other == set()
+        assert "2021-05-31T18:19:47+00:00" in result
         bindings = result["2021-05-31T18:19:47+00:00"]
         values = {b["o"]["value"] for b in bindings}
-        self.assertIn("https://github.com/arcangelo7/time_agnostic/ar/15519", values)
+        assert "https://github.com/arcangelo7/time_agnostic/ar/15519" in values
 
     def test_run_agnostic_query_vm_batch_no_entities(self):
         query = """
@@ -1564,8 +1542,8 @@ class Test_VersionQuery(unittest.TestCase):
             config_dict=CONFIG,
         )
         result, other = vq.run_agnostic_query()
-        self.assertEqual(result, {})
-        self.assertEqual(other, set())
+        assert result == {}
+        assert other == set()
 
     def test_run_agnostic_query_vm_batch_non_quadstore(self):
         config_no_quad = {**CONFIG, "dataset": {**CONFIG["dataset"], "is_quadstore": False}}
@@ -1583,9 +1561,9 @@ class Test_VersionQuery(unittest.TestCase):
             config_dict=config_no_quad,
         )
         result, _other = vq.run_agnostic_query()
-        self.assertIn("2021-05-31T18:19:47+00:00", result)
+        assert "2021-05-31T18:19:47+00:00" in result
         values = {b["o"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
-        self.assertIn("https://github.com/arcangelo7/time_agnostic/ar/15519", values)
+        assert "https://github.com/arcangelo7/time_agnostic/ar/15519" in values
 
     def test_run_agnostic_query_cross_version_no_entities_fill_timestamps(self):
         query = """
@@ -1596,8 +1574,8 @@ class Test_VersionQuery(unittest.TestCase):
         """
         vq = VersionQuery(query, config_dict=CONFIG)
         result, other = vq.run_agnostic_query(include_all_timestamps=True)
-        self.assertEqual(result, {})
-        self.assertEqual(other, set())
+        assert result == {}
+        assert other == set()
 
     def test_run_agnostic_query_cross_version_with_fill_timestamps(self):
         query = """
@@ -1609,8 +1587,8 @@ class Test_VersionQuery(unittest.TestCase):
         """
         vq = VersionQuery(query, config_dict=CONFIG)
         result, _other = vq.run_agnostic_query(include_all_timestamps=True)
-        self.assertIsInstance(result, dict)
-        self.assertGreater(len(result), 0)
+        assert isinstance(result, dict)
+        assert len(result) > 0
 
     def test_run_agnostic_query_cross_version_variable_predicate(self):
         query = """
@@ -1621,14 +1599,14 @@ class Test_VersionQuery(unittest.TestCase):
         """
         vq = VersionQuery(query, config_dict=CONFIG)
         result, _other = vq.run_agnostic_query()
-        self.assertIsInstance(result, dict)
+        assert isinstance(result, dict)
         found_match = False
         for bindings in result.values():
             for b in bindings:
                 if b.get("s", {}).get("value") == "https://github.com/arcangelo7/time_agnostic/ar/15519":
-                    self.assertEqual(b["p"]["value"], "http://purl.org/spar/pro/isHeldBy")
+                    assert b["p"]["value"] == "http://purl.org/spar/pro/isHeldBy"
                     found_match = True
-        self.assertTrue(found_match)
+        assert found_match
 
     def test_run_agnostic_query_cross_version_non_isolated(self):
         query = """
@@ -1641,13 +1619,12 @@ class Test_VersionQuery(unittest.TestCase):
         """
         vq = VersionQuery(query, config_dict=CONFIG)
         result, _other = vq.run_agnostic_query()
-        self.assertIsInstance(result, dict)
-        self.assertGreater(len(result), 0)
+        assert isinstance(result, dict)
+        assert len(result) > 0
         for bindings in result.values():
             for b in bindings:
-                self.assertIn("ar", b)
-                self.assertIn("agent", b)
-
+                assert "ar" in b
+                assert "agent" in b
 
     @patch('time_agnostic_library.agnostic_query._PARALLEL_THRESHOLD', 1)
     def test_run_agnostic_query_parallel_execution(self):
@@ -1659,11 +1636,11 @@ class Test_VersionQuery(unittest.TestCase):
                 ?ar pro:isHeldBy ?agent.
             }
         """
-        vq = VersionQuery(query=query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), config_path=CONFIG_PATH)
+        vq = VersionQuery(query=query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), config_dict=CONFIG)
         result, _ = vq.run_agnostic_query()
-        self.assertIn("2021-05-31T18:19:47+00:00", result)
+        assert "2021-05-31T18:19:47+00:00" in result
         values = {b["ar"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
-        self.assertIn("https://github.com/arcangelo7/time_agnostic/ar/15519", values)
+        assert "https://github.com/arcangelo7/time_agnostic/ar/15519" in values
 
     @patch('time_agnostic_library.agnostic_query._MP_CONTEXT', None)
     @patch('time_agnostic_library.agnostic_query._PARALLEL_THRESHOLD', 1)
@@ -1676,12 +1653,8 @@ class Test_VersionQuery(unittest.TestCase):
                 ?ar pro:isHeldBy ?agent.
             }
         """
-        vq = VersionQuery(query=query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), config_path=CONFIG_PATH)
+        vq = VersionQuery(query=query, on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"), config_dict=CONFIG)
         result, _ = vq.run_agnostic_query()
-        self.assertIn("2021-05-31T18:19:47+00:00", result)
+        assert "2021-05-31T18:19:47+00:00" in result
         values = {b["ar"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
-        self.assertIn("https://github.com/arcangelo7/time_agnostic/ar/15519", values)
-
-
-if __name__ == '__main__': # pragma: no cover
-    unittest.main()
+        assert "https://github.com/arcangelo7/time_agnostic/ar/15519" in values

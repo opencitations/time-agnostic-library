@@ -1,0 +1,31 @@
+services:
+  virtuoso:
+    image: openlink/virtuoso-opensource-7:7.2.16
+    profiles: [virtuoso]
+    ports:
+      - "41720:8890"
+      - "41721:1111"
+    environment:
+      DBA_PASSWORD: dba
+      SPARQL_UPDATE: "true"
+    volumes:
+      - virtuoso_data:/database
+    healthcheck:
+      test: ["CMD", "/opt/virtuoso-opensource/bin/isql", "-U", "dba", "-P", "dba", "exec=status();"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  blazegraph:
+    image: lyrasis/blazegraph:2.1.5
+    profiles: [blazegraph]
+    ports:
+      - "41730:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/bigdata/status || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  virtuoso_data:

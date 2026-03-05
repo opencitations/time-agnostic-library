@@ -16,7 +16,6 @@
 
 import json
 import os
-import unittest
 from datetime import datetime, timezone
 
 from time_agnostic_library.support import (
@@ -28,18 +27,13 @@ from time_agnostic_library.support import (
     generate_config_file,
 )
 
-CONFIG_PATH = "tests/config_support_test.json"
-CONFIG_GRAPHDB = "tests/config_graphdb.json"
-CONFIG_FUSEKI= "tests/config_fuseki.json"
-CONFIG_VIRTUOSO= "tests/config_virtuoso.json"
 
-class Test_Support(unittest.TestCase):
-    def setUp(self):
-        self.config_path = CONFIG_PATH
-        # Create the configuration file with the exact required content
+class Test_Support:
+    def setup_method(self):
+        self.config_path = "tests/config_support_test.json"
         self.initial_config = {
             "dataset": {
-                "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
+                "triplestore_urls": ["http://127.0.0.1:41720/sparql"],
                 "file_paths": [],
                 "is_quadstore": True
             },
@@ -56,7 +50,7 @@ class Test_Support(unittest.TestCase):
         with open(self.config_path, 'w', encoding='utf-8') as f:
             json.dump(self.initial_config, f)
 
-    def tearDown(self):
+    def teardown_method(self):
         try:
             if os.path.exists(self.config_path):
                 os.remove(self.config_path)
@@ -66,11 +60,11 @@ class Test_Support(unittest.TestCase):
     def test_convert_to_datetime(self):
         input = "2021-05-21T19:08:56+00:00"
         expected_output = datetime(2021, 5, 21, 19, 8, 56, tzinfo=timezone.utc)
-        self.assertEqual(convert_to_datetime(input), expected_output)
+        assert convert_to_datetime(input) == expected_output
 
     def test_convert_to_datetime_naive(self):
         result = convert_to_datetime("2021-05-21T19:08:56")
-        self.assertEqual(result, datetime(2021, 5, 21, 19, 8, 56, tzinfo=timezone.utc))
+        assert result == datetime(2021, 5, 21, 19, 8, 56, tzinfo=timezone.utc)
 
     def test_generate_config_file(self):
         # Test case 1: Basic configuration with default values
@@ -93,8 +87,8 @@ class Test_Support(unittest.TestCase):
         config = generate_config_file(self.config_path)
         with open(self.config_path, encoding='utf-8') as f:
             generated_config = json.load(f)
-        self.assertEqual(config, expected_config)
-        self.assertEqual(generated_config, expected_config)
+        assert config == expected_config
+        assert generated_config == expected_config
 
         # Test case 2: Configuration with custom values
         test_dataset_urls = ['http://example.com/dataset']
@@ -126,8 +120,8 @@ class Test_Support(unittest.TestCase):
         )
         with open(self.config_path, encoding='utf-8') as f:
             generated_config = json.load(f)
-        self.assertEqual(config, expected_config_custom)
-        self.assertEqual(generated_config, expected_config_custom)
+        assert config == expected_config_custom
+        assert generated_config == expected_config_custom
 
         # Test case 3: Test with file paths
         test_dataset_dirs = ['path/to/dataset']
@@ -157,35 +151,31 @@ class Test_Support(unittest.TestCase):
         )
         with open(self.config_path, encoding='utf-8') as f:
             generated_config = json.load(f)
-        self.assertEqual(config, expected_config_paths)
-        self.assertEqual(generated_config, expected_config_paths)
+        assert config == expected_config_paths
+        assert generated_config == expected_config_paths
 
-class TestSupportHelpers(unittest.TestCase):
+class TestSupportHelpers:
 
     def test_nt_match_to_n3_lang_literal(self):
         match = _NT_TERM_RE.search('"hello"@en')
         assert match is not None
         result = _nt_match_to_n3(match)
-        self.assertEqual(result, '"hello"@en')
+        assert result == '"hello"@en'
 
     def test_nt_match_to_n3_bnode(self):
         match = _NT_TERM_RE.search('_:b0')
         assert match is not None
         result = _nt_match_to_n3(match)
-        self.assertEqual(result, '_:b0')
+        assert result == '_:b0'
 
     def test_strip_literal_datatype_lang_tagged(self):
         result = _strip_literal_datatype('"hello"@en')
-        self.assertEqual(result, '"hello"@en')
+        assert result == '"hello"@en'
 
     def test_strip_literal_datatype_no_closing_quote(self):
         result = _strip_literal_datatype('"no close')
-        self.assertEqual(result, '"no close')
+        assert result == '"no close'
 
     def test_nt_list_to_quad_set_empty_lines(self):
         result = _nt_list_to_quad_set(['<http://s> <http://p> "o"', '', '  '])
-        self.assertEqual(result, {('<http://s>', '<http://p>', '"o"')})
-
-
-if __name__ == '__main__': # pragma: no cover
-    unittest.main()
+        assert result == {('<http://s>', '<http://p>', '"o"')}

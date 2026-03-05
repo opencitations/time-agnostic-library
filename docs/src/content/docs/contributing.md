@@ -27,41 +27,37 @@ uv build
 
 ## Running the tests
 
-Tests require Docker to be running.
+Tests require Docker to be running. The test suite runs against multiple SPARQL triplestores using a matrix strategy.
 
-1. Start the test database:
+### Start a triplestore
+
+Set the `TRIPLESTORE` environment variable to select the backend (`virtuoso` or `blazegraph`):
 
 ```bash
-# On Linux/macOS
-chmod +x ./tests/start-test-database.sh
-./tests/start-test-database.sh
+# Start Virtuoso (default)
+TRIPLESTORE=virtuoso ./tests/setup-triplestore.sh
 
-# On Windows (PowerShell)
-./tests/start-test-database.ps1
+# Or start Blazegraph
+TRIPLESTORE=blazegraph ./tests/setup-triplestore.sh
 ```
 
-2. Run the tests with coverage:
+### Run the tests
 
 ```bash
-uv run coverage run --rcfile=tests/coverage/.coveragerc
+TRIPLESTORE=virtuoso uv run coverage run --rcfile=tests/coverage/.coveragerc
 uv run coverage report
 ```
 
-3. Generate an HTML coverage report:
+### Generate an HTML coverage report
 
 ```bash
 uv run coverage html -d htmlcov
 ```
 
-4. Stop the test database:
+### Stop the triplestore
 
 ```bash
-# On Linux/macOS
-chmod +x ./tests/stop-test-database.sh
-./tests/stop-test-database.sh
-
-# On Windows (PowerShell)
-./tests/stop-test-database.ps1
+TRIPLESTORE=virtuoso ./tests/teardown-triplestore.sh
 ```
 
 ## Building the documentation

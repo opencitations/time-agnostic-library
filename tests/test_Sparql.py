@@ -13,31 +13,13 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-import unittest
-
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import _to_nt_sorted_list
-
-CONFIG = {
-    "dataset": {
-        "triplestore_urls": ["http://127.0.0.1:9999/sparql"],
-        "file_paths": [],
-        "is_quadstore": True,
-    },
-    "provenance": {
-        "triplestore_urls": [],
-        "file_paths": ["tests/prov.json"],
-        "is_quadstore": False,
-    },
-    "blazegraph_full_text_search": "no",
-    "fuseki_full_text_search": "no",
-    "virtuoso_full_text_search": "no",
-    "graphdb_connector_name": ""
-}
+from triplestore_config import CONFIG
 
 
-class Test_Sparql(unittest.TestCase):
+class Test_Sparql:
     def test_run_select_query(self):
         input = """
             SELECT ?p ?o
@@ -102,7 +84,7 @@ class Test_Sparql(unittest.TestCase):
         expected_output["results"]["bindings"].sort(
             key=lambda x: (x["p"]["value"], x["o"]["value"])
         )
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__get_results_from_files(self):
         input_1 = f"""
@@ -184,7 +166,7 @@ class Test_Sparql(unittest.TestCase):
         expected_output["results"]["bindings"].sort(
             key=lambda x: (x["p"]["value"], x["o"]["value"])
         )
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test__get_tuples_from_triplestores(self):
         input_1 = """
@@ -241,7 +223,7 @@ class Test_Sparql(unittest.TestCase):
         expected_output["results"]["bindings"].sort(
             key=lambda x: (x["p"]["value"], x["o"]["value"])
         )
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test_run_select_to_quad_set(self):
         input = """
@@ -257,7 +239,7 @@ class Test_Sparql(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/id/14> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "http://orcid.org/0000-0002-3259-2309"',
             "<https://github.com/arcangelo7/time_agnostic/id/14> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/datacite/Identifier>",
         ]
-        self.assertEqual(output, expected_output)
+        assert output == expected_output
 
     def test_run_select_to_quad_set_from_triplestore(self):
         input = """
@@ -275,7 +257,4 @@ class Test_Sparql(unittest.TestCase):
             '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://xmlns.com/foaf/0.1/givenName> "Giulio"',
             '<https://github.com/arcangelo7/time_agnostic/ra/4> <http://xmlns.com/foaf/0.1/name> "Giulio Marini"',
         ]
-        self.assertEqual(output, expected_output)
-
-if __name__ == "__main__":  # pragma: no cover
-    unittest.main()
+        assert output == expected_output
