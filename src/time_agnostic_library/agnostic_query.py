@@ -236,11 +236,10 @@ def _merge_entity_bindings(entity_bindings: dict[str, dict[str, list[dict]]]) ->
 def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
     values = _sparql_values(entity_uris)
     query = f"""
-        SELECT ?entity ?time ?updateQuery ?description
+        SELECT ?entity ?time ?updateQuery
         WHERE {{
             ?se <{ProvEntity.iri_specialization_of}> ?entity;
-                <{ProvEntity.iri_generated_at_time}> ?time;
-                <{ProvEntity.iri_description}> ?description.
+                <{ProvEntity.iri_generated_at_time}> ?time.
             OPTIONAL {{
                 ?se <{ProvEntity.iri_has_update_query}> ?updateQuery.
             }}
@@ -254,7 +253,6 @@ def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str,
         entry = {
             'time': binding['time']['value'],
             'updateQuery': binding['updateQuery']['value'] if 'updateQuery' in binding else None,
-            'description': binding['description']['value'] if 'description' in binding else None,
         }
         output[entity_uri].append(entry)
     return output
@@ -282,15 +280,15 @@ def _build_delta_result(
     changed_properties: set[str],
 ) -> dict:
     output: dict[str, dict] = {}
-    sorted_results = sorted(snapshots, key=lambda x: _parse_datetime(x['time']))
+    parsed_snaps = [(snap, _parse_datetime(snap['time'])) for snap in snapshots]
+    parsed_snaps.sort(key=lambda x: x[1])
     after_dt = _parse_datetime(on_time[0]) if on_time and on_time[0] else None
     before_dt = _parse_datetime(on_time[1]) if on_time and on_time[1] else None
-    creation_dt = _parse_datetime(sorted_results[0]['time'])
+    creation_dt = parsed_snaps[0][1]
     update_queries: list[str] = []
     created = None
     has_relevant = False
-    for snap in sorted_results:
-        snap_dt = _parse_datetime(snap['time'])
+    for snap, snap_dt in parsed_snaps:
         if after_dt and snap_dt < after_dt:
             continue
         if before_dt and snap_dt > before_dt:
@@ -309,7 +307,7 @@ def _build_delta_result(
         deletions = {q for q in deletions if q[1] in prop_n3_set}
     deleted = None
     if not exists:
-        deleted = _parse_datetime(sorted_results[-1]['time']).isoformat()
+        deleted = parsed_snaps[-1][1].isoformat()
     output[entity_str] = {
         "created": created,
         "deleted": deleted,

@@ -121,12 +121,13 @@ def _find_matching_close_brace(text: str, start: int) -> int:
 def _fast_parse_update(update_query: str) -> list[tuple[str, list[tuple[str, str, str, str]]]]:
     operations: list[tuple[str, list[tuple[str, str, str, str]]]] = []
     operation_matches = list(_OPERATION_RE.finditer(update_query))
+    query_len = len(update_query)
 
     for i, operation_match in enumerate(operation_matches):
         operation_type = 'DeleteData' if operation_match.group(1).upper() == 'DELETE' else 'InsertData'
 
         op_start = operation_match.end()
-        op_end = operation_matches[i + 1].start() if i + 1 < len(operation_matches) else len(update_query)
+        op_end = operation_matches[i + 1].start() if i + 1 < len(operation_matches) else query_len
         operation_body = update_query[op_start:op_end]
 
         quads: list[tuple[str, str, str, str]] = []
@@ -136,12 +137,12 @@ def _fast_parse_update(update_query: str) -> list[tuple[str, list[tuple[str, str
             triples_end = _find_matching_close_brace(operation_body, triples_start)
             triples_text = operation_body[triples_start:triples_end]
 
-            term_matches = list(_RDF_TERM_RE.finditer(triples_text))
-            for j in range(0, len(term_matches) - 2, 3):
-                subject = _regex_match_to_n3(term_matches[j])
-                predicate = _regex_match_to_n3(term_matches[j + 1])
-                obj = _regex_match_to_n3(term_matches[j + 2])
-                quads.append((subject, predicate, obj, graph_n3))
+            terms: list[str] = []
+            for m in _RDF_TERM_RE.finditer(triples_text):
+                terms.append(_regex_match_to_n3(m))
+                if len(terms) == 3:
+                    quads.append((terms[0], terms[1], terms[2], graph_n3))
+                    terms.clear()
 
         operations.append((operation_type, quads))
 
@@ -412,7 +413,8 @@ class AgnosticEntity:
             return set(), set()
         start_dt = _parse_datetime(time_start)
         end_dt = _parse_datetime(time_end)
-        first_snapshot_dt = min(_parse_datetime(b['time']['value']) for b in bindings)
+        parsed = [(b, _parse_datetime(b['time']['value'])) for b in bindings]
+        first_snapshot_dt = min(dt for _, dt in parsed)
         if first_snapshot_dt > start_dt:
             entity_graphs, _, _ = self._get_entity_state_at_time(
                 (time_end, time_end), False
@@ -421,13 +423,13 @@ class AgnosticEntity:
                 return set(), set()
             state_at_end = next(iter(entity_graphs.values()))
             return state_at_end, set()
-        relevant = [
-            b for b in bindings
-            if start_dt < _parse_datetime(b['time']['value']) <= end_dt
-            and 'updateQuery' in b and 'value' in b['updateQuery']
-        ]
-        relevant.sort(key=lambda x: _parse_datetime(x['time']['value']))
-        return _compose_update_queries([b['updateQuery']['value'] for b in relevant])
+        relevant = sorted(
+            ((b, dt) for b, dt in parsed
+             if start_dt < dt <= end_dt
+             and 'updateQuery' in b and 'value' in b['updateQuery']),
+            key=lambda x: x[1],
+        )
+        return _compose_update_queries([b['updateQuery']['value'] for b, _ in relevant])
 
     def _collect_all_related_entities_states_at_time(
         self,
