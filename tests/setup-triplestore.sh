@@ -36,6 +36,61 @@ if [ "$TRIPLESTORE" = "blazegraph" ]; then
     echo ""
 fi
 
+if [ "$TRIPLESTORE" = "fuseki" ]; then
+    echo "Creating Fuseki TDB2 dataset with union default graph..."
+    TMPFILE=$(mktemp /tmp/fuseki-config-XXXXXX.ttl)
+    cat > "$TMPFILE" << 'TURTLE'
+@prefix :      <#> .
+@prefix fuseki: <http://jena.apache.org/fuseki#> .
+@prefix tdb2:  <http://jena.apache.org/2016/tdb#> .
+
+:service a fuseki:Service ;
+    fuseki:name "tal" ;
+    fuseki:endpoint [ fuseki:operation fuseki:query ] ;
+    fuseki:endpoint [ fuseki:operation fuseki:update ] ;
+    fuseki:endpoint [ fuseki:operation fuseki:gsp-rw ] ;
+    fuseki:dataset :dataset .
+
+:dataset a tdb2:DatasetTDB2 ;
+    tdb2:location "/fuseki/databases/tal" ;
+    tdb2:unionDefaultGraph true .
+TURTLE
+    curl -sf -X POST "http://127.0.0.1:41740/\$/datasets" \
+        -u admin:admin \
+        -H 'Content-Type: text/turtle' \
+        --data-binary "@$TMPFILE"
+    rm -f "$TMPFILE"
+    echo ""
+fi
+
+if [ "$TRIPLESTORE" = "graphdb" ]; then
+    echo "Creating GraphDB repository..."
+    TMPFILE=$(mktemp /tmp/graphdb-repo-XXXXXX.ttl)
+    cat > "$TMPFILE" << 'TURTLE'
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix rep: <http://www.openrdf.org/config/repository#>.
+@prefix sr: <http://www.openrdf.org/config/repository/sail#>.
+@prefix sail: <http://www.openrdf.org/config/sail#>.
+@prefix graphdb: <http://www.ontotext.com/config/graphdb#>.
+
+[] a rep:Repository ;
+   rep:repositoryID "tal" ;
+   rdfs:label "TAL test repository" ;
+   rep:repositoryImpl [
+      rep:repositoryType "graphdb:SailRepository" ;
+      sr:sailImpl [
+         sail:sailType "graphdb:Sail" ;
+         graphdb:repository-type "file-repository" ;
+      ]
+   ].
+TURTLE
+    curl -sf -X POST "http://127.0.0.1:41750/rest/repositories" \
+        -H 'Content-Type: multipart/form-data' \
+        -F "config=@$TMPFILE"
+    rm -f "$TMPFILE"
+    echo ""
+fi
+
 echo "Loading test data..."
 cd "$PROJECT_DIR"
 TRIPLESTORE="$TRIPLESTORE" uv run python tests/load_test_data.py

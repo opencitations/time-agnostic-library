@@ -12,9 +12,20 @@ TRIPLESTORE = os.environ.get("TRIPLESTORE", "virtuoso")
 _ENDPOINTS = {
     "virtuoso": "http://localhost:41720/sparql",
     "blazegraph": "http://localhost:41730/bigdata/namespace/tal/sparql",
+    "fuseki": "http://localhost:41740/tal",
+    "graphdb": "http://localhost:41750/repositories/tal",
 }
 
 ENDPOINT = _ENDPOINTS[TRIPLESTORE]
+
+_UPDATE_ENDPOINTS = {
+    "virtuoso": _ENDPOINTS["virtuoso"],
+    "blazegraph": _ENDPOINTS["blazegraph"],
+    "fuseki": _ENDPOINTS["fuseki"],
+    "graphdb": "http://localhost:41750/repositories/tal/statements",
+}
+
+UPDATE_ENDPOINT = _UPDATE_ENDPOINTS[TRIPLESTORE]
 
 _CHECK_QUERY = """
     ASK {
@@ -76,7 +87,7 @@ def _process_chunk(chunk, client, chunk_num, total):
         return False
 
 
-def load_data(data_file, endpoint=ENDPOINT):
+def load_data(data_file, update_endpoint=UPDATE_ENDPOINT):
     print(f"Loading data from {data_file} into {TRIPLESTORE}...")
 
     g = Dataset(default_union=True)
@@ -86,7 +97,7 @@ def load_data(data_file, endpoint=ENDPOINT):
     triples = list(g.quads())
     total_chunks = (len(triples) + chunk_size - 1) // chunk_size
 
-    with SPARQLClient(endpoint) as client:
+    with SPARQLClient(update_endpoint) as client:
         for i in range(0, len(triples), chunk_size):
             _process_chunk(triples[i:i + chunk_size], client, (i // chunk_size) + 1, total_chunks)
 

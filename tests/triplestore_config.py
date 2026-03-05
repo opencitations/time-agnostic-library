@@ -5,6 +5,8 @@ TRIPLESTORE = os.environ.get("TRIPLESTORE", "virtuoso")
 _ENDPOINTS = {
     "virtuoso": "http://127.0.0.1:41720/sparql",
     "blazegraph": "http://127.0.0.1:41730/bigdata/namespace/tal/sparql",
+    "fuseki": "http://127.0.0.1:41740/tal",
+    "graphdb": "http://127.0.0.1:41750/repositories/tal",
 }
 
 ENDPOINT = _ENDPOINTS[TRIPLESTORE]
@@ -46,6 +48,15 @@ CONFIG_PROV_IN_TRIPLESTORE = {
 _FTS_KEY = {
     "virtuoso": "virtuoso_full_text_search",
     "blazegraph": "blazegraph_full_text_search",
+    "fuseki": "fuseki_full_text_search",
+    "graphdb": "graphdb_connector_name",
 }
 
-CONFIG_FTS = {**CONFIG, _FTS_KEY[TRIPLESTORE]: "yes"}
+_FTS_VALUE = {
+    "virtuoso": "yes",
+    "blazegraph": "yes",
+    "fuseki": "yes",
+    "graphdb": "tal_fts",
+}
+
+CONFIG_FTS = {**CONFIG, _FTS_KEY[TRIPLESTORE]: _FTS_VALUE[TRIPLESTORE]}

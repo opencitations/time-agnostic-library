@@ -27,19 +27,27 @@ uv build
 
 ## Running the tests
 
-Tests require Docker to be running. The test suite runs against multiple SPARQL triplestores using a matrix strategy.
+Tests require Docker to be running. The test suite runs against multiple SPARQL triplestores using a matrix strategy. Set the `TRIPLESTORE` environment variable to select the backend:
+
+| Value | Triplestore | Port | Endpoint |
+|---|---|---|---|
+| `virtuoso` (default) | OpenLink Virtuoso | 41720 | `http://127.0.0.1:41720/sparql` |
+| `blazegraph` | Blazegraph | 41730 | `http://127.0.0.1:41730/bigdata/namespace/tal/sparql` |
+| `fuseki` | Apache Jena Fuseki | 41740 | `http://127.0.0.1:41740/tal` |
+| `graphdb` | GraphDB Free Edition | 41750 | `http://127.0.0.1:41750/repositories/tal` |
 
 ### Start a triplestore
 
-Set the `TRIPLESTORE` environment variable to select the backend (`virtuoso` or `blazegraph`):
-
 ```bash
-# Start Virtuoso (default)
 TRIPLESTORE=virtuoso ./tests/setup-triplestore.sh
-
-# Or start Blazegraph
-TRIPLESTORE=blazegraph ./tests/setup-triplestore.sh
 ```
+
+The setup script starts the Docker container, creates the dataset or repository, and loads test data. Each triplestore has specific initialization steps handled automatically:
+
+- **Blazegraph**: creates a quads namespace `tal` with `axiomsClass=NoAxioms` and text index
+- **Fuseki**: creates a TDB2 dataset with `tdb2:unionDefaultGraph true` via assembler config, so that provenance queries without explicit `GRAPH` patterns can find data in named graphs
+- **GraphDB**: creates a repository via REST API with a Turtle config file. Uses version 10.x (11.x requires a license). SPARQL UPDATE uses a separate endpoint (`/repositories/tal/statements`)
+- **Virtuoso**: grants SPARQL update permissions and runs a checkpoint after data loading
 
 ### Run the tests
 
@@ -59,6 +67,10 @@ uv run coverage html -d htmlcov
 ```bash
 TRIPLESTORE=virtuoso ./tests/teardown-triplestore.sh
 ```
+
+### CI matrix
+
+GitHub Actions runs a matrix of 4 Python versions (3.10, 3.11, 3.12, 3.13) x 4 triplestores = 16 parallel jobs.
 
 ## Building the documentation
 

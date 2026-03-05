@@ -27,5 +27,29 @@ services:
       timeout: 5s
       retries: 30
 
+  fuseki:
+    image: stain/jena-fuseki:5.1.0
+    profiles: [fuseki]
+    ports:
+      - "41740:3030"
+    environment:
+      ADMIN_PASSWORD: admin
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3030/$/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  graphdb:
+    image: ontotext/graphdb:10.8.12
+    profiles: [graphdb]
+    ports:
+      - "41750:7200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7200/protocol || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
 volumes:
   virtuoso_data:
