@@ -109,10 +109,13 @@ def _batch_query_provenance_snapshots(entity_uris: set[str], config: dict) -> di
     return output
 
 
+def _sparql_filter_in(var: str, uris: set[str]) -> str:
+    return f"FILTER({var} IN ({', '.join(f'<{uri}>' for uri in uris)}))"
+
+
 def _batch_query_dataset_triples(entity_uris: set[str], config: dict) -> dict[str, set[tuple]]:
-    values = _sparql_values(entity_uris)
     is_quadstore = config['dataset']['is_quadstore']
-    body = f"VALUES ?s {{ {values} }} ?s ?p ?o"
+    body = f"?s ?p ?o. {_sparql_filter_in('?s', entity_uris)}"
     wrapped = _wrap_in_graph(body, is_quadstore)
     select_vars = "?s ?p ?o ?g" if is_quadstore else "?s ?p ?o"
     query = f"SELECT {select_vars} WHERE {{ {wrapped} }}"
