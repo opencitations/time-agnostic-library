@@ -7,6 +7,7 @@ _ENDPOINTS = {
     "blazegraph": "http://127.0.0.1:41730/bigdata/namespace/tal/sparql",
     "fuseki": "http://127.0.0.1:41740/tal",
     "graphdb": "http://127.0.0.1:41750/repositories/tal",
+    "qlever": "http://127.0.0.1:41760",
 }
 
 ENDPOINT = _ENDPOINTS[TRIPLESTORE]
@@ -59,4 +60,4 @@ _FTS_VALUE = {
     "graphdb": "tal_fts",
 }
 
-CONFIG_FTS = {**CONFIG, _FTS_KEY[TRIPLESTORE]: _FTS_VALUE[TRIPLESTORE]}
+CONFIG_FTS = {**CONFIG, _FTS_KEY[TRIPLESTORE]: _FTS_VALUE[TRIPLESTORE]} if TRIPLESTORE in _FTS_KEY else CONFIG.copy()

@@ -8,6 +8,7 @@
 /tests/virtuoso/
 /tests/cache/
 /tests/test_db/
+/tests/qlever_data/
 tests/tests.zip
 setup.py
 execution_example.py

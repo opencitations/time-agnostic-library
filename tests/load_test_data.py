@@ -14,6 +14,7 @@ _ENDPOINTS = {
     "blazegraph": "http://localhost:41730/bigdata/namespace/tal/sparql",
     "fuseki": "http://localhost:41740/tal",
     "graphdb": "http://localhost:41750/repositories/tal",
+    "qlever": "http://localhost:41760",
 }
 
 ENDPOINT = _ENDPOINTS[TRIPLESTORE]
@@ -23,6 +24,7 @@ _UPDATE_ENDPOINTS = {
     "blazegraph": _ENDPOINTS["blazegraph"],
     "fuseki": _ENDPOINTS["fuseki"],
     "graphdb": "http://localhost:41750/repositories/tal/statements",
+    "qlever": _ENDPOINTS["qlever"],
 }
 
 UPDATE_ENDPOINT = _UPDATE_ENDPOINTS[TRIPLESTORE]
@@ -121,6 +123,12 @@ def main():
 
     print(f"Waiting for {TRIPLESTORE} to be ready...")
     wait_for_triplestore()
+
+    if TRIPLESTORE == "qlever":
+        print("QLever loads data at index time. Verifying...")
+        _verify_data_loaded()
+        print("Data verification completed.")
+        return
 
     print("Checking if test data is already loaded...")
     if check_data_exists():

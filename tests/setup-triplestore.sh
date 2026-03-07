@@ -7,8 +7,10 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$SCRIPT_DIR"
 
-echo "Starting $TRIPLESTORE..."
-docker compose --profile "$TRIPLESTORE" up -d --wait
+if [ "$TRIPLESTORE" != "qlever" ]; then
+    echo "Starting $TRIPLESTORE..."
+    docker compose --profile "$TRIPLESTORE" up -d --wait
+fi
 
 if [ "$TRIPLESTORE" = "virtuoso" ]; then
     CONTAINER="$(docker compose ps --format '{{.Name}}' --status running | grep virtuoso)"
@@ -89,6 +91,56 @@ TURTLE
         -F "config=@$TMPFILE"
     rm -f "$TMPFILE"
     echo ""
+fi
+
+if [ "$TRIPLESTORE" = "qlever" ]; then
+    QLEVER_DIR="$SCRIPT_DIR/qlever_data"
+    DATA_FILE="$SCRIPT_DIR/kb/data.nq"
+    PROV_FILE="$SCRIPT_DIR/prov.json"
+    mkdir -p "$QLEVER_DIR"
+
+    echo "Converting provenance JSON-LD to N-Quads..."
+    cd "$PROJECT_DIR"
+    uv run python -c "
+from rdflib import Dataset
+g = Dataset(default_union=True)
+g.parse('$PROV_FILE', format='json-ld')
+g.serialize('$QLEVER_DIR/prov.nq', format='nquads')
+print(f'  Provenance: {sum(1 for _ in g.quads())} quads')
+"
+
+    echo "Merging dataset and provenance into single N-Quads file..."
+    cat "$DATA_FILE" "$QLEVER_DIR/prov.nq" > "$QLEVER_DIR/tal.nq"
+    echo "  Merged file: $(wc -l < "$QLEVER_DIR/tal.nq") lines"
+
+    cd "$QLEVER_DIR"
+
+    echo "Pulling QLever Docker image..."
+    docker pull adfreiburg/qlever
+
+    echo "Building QLever index..."
+    uv run qlever index \
+        --name tal \
+        --format nq \
+        --input-files tal.nq \
+        --cat-input-files "cat tal.nq" \
+        --settings-json '{"prefixes-external": []}' \
+        --system docker \
+        --overwrite-existing
+
+    echo "Starting QLever server on port 41760..."
+    docker ps -a --filter "publish=41760" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+    # The qlever CLI follows the log after start; timeout lets the script continue
+    # once the server is up (the Docker container keeps running independently)
+    timeout 30 uv run qlever start \
+        --name tal \
+        --description "TAL test dataset" \
+        --port 41760 \
+        --access-token "" \
+        --kill-existing-with-same-port \
+        --system docker || true
+
+    cd "$PROJECT_DIR"
 fi
 
 echo "Loading test data..."

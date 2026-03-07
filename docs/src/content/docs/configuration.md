@@ -86,6 +86,12 @@ DB.DBA.USER_GRANT_ROLE('SPARQL', 'SPARQL_UPDATE');
 
 SPARQL endpoint example: `http://127.0.0.1:8890/sparql`
 
+### QLever
+
+QLever works with the library out of the box. Full-text search optimization is not currently supported for QLever: the token-based text index (`ql:contains-word`) produces false negatives when matching URI substrings, resulting in incorrect query results. This is a work in progress.
+
+SPARQL endpoint example: `http://127.0.0.1:7001`
+
 ## Generating a configuration file programmatically
 
 Use `generate_config_file()` from the support module:
