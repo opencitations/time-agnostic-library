@@ -129,8 +129,6 @@ def _iter_versions_as_sets(
     dataset_quads: set[tuple],
     relevant_times: set[str] | None = None,
 ) -> list[tuple[str, tuple]]:
-    if not prov_snapshots:
-        return []
     sorted_snaps = sorted(prov_snapshots, key=lambda x: _parse_datetime(x['time']), reverse=True)
     target_count = len(relevant_times) if relevant_times else None
     working = set(dataset_quads)
