@@ -16,10 +16,8 @@
 
 import atexit
 import json
-import multiprocessing
 import os
-import sys
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
@@ -37,17 +35,10 @@ from time_agnostic_library.support import convert_to_datetime
 
 CONFIG_PATH = "./config.json"
 
-_MP_CONTEXT = multiprocessing.get_context('fork') if sys.platform != 'win32' else None
 _PARALLEL_THRESHOLD = os.cpu_count() or 1
 
 _IO_EXECUTOR = ThreadPoolExecutor(max_workers=2)
 atexit.register(_IO_EXECUTOR.shutdown, wait=False)
-
-
-def _create_executor(max_workers=None):
-    if _MP_CONTEXT is not None:
-        return ProcessPoolExecutor(max_workers=max_workers, mp_context=_MP_CONTEXT)
-    return ThreadPoolExecutor(max_workers=max_workers)
 
 
 def _run_in_parallel(worker_fn, args_list):
@@ -55,7 +46,7 @@ def _run_in_parallel(worker_fn, args_list):
         for args in args_list:
             yield worker_fn(*args)
         return
-    with _create_executor() as executor:
+    with ThreadPoolExecutor() as executor:
         futures = {executor.submit(worker_fn, *args): i for i, args in enumerate(args_list)}
         for future in as_completed(futures):
             yield future.result()

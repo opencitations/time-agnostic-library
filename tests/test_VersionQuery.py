@@ -1642,7 +1642,6 @@ class Test_VersionQuery:
         values = {b["ar"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
         assert "https://github.com/arcangelo7/time_agnostic/ar/15519" in values
 
-    @patch('time_agnostic_library.agnostic_query._MP_CONTEXT', None)
     @patch('time_agnostic_library.agnostic_query._PARALLEL_THRESHOLD', 1)
     def test_run_agnostic_query_parallel_thread_fallback(self):
         query = """
