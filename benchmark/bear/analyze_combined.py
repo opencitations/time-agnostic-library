@@ -72,7 +72,7 @@ def _plot_line(ax: Axes, pct: list[float], vals: list[float], style_key: str) ->
 
 
 def _annotate_line_range(ax: Axes, pct: list[float], vals: list[float], color: str,
-                         x_pos: float | None = None) -> None:
+                         x_pos: float | None = None, below: bool = False) -> None:
     min_val = min(vals)
     max_val = max(vals)
     if x_pos is not None:
@@ -81,9 +81,12 @@ def _annotate_line_range(ax: Axes, pct: list[float], vals: list[float], color: s
     else:
         closest_idx = len(vals) // 2
         y_val = vals[closest_idx]
-    label = f"{_format_ms_label(max_val)} \u2192 {_format_ms_label(min_val)}"
-    ax.annotate(label, xy=(pct[closest_idx], y_val), fontsize=8, color=color,
-                ha="center", va="bottom")
+    label = f"{_format_ms_label(min_val)} \u2192 {_format_ms_label(max_val)}"
+    offset = (0, -6) if below else (0, 4)
+    va = "top" if below else "bottom"
+    ax.annotate(label, xy=(pct[closest_idx], y_val), xytext=offset,
+                textcoords="offset points", fontsize=8, color=color,
+                ha="center", va=va)
 
 
 def _plot_line_chart(ax: Axes,
@@ -95,7 +98,7 @@ def _plot_line_chart(ax: Axes,
     pct_d, vals_d = _normalize_keys(daily_data)
     pct_h, vals_h = _normalize_keys(hourly_data)
     _plot_line(ax, pct_d, vals_d, "tal_daily")
-    _annotate_line_range(ax, pct_d, vals_d, STYLES["tal_daily"]["color"], x_pos=20)
+    _annotate_line_range(ax, pct_d, vals_d, STYLES["tal_daily"]["color"], x_pos=20, below=True)
     _plot_line(ax, pct_h, vals_h, "tal_hourly")
     _annotate_line_range(ax, pct_h, vals_h, STYLES["tal_hourly"]["color"], x_pos=75)
     if daily_ost_data:
