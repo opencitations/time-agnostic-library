@@ -73,8 +73,18 @@ GitHub Actions runs a matrix of 4 Python versions (3.10, 3.11, 3.12, 3.13) x 5 t
 ```bash
 cd docs
 npm install
-npm run dev      # Local preview
-npm run build    # Production build
+```
+
+Start a local preview server:
+
+```bash
+npm run dev
+```
+
+Build for production:
+
+```bash
+npm run build
 ```
 
 ## Release process
