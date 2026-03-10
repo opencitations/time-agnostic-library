@@ -18,6 +18,7 @@ XSD_NS = "http://www.w3.org/2001/XMLSchema#"
 _INTEGER_SUFFIX = f"^^<{XSD_NS}integer>"
 _INT_SUFFIX = f"^^<{XSD_NS}int>"
 _INTEGER_SUFFIX_LEN = len(_INTEGER_SUFFIX)
+_STRING_SUFFIX = f"^^<{XSD_NS}string>"
 
 BASE_TIMESTAMP = datetime(2015, 8, 1, 0, 0, 0, tzinfo=timezone.utc)
 
@@ -31,6 +32,8 @@ SCRIPT_DIR = Path(__file__).parent
 
 
 def normalize_object(obj: str) -> str:
+    if obj.endswith(_STRING_SUFFIX):
+        return obj[:-len(_STRING_SUFFIX)]
     if obj.endswith(_INTEGER_SUFFIX):
         return obj[:-_INTEGER_SUFFIX_LEN] + _INT_SUFFIX
     return obj
