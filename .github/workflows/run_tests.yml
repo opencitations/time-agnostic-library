@@ -30,6 +30,10 @@ permissions:
 env:
   COVERAGE_REPORT_PATH: htmlcov
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   CheckCoverage:
     runs-on: ubuntu-latest
