@@ -1,3 +1,44 @@
+# [7.0.0](https://github.com/opencitations/time-agnostic-library/compare/6.0.0...7.0.0) (2026-03-11)
+
+
+* feat!: replace DeltaQuery modified dict with net delta quad sets ([d0f4f95](https://github.com/opencitations/time-agnostic-library/commit/d0f4f95d6ca27a5a805e125c031b959091b84321))
+
+
+### Bug Fixes
+
+* **benchmark:** correct annotation label order and overlap in combined plots ([7969a46](https://github.com/opencitations/time-agnostic-library/commit/7969a467fa5cf50839753a48e01b4bc085265930))
+* **benchmark:** ensure R43ples container is running on repeated setup invocations ([18a521e](https://github.com/opencitations/time-agnostic-library/commit/18a521ee7a1cb10277d646922e4e8fd804d62c29))
+* **benchmark:** normalize xsd:string literals to match QLever output ([f433566](https://github.com/opencitations/time-agnostic-library/commit/f433566c0a31c997831fcae1aa014f6941305631))
+* exclude provenance graphs from present entity discovery ([e688eb0](https://github.com/opencitations/time-agnostic-library/commit/e688eb0a3ee5d8bd923cda9f0325bf4dc8c0fd60))
+* exclude provenance quads from entity state materialization ([0a18add](https://github.com/opencitations/time-agnostic-library/commit/0a18addf236b845b4d4edcb2093a1208691f8a9f))
+* exclude provenance quads from iter_versions working set ([a624703](https://github.com/opencitations/time-agnostic-library/commit/a62470388e0b81c87896db5a9a1c5744a1d27eb6))
+* replace ProcessPoolExecutor with ThreadPoolExecutor to prevent pycurl handle corruption ([e2a8291](https://github.com/opencitations/time-agnostic-library/commit/e2a82913f34aebfbe80dd769062bb73268e45b6d))
+* **test:** force Virtuoso checkpoint after loading test data ([fb2cf1f](https://github.com/opencitations/time-agnostic-library/commit/fb2cf1f4d9467f2a0ffe4b8691f74a78c08208e0))
+* use FILTER IN instead of VALUES for dataset triple queries ([2885aba](https://github.com/opencitations/time-agnostic-library/commit/2885aba44fc603ae2192d527386d66ae709b092d))
+
+
+### Features
+
+* **benchmark:** add disk usage tracking and per-query memory measurement ([200ff4f](https://github.com/opencitations/time-agnostic-library/commit/200ff4f985f49ebb4e187b4f8433e687dd8f6d5f))
+* **benchmark:** add R43ples benchmark scripts and analysis integration ([ccb99ea](https://github.com/opencitations/time-agnostic-library/commit/ccb99ea31af8fc76c5bb9ab33e310db0525ae0f0))
+* **benchmark:** annotate combined plots with human-readable time ranges ([7e624c5](https://github.com/opencitations/time-agnostic-library/commit/7e624c56a9db259b09d332f4726682daccda299f))
+
+
+### Performance Improvements
+
+* filter before sorting in get_delta ([104d90c](https://github.com/opencitations/time-agnostic-library/commit/104d90c90600a742410149b454155fb4374e0636))
+* inline timestamp filtering in _build_delta_result ([2fe04df](https://github.com/opencitations/time-agnostic-library/commit/2fe04df624866165e38781a10da2c6531c006286))
+* parallelize provenance and existence queries in DeltaQuery ([af23b5b](https://github.com/opencitations/time-agnostic-library/commit/af23b5b581ecb4c663b79d633d42ce75752f1343))
+* reduce redundant datetime parsing and lighten DM provenance query ([6a794ef](https://github.com/opencitations/time-agnostic-library/commit/6a794efd31ec2a77ca85ebe0eddaed67fb89c994))
+* reuse pycurl handles, thread pools, and tracemalloc across queries ([f931369](https://github.com/opencitations/time-agnostic-library/commit/f931369d5bd33bf837375896278083bc5f0f71c6))
+* use cached datetime objects directly in _build_delta_result ([8523a56](https://github.com/opencitations/time-agnostic-library/commit/8523a564a520196aaf6cae0753fda966f83207ef))
+
+
+### BREAKING CHANGES
+
+* DeltaQuery output replaces "modified" dict with
+"additions" and "deletions" sets of quad tuples.
+
 # [6.0.0](https://github.com/opencitations/time-agnostic-library/compare/5.0.7...6.0.0) (2026-02-13)
 
 
