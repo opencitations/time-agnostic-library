@@ -35,7 +35,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Download coverage artifact
+      - name: Download coverage report
         if: steps.find-run.outputs.run-id != ''
         uses: actions/download-artifact@v8
         with:
@@ -45,7 +45,17 @@ jobs:
           github-token: ${{ github.token }}
         continue-on-error: true
 
-      - uses: withastro/action@v5
+      - name: Download coverage badge
+        if: steps.find-run.outputs.run-id != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-badge
+          path: docs/public/coverage
+          run-id: ${{ steps.find-run.outputs.run-id }}
+          github-token: ${{ github.token }}
+        continue-on-error: true
+
+      - uses: withastro/action@v6
         with:
           path: ./docs
 
