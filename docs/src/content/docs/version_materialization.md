@@ -1,4 +1,8 @@
 ---
+# SPDX-FileCopyrightText: 2026 Arcangelo Massari <arcangelo.massari@unibo.it>
+#
+# SPDX-License-Identifier: ISC
+
 title: Version materialization
 description: Retrieve entity state at a specific time or get complete entity history
 ---

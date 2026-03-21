@@ -35,6 +35,7 @@ dev = [
     "pytest>=9.0.2",
     "qlever>=0.5.45",
     "requests>=2.32.5",
+    "reuse>=6.2.0",
     "rich>=14.3.2",
     "ruff>=0.15.0",
     "wget>=3.2",

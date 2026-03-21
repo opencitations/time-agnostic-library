@@ -1,4 +1,8 @@
 ---
+# SPDX-FileCopyrightText: 2026 Arcangelo Massari <arcangelo.massari@unibo.it>
+#
+# SPDX-License-Identifier: ISC
+
 title: Configuration
 description: Configuration file format and options for time-agnostic-library
 ---

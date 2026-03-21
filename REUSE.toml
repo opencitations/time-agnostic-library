@@ -1,0 +1,51 @@
+version = 1
+
+[[annotations]]
+path = [
+    ".releaserc",
+    "pyproject.toml",
+    "uv.lock",
+    "docs/package.json",
+    "docs/package-lock.json",
+    "docs/tsconfig.json",
+]
+SPDX-FileCopyrightText = "2022-2026 Arcangelo Massari <arcangelo.massari@unibo.it>"
+SPDX-License-Identifier = "ISC"
+
+[[annotations]]
+path = [
+    "config.json",
+    "tests/prov.json",
+]
+SPDX-FileCopyrightText = "2021-2024 Arcangelo Massari <arcangelo.massari@unibo.it>"
+SPDX-License-Identifier = "ISC"
+
+[[annotations]]
+path = [
+    "tests/kb/data.nq",
+]
+SPDX-FileCopyrightText = "2024 Arcangelo Massari <arcangelo.massari@unibo.it>"
+SPDX-License-Identifier = "ISC"
+
+[[annotations]]
+path = [
+    "tests/coverage/.coverage",
+    "tests/coverage/coverage.svg",
+    "diagrams/cache.png",
+]
+SPDX-FileCopyrightText = "2022-2024 Arcangelo Massari <arcangelo.massari@unibo.it>"
+SPDX-License-Identifier = "ISC"
+
+[[annotations]]
+path = [
+    "docs/public/favicon.svg",
+]
+SPDX-FileCopyrightText = "2026 Arcangelo Massari <arcangelo.massari@unibo.it>"
+SPDX-License-Identifier = "ISC"
+
+[[annotations]]
+path = [
+    "LICENSES/**",
+]
+SPDX-FileCopyrightText = "2021-2026 Arcangelo Massari <arcangelo.massari@unibo.it>"
+SPDX-License-Identifier = "ISC"

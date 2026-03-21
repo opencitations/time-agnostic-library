@@ -1,4 +1,8 @@
 ---
+# SPDX-FileCopyrightText: 2026 Arcangelo Massari <arcangelo.massari@unibo.it>
+#
+# SPDX-License-Identifier: ISC
+
 title: Structured queries
 description: Run SPARQL SELECT queries on specific or all versions of the dataset
 ---

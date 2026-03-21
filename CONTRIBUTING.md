@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
+
+SPDX-License-Identifier: ISC
+-->
+
 # Contributing to time-agnostic-library
 
 Thank you for your interest in contributing to time-agnostic-library! This document provides guidelines and instructions for contributing to this project.

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Arcangelo Massari <arcangelo.massari@unibo.it>
+
+SPDX-License-Identifier: ISC
+-->
+
 # [7.0.0](https://github.com/opencitations/time-agnostic-library/compare/6.0.0...7.0.0) (2026-03-11)
 
 

@@ -1,4 +1,8 @@
 ---
+# SPDX-FileCopyrightText: 2026 Arcangelo Massari <arcangelo.massari@unibo.it>
+#
+# SPDX-License-Identifier: ISC
+
 title: Contributing
 description: Development setup, testing, and release process for time-agnostic-library
 ---

@@ -1,4 +1,8 @@
 ---
+# SPDX-FileCopyrightText: 2026 Arcangelo Massari <arcangelo.massari@unibo.it>
+#
+# SPDX-License-Identifier: ISC
+
 title: Delta queries
 description: Compute net deltas between versions with single-delta and cross-delta queries
 ---
