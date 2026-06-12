@@ -1295,7 +1295,7 @@ wheels = [
 
 [[package]]
 name = "time-agnostic-library"
-version = "7.0.0"
+version = "7.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "rdflib" },

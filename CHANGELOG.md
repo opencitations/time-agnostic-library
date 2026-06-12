@@ -1,3 +1,10 @@
+# [7.1.0](https://github.com/opencitations/time-agnostic-library/compare/7.0.0...7.1.0) (2026-06-12)
+
+
+### Features
+
+* **entity:** expose separate related histories ([df263d7](https://github.com/opencitations/time-agnostic-library/commit/df263d706f1f1157cb06353c43bc090492fb1a26))
+
 <!--
 SPDX-FileCopyrightText: 2025 Arcangelo Massari <arcangelo.massari@unibo.it>
 
