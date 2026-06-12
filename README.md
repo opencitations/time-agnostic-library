@@ -6,12 +6,14 @@ SPDX-License-Identifier: ISC
 -->
 
 [<img src="https://img.shields.io/badge/powered%20by-OpenCitations-%239931FC?labelColor=2D22DE" />](http://opencitations.net)
+![PyPI](https://img.shields.io/pypi/pyversions/time-agnostic-library)
 [![run_tests](https://github.com/opencitations/time-agnostic-library/actions/workflows/run_tests.yml/badge.svg)](https://github.com/opencitations/time-agnostic-library/actions/workflows/run_tests.yml)
 [![Coverage](https://opencitations.github.io/time-agnostic-library/coverage/coverage-badge.svg)](https://opencitations.github.io/time-agnostic-library/coverage/)
-![PyPI](https://img.shields.io/pypi/pyversions/time-agnostic-library)
+[![Pyright](https://github.com/opencitations/time-agnostic-library/actions/workflows/pyright.yml/badge.svg)](https://github.com/opencitations/time-agnostic-library/actions/workflows/pyright.yml)
+[![Ruff](https://github.com/opencitations/time-agnostic-library/actions/workflows/ruff.yml/badge.svg)](https://github.com/opencitations/time-agnostic-library/actions/workflows/ruff.yml)
 [![PyPI version](https://badge.fury.io/py/time-agnostic-library.svg)](https://badge.fury.io/py/time-agnostic-library)
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/opencitations/time-agnostic-library)
-[![REUSE](https://github.com/opencitations/time-agnostic-library/actions/workflows/reuse.yml/badge.svg)](https://github.com/opencitations/time-agnostic-library/actions/workflows/reuse.yml)
+[![REUSE status](https://api.reuse.software/badge/github.com/opencitations/time-agnostic-library)](https://api.reuse.software/info/github.com/opencitations/time-agnostic-library)
 
 # time-agnostic-library
 

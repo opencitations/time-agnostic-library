@@ -10,6 +10,8 @@ import os
 import zipfile
 from unittest.mock import MagicMock, patch
 
+from triplestore_config import CONFIG
+
 from time_agnostic_library.sparql import (
     Sparql,
     _binding_to_n3,
@@ -20,7 +22,6 @@ from time_agnostic_library.sparql import (
     _parse_n3_literal,
     _unescape_n3,
 )
-from triplestore_config import CONFIG
 
 
 class TestSparqlEdgeCases:

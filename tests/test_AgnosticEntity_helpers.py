@@ -5,13 +5,14 @@
 # SPDX-License-Identifier: ISC
 
 
+from triplestore_config import CONFIG
+
 from time_agnostic_library.agnostic_entity import AgnosticEntity
 from time_agnostic_library.support import (
     _nt_list_to_quad_set,
     _to_dict_of_nt_sorted_lists,
     _to_nt_sorted_list,
 )
-from triplestore_config import CONFIG
 
 
 class TestAgnosticEntityHelpers:

@@ -125,12 +125,14 @@ def build_per_version_detail(all_patterns: dict[str, list[dict]]) -> dict:
                     "pattern_index": pat_idx,
                     "median_us": entry["median_us"],
                 })
-            for entry in pattern["vq"]:
-                vq_entries.append({
+            vq_entries.extend(
+                {
                     "pattern_type": pattern_type,
                     "pattern_index": pat_idx,
                     "median_us": entry["median_us"],
-                })
+                }
+                for entry in pattern["vq"]
+            )
 
     per_version_vm = [
         {"version": v, "patterns": pats}

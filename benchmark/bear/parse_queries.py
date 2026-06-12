@@ -4,7 +4,6 @@
 
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Tuple
 
 from rich.console import Console
 
@@ -45,7 +44,7 @@ DATA_DIR = Path(__file__).parent / "data"
 QUERIES_DIR = DATA_DIR / "queries"
 
 
-def parse_bear_query_file(filepath: Path) -> List[Tuple[str, str, str]]:
+def parse_bear_query_file(filepath: Path) -> list[tuple[str, str, str]]:
     queries = []
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
@@ -63,7 +62,7 @@ def parse_bear_query_file(filepath: Path) -> List[Tuple[str, str, str]]:
     return queries
 
 
-def bear_pattern_to_sparql(pattern: Tuple[str, str, str], pattern_type: str) -> str:
+def bear_pattern_to_sparql(pattern: tuple[str, str, str], pattern_type: str) -> str:
     _, p, o = pattern
     if pattern_type == "p":
         return f"SELECT ?s ?o WHERE {{ ?s {p} ?o . }}"
@@ -72,15 +71,15 @@ def bear_pattern_to_sparql(pattern: Tuple[str, str, str], pattern_type: str) -> 
     raise ValueError(f"Unknown pattern type: {pattern_type}")
 
 
-def generate_timestamps(num_versions: int, interval: timedelta) -> List[str]:
+def generate_timestamps(num_versions: int, interval: timedelta) -> list[str]:
     return [(BASE_TIMESTAMP + interval * i).strftime("%Y-%m-%dT%H:%M:%S+00:00") for i in range(num_versions)]
 
 
 def generate_vm_queries(
-    patterns: List[Tuple[str, str, str]],
+    patterns: list[tuple[str, str, str]],
     pattern_type: str,
-    timestamps: List[str],
-) -> List[dict]:
+    timestamps: list[str],
+) -> list[dict]:
     queries = []
     for i, ts in enumerate(timestamps):
         for j, pattern in enumerate(patterns):
@@ -98,11 +97,11 @@ def generate_vm_queries(
 
 
 def generate_dm_queries(
-    patterns: List[Tuple[str, str, str]],
+    patterns: list[tuple[str, str, str]],
     pattern_type: str,
-    timestamps: List[str],
+    timestamps: list[str],
     dm_step: int,
-) -> List[dict]:
+) -> list[dict]:
     diff_versions = list(range(dm_step, min(len(timestamps), dm_step * 11 + 1), dm_step))
     if len(timestamps) - 1 not in diff_versions:
         diff_versions.append(len(timestamps) - 1)
@@ -130,9 +129,9 @@ def generate_dm_queries(
 
 
 def generate_vq_queries(
-    patterns: List[Tuple[str, str, str]],
+    patterns: list[tuple[str, str, str]],
     pattern_type: str,
-) -> List[dict]:
+) -> list[dict]:
     queries = []
     for j, pattern in enumerate(patterns):
         sparql = bear_pattern_to_sparql(pattern, pattern_type)

@@ -4,8 +4,9 @@
 #
 # SPDX-License-Identifier: ISC
 
-from time_agnostic_library.agnostic_entity import AgnosticEntity
 from triplestore_config import CONFIG
+
+from time_agnostic_library.agnostic_entity import AgnosticEntity
 
 _AR = "https://github.com/arcangelo7/time_agnostic/ar"
 _RA = "https://github.com/arcangelo7/time_agnostic/ra"

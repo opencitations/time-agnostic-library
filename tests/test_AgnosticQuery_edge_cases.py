@@ -4,9 +4,9 @@
 #
 # SPDX-License-Identifier: ISC
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from triplestore_config import CONFIG
 
 from time_agnostic_library.agnostic_query import (

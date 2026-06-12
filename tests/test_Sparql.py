@@ -4,10 +4,11 @@
 #
 # SPDX-License-Identifier: ISC
 
+from triplestore_config import CONFIG
+
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql
 from time_agnostic_library.support import _to_nt_sorted_list
-from triplestore_config import CONFIG
 
 
 class Test_Sparql:

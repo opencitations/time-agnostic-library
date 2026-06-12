@@ -5,16 +5,17 @@
 # SPDX-License-Identifier: ISC
 
 import json
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
+from triplestore_config import CONFIG, CONFIG_PROV_IN_TRIPLESTORE
 
 from time_agnostic_library.agnostic_query import VersionQuery
 from time_agnostic_library.support import (
     _to_dict_of_nt_sorted_lists,
     _to_dict_of_quad_sets,
 )
-from triplestore_config import CONFIG, CONFIG_PROV_IN_TRIPLESTORE
+
 
 def _sort_bindings(bindings):
     return sorted(bindings, key=lambda b: json.dumps(b, sort_keys=True))
@@ -620,7 +621,7 @@ class Test_VersionQuery:
             }
         }
         output = agnostic_query._there_are_variables()
-        assert output == True
+        assert output is True
 
     def test__there_are_variables_false(self):
         query = """
@@ -639,7 +640,7 @@ class Test_VersionQuery:
         """
         agnostic_query = VersionQuery(query, config_dict=CONFIG)
         output = agnostic_query._there_are_variables()
-        assert output == False
+        assert output is False
 
     def test__there_is_transitive_closure_false(self):
         query = """
@@ -662,7 +663,7 @@ class Test_VersionQuery:
         triple = ('?a', '<http://purl.org/spar/pro/isHeldBy>', '<https://github.com/arcangelo7/time_agnostic/ra/4>')
         other_triples = {t for t in agnostic_query.triples if t != triple}
         output = agnostic_query._there_is_transitive_closure(variable, other_triples)
-        assert output == False
+        assert output is False
 
     def test__there_is_transitive_closure_true(self):
         query = """
@@ -684,7 +685,7 @@ class Test_VersionQuery:
         triple = ('?id', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?value')
         other_triples = {t for t in agnostic_query.triples if t != triple}
         output = agnostic_query._there_is_transitive_closure(variable, other_triples)
-        assert output == True
+        assert output is True
 
     def test__is_isolated_true_s(self):
         query = """
@@ -705,7 +706,7 @@ class Test_VersionQuery:
         agnostic_query = VersionQuery(query, config_dict=CONFIG)
         triple = ('?a', '<http://purl.org/spar/pro/isHeldBy>', '<https://github.com/arcangelo7/time_agnostic/ra/4>')
         output = agnostic_query._is_isolated(triple)
-        assert output == True
+        assert output is True
 
     def test__is_isolated_true_s_o(self):
         query = """
@@ -721,7 +722,7 @@ class Test_VersionQuery:
         agnostic_query = VersionQuery(query, config_dict=CONFIG)
         triple = ('?elt_1', '<http://purl.org/spar/datacite/hasIdentifier>', '?id_1')
         output = agnostic_query._is_isolated(triple)
-        assert output == True
+        assert output is True
 
     def test__is_isolated_false(self):
         query = """
@@ -741,7 +742,7 @@ class Test_VersionQuery:
         agnostic_query = VersionQuery(query, config_dict=CONFIG)
         triple = ('?id', '<http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue>', '?value')
         output = agnostic_query._is_isolated(triple)
-        assert output == False
+        assert output is False
 
     def test___is_a_dead_end(self):
         query = """

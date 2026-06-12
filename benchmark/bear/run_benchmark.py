@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 import tracemalloc
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -115,6 +115,25 @@ def run_vq_query(sparql: str, config: dict) -> dict:
     return _measure_query(fn)
 
 
+def _dispatch_query(qt: str, sparql: str, on_time: Sequence[str] | None, config: dict) -> dict | None:
+    if qt == "vq":
+        return run_vq_query(sparql, config)
+    assert on_time is not None
+    if qt == "vm":
+        return run_vm_query(sparql, tuple(on_time), config)
+    if qt == "dm":
+        return run_dm_query(sparql, tuple(on_time), config)
+    return None
+
+
+def _try_query(qt: str, sparql: str, on_time: Sequence[str] | None, config: dict, label: str) -> dict | None:
+    try:
+        return _dispatch_query(qt, sparql, on_time, config)
+    except Exception as e:
+        console.print(f"    {label} error: {e}")
+        return None
+
+
 def benchmark_queries(
     queries: list[dict],
     config: dict,
@@ -134,32 +153,18 @@ def benchmark_queries(
             sparql = query_spec["sparql"]
             on_time = query_spec["on_time"]
 
-            try:
-                if qt == "vm":
-                    run_vm_query(sparql, tuple(on_time), config)
-                elif qt == "dm":
-                    run_dm_query(sparql, tuple(on_time), config)
-                elif qt == "vq":
-                    run_vq_query(sparql, config)
-            except Exception as e:
-                console.print(f"    [yellow]Warmup error: {e}")
+            _try_query(qt, sparql, on_time, config, "[yellow]Warmup")
 
             times = []
             memory_peaks = []
             last_result: dict | None = None
             for run_idx in range(num_runs):
-                try:
-                    if qt == "vm":
-                        last_result = run_vm_query(sparql, tuple(on_time), config)
-                    elif qt == "dm":
-                        last_result = run_dm_query(sparql, tuple(on_time), config)
-                    elif qt == "vq":
-                        last_result = run_vq_query(sparql, config)
-                    if last_result:
-                        times.append(last_result["time_s"])
-                        memory_peaks.append(last_result["memory_peak_bytes"])
-                except Exception as e:
-                    console.print(f"    [red]Run {run_idx + 1} error: {e}")
+                result = _try_query(qt, sparql, on_time, config, f"[red]Run {run_idx + 1}")
+                if result:
+                    last_result = result
+                    times.append(result["time_s"])
+                    memory_peaks.append(result["memory_peak_bytes"])
+                else:
                     times.append(None)
                     memory_peaks.append(None)
 

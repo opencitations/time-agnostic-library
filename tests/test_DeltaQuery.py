@@ -4,8 +4,9 @@
 #
 # SPDX-License-Identifier: ISC
 
-from time_agnostic_library.agnostic_query import DeltaQuery
 from triplestore_config import CONFIG, CONFIG_PROV_IN_TRIPLESTORE
+
+from time_agnostic_library.agnostic_query import DeltaQuery
 
 _AR = "https://github.com/arcangelo7/time_agnostic/ar"
 _RA = "https://github.com/arcangelo7/time_agnostic/ra"

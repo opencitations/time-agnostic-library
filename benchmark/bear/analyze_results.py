@@ -8,9 +8,9 @@ import json
 import re
 import statistics
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -155,7 +155,7 @@ def print_disk_usage_table(usage: dict[str, int | None]) -> None:
     console.print(table)
 
 
-def compute_aggregates(results: List[dict]) -> dict:
+def compute_aggregates(results: list[dict]) -> dict:
     valid_means = [r["mean_s"] * 1000 for r in results if r["mean_s"] is not None]
     if not valid_means:
         return {"count": 0}
@@ -175,7 +175,7 @@ def compute_aggregates(results: List[dict]) -> dict:
     return agg
 
 
-def compute_aggregates_by_pattern(results: List[dict]) -> Dict[str, dict]:
+def compute_aggregates_by_pattern(results: list[dict]) -> dict[str, dict]:
     by_pattern = {}
     for r in results:
         pt = r.get("pattern_type", "unknown")
@@ -187,7 +187,7 @@ def compute_break_even(
     tal_mean_ms: float,
     other_mean_ms: float,
     ingestion_s: float,
-) -> Optional[float]:
+) -> float | None:
     diff_ms = tal_mean_ms - other_mean_ms
     if diff_ms <= 0:
         return None
@@ -195,18 +195,18 @@ def compute_break_even(
     return ingestion_ms / diff_ms
 
 
-def _median_ms(entries: List[dict], key: str = "median_s", scale: float = 1000) -> float:
+def _median_ms(entries: list[dict], key: str = "median_s", scale: float = 1000) -> float:
     return statistics.median(r[key] * scale for r in entries if r[key] is not None)
 
 
-def _group_by(entries: List[dict], field: str) -> Dict:
-    groups: Dict = {}
+def _group_by(entries: list[dict], field: str) -> dict:
+    groups: dict = {}
     for r in entries:
         groups.setdefault(r[field], []).append(r)
     return groups
 
 
-def load_tal_vm_by_version(vm_results: List[dict], pattern_filter: str | None = None) -> Dict[int, float]:
+def load_tal_vm_by_version(vm_results: list[dict], pattern_filter: str | None = None) -> dict[int, float]:
     filtered = [r for r in vm_results if r["median_s"] is not None]
     if pattern_filter:
         filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
@@ -214,7 +214,7 @@ def load_tal_vm_by_version(vm_results: List[dict], pattern_filter: str | None = 
     return {v: _median_ms(entries) for v, entries in sorted(by_version.items())}
 
 
-def load_tal_dm_by_version(dm_results: List[dict], pattern_filter: str | None = None) -> Dict[int, float]:
+def load_tal_dm_by_version(dm_results: list[dict], pattern_filter: str | None = None) -> dict[int, float]:
     filtered = [r for r in dm_results if r["median_s"] is not None]
     if pattern_filter:
         filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
@@ -222,7 +222,7 @@ def load_tal_dm_by_version(dm_results: List[dict], pattern_filter: str | None = 
     return {v: _median_ms(entries) for v, entries in sorted(by_end.items())}
 
 
-def load_tal_vq_median(vq_results: List[dict], pattern_filter: str | None = None) -> float:
+def load_tal_vq_median(vq_results: list[dict], pattern_filter: str | None = None) -> float:
     filtered = [r for r in vq_results if r["median_s"] is not None]
     if pattern_filter:
         filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
@@ -231,7 +231,7 @@ def load_tal_vq_median(vq_results: List[dict], pattern_filter: str | None = None
 
 # --- OSTRICH raw file parsing ---
 
-def _parse_ostrich_raw_files(raw_files: List[Path]) -> List[dict]:
+def _parse_ostrich_raw_files(raw_files: list[Path]) -> list[dict]:
     patterns = []
     for raw_file in raw_files:
         if not raw_file.exists():
@@ -272,9 +272,9 @@ def _parse_ostrich_raw_files(raw_files: List[Path]) -> List[dict]:
     return patterns
 
 
-def _ostrich_median_ms_by_version(patterns: List[dict], query_type: str, version_field: str,
-                                  pattern_filter: str | None = None, start_filter: int | None = None) -> Dict[int, float]:
-    by_version: Dict[int, list] = {}
+def _ostrich_median_ms_by_version(patterns: list[dict], query_type: str, version_field: str,
+                                  pattern_filter: str | None = None, start_filter: int | None = None) -> dict[int, float]:
+    by_version: dict[int, list] = {}
     for pat in patterns:
         if pattern_filter and pat["pattern_type"] != pattern_filter:
             continue
@@ -293,11 +293,11 @@ def _load_r43ples_results(r43ples_file: Path) -> dict | None:
         return json.load(f)
 
 
-def load_r43ples_vm_by_version(r43ples_file: Path, pattern_filter: str | None = None) -> Dict[int, float]:
+def load_r43ples_vm_by_version(r43ples_file: Path, pattern_filter: str | None = None) -> dict[int, float]:
     data = _load_r43ples_results(r43ples_file)
     if not data:
         return {}
-    by_version: Dict[int, list] = {}
+    by_version: dict[int, list] = {}
     for entry in data.get("detail", {}).get("per_version_vm", []):
         v = entry["version"]
         for pat in entry["patterns"]:
@@ -307,11 +307,11 @@ def load_r43ples_vm_by_version(r43ples_file: Path, pattern_filter: str | None = 
     return {v: statistics.median(vals) for v, vals in sorted(by_version.items())}
 
 
-def load_r43ples_dm_by_version(r43ples_file: Path, pattern_filter: str | None = None) -> Dict[int, float]:
+def load_r43ples_dm_by_version(r43ples_file: Path, pattern_filter: str | None = None) -> dict[int, float]:
     data = _load_r43ples_results(r43ples_file)
     if not data:
         return {}
-    by_version: Dict[int, list] = {}
+    by_version: dict[int, list] = {}
     for entry in data.get("detail", {}).get("per_delta_dm", []):
         v = entry["version_end"]
         for pat in entry["patterns"]:
@@ -333,24 +333,23 @@ def load_r43ples_vq_median(r43ples_file: Path, pattern_filter: str | None = None
     return statistics.median(e["median_ms"] for e in entries)
 
 
-def load_ostrich_vm_by_version(raw_files: List[Path], pattern_filter: str | None = None) -> Dict[int, float]:
+def load_ostrich_vm_by_version(raw_files: list[Path], pattern_filter: str | None = None) -> dict[int, float]:
     patterns = _parse_ostrich_raw_files(raw_files)
     return _ostrich_median_ms_by_version(patterns, "vm", "patch", pattern_filter)
 
 
-def load_ostrich_dm_by_version(raw_files: List[Path], pattern_filter: str | None = None) -> Dict[int, float]:
+def load_ostrich_dm_by_version(raw_files: list[Path], pattern_filter: str | None = None) -> dict[int, float]:
     patterns = _parse_ostrich_raw_files(raw_files)
     return _ostrich_median_ms_by_version(patterns, "dm", "patch_end", pattern_filter, start_filter=0)
 
 
-def load_ostrich_vq_median(raw_files: List[Path], pattern_filter: str | None = None) -> float:
+def load_ostrich_vq_median(raw_files: list[Path], pattern_filter: str | None = None) -> float:
     patterns = _parse_ostrich_raw_files(raw_files)
     medians = []
     for pat in patterns:
         if pattern_filter and pat["pattern_type"] != pattern_filter:
             continue
-        for entry in pat["vq"]:
-            medians.append(entry["median_us"] / 1000)
+        medians.extend(entry["median_us"] / 1000 for entry in pat["vq"])
     return statistics.median(medians)
 
 
@@ -376,7 +375,7 @@ def _save_plot(fig: Figure, plot_dir: Path, name: str) -> None:
     console.print(f"  Saved: {plot_dir / name}.{{pdf,jpg}}")
 
 
-def generate_comparison_table(tal_results: dict, ocdm_timing_file: Path, qlever_timing_file: Path) -> List[dict]:
+def generate_comparison_table(tal_results: dict, ocdm_timing_file: Path, qlever_timing_file: Path) -> list[dict]:
     rows = []
     for system_name, published in PUBLISHED_RESULTS.items():
         row = {
@@ -432,7 +431,7 @@ def generate_comparison_table(tal_results: dict, ocdm_timing_file: Path, qlever_
     return rows
 
 
-def generate_capabilities_table() -> List[dict]:
+def generate_capabilities_table() -> list[dict]:
     return [
         {"system": "Jena-IC", "VM": "Y", "SV": "N", "CV": "N", "DM": "N", "SD": "N", "CD": "N"},
         {"system": "Jena-CB", "VM": "N", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
@@ -446,7 +445,7 @@ def generate_capabilities_table() -> List[dict]:
     ]
 
 
-def write_csv(rows: List[dict], filepath: Path) -> None:
+def write_csv(rows: list[dict], filepath: Path) -> None:
     filepath.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
         return
@@ -463,7 +462,7 @@ def format_val(val, fmt=".2f") -> str:
     return f"{val:{fmt}}"
 
 
-def generate_latex_comparison(rows: List[dict], filepath: Path) -> None:
+def generate_latex_comparison(rows: list[dict], filepath: Path) -> None:
     filepath.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         r"\begin{table}[!htb]",
@@ -545,7 +544,7 @@ def print_results_table(tal_aggregates: dict) -> None:
     console.print(table)
 
 
-def print_pattern_table(query_type: str, by_pattern: Dict[str, dict]) -> None:
+def print_pattern_table(query_type: str, by_pattern: dict[str, dict]) -> None:
     table = Table(title=f"{query_type.upper()} by pattern")
     table.add_column("Pattern", style="bold")
     table.add_column("Mean (ms)", justify="right")
@@ -562,7 +561,7 @@ def print_pattern_table(query_type: str, by_pattern: Dict[str, dict]) -> None:
     console.print(table)
 
 
-def print_comparison_table(rows: List[dict]) -> None:
+def print_comparison_table(rows: list[dict]) -> None:
     table = Table(title="Performance comparison on BEAR-B-daily")
     table.add_column("System", style="bold")
     table.add_column("VM (ms)", justify="right")
@@ -630,7 +629,7 @@ def load_measured_ostrich_results(ostrich_results_file: Path) -> None:
     PUBLISHED_RESULTS["OSTRICH"] = measured
 
 
-def load_tal_ingestion_time(ocdm_timing_file: Path, qlever_timing_file: Path) -> Optional[float]:
+def load_tal_ingestion_time(ocdm_timing_file: Path, qlever_timing_file: Path) -> float | None:
     total = 0.0
     found = False
     if ocdm_timing_file.exists():

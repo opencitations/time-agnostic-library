@@ -5,13 +5,10 @@
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.patches import Patch
 import numpy as np
-from rich.console import Console
-
 from analyze_results import (
     DATA_DIR,
     _format_log_axis,
@@ -28,6 +25,9 @@ from analyze_results import (
     load_tal_vm_by_version,
     load_tal_vq_median,
 )
+from matplotlib.axes import Axes
+from matplotlib.patches import Patch
+from rich.console import Console
 
 console = Console()
 

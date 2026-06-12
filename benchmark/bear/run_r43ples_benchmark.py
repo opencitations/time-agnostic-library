@@ -11,6 +11,7 @@ import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 from typing import TypeVar
 
@@ -82,7 +83,7 @@ def _with_retry(fn: Callable[[], T], granularity: str) -> T:
     for attempt in range(MAX_RETRIES):
         try:
             return fn()
-        except (requests.ConnectionError, requests.Timeout):
+        except (requests.ConnectionError, requests.Timeout):  # noqa: PERF203 -- retry-with-backoff needs a per-attempt except; the loop body is network I/O, so exception overhead is negligible
             if attempt == MAX_RETRIES - 1:
                 raise
             console.print(
@@ -190,7 +191,7 @@ def global_warmup(
         revision = revision_map[v] if revision_map else v
         for pat in sample_patterns:
             sparql = build_sparql(pat, pattern_type, revision)
-            _with_retry(lambda: query_r43ples(session, sparql, endpoint), granularity)
+            _with_retry(partial(query_r43ples, session, sparql, endpoint), granularity)
 
 
 def run_vm_benchmark(
@@ -222,7 +223,7 @@ def run_vm_benchmark(
                 times = []
                 count = 0
                 for _ in range(num_replications):
-                    elapsed, count = _with_retry(lambda: timed_query(session, sparql, endpoint), granularity)
+                    elapsed, count = _with_retry(partial(timed_query, session, sparql, endpoint), granularity)
                     times.append(elapsed)
                 median_ms = statistics.median(times) * 1000
                 state["detail"]["vm"].append({
@@ -271,8 +272,8 @@ def run_dm_benchmark(
                 count = 0
                 for _ in range(num_replications):
                     start = time.perf_counter()
-                    results_v0 = _with_retry(lambda: query_r43ples(session, sparql_v0, endpoint), granularity)
-                    results_vn = _with_retry(lambda: query_r43ples(session, sparql_vn, endpoint), granularity)
+                    results_v0 = _with_retry(partial(query_r43ples, session, sparql_v0, endpoint), granularity)
+                    results_vn = _with_retry(partial(query_r43ples, session, sparql_vn, endpoint), granularity)
                     elapsed = time.perf_counter() - start
                     count = abs(results_vn - results_v0)
                     times.append(elapsed)
@@ -318,7 +319,7 @@ def run_vq_benchmark(
                 for version in range(1, num_versions + 1):
                     revision = revision_map[version] if revision_map else version
                     sparql = build_sparql(pattern, pattern_type, revision)
-                    run_total += _with_retry(lambda: query_r43ples(session, sparql, endpoint), granularity)
+                    run_total += _with_retry(partial(query_r43ples, session, sparql, endpoint), granularity)
                 elapsed = time.perf_counter() - start
                 total_count = run_total
                 times.append(elapsed)

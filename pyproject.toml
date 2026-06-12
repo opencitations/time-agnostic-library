@@ -31,7 +31,7 @@ dev = [
     "matplotlib>=3.10.8",
     "pebble>=5.2.0",
     "psutil>=7.2.2",
-    "pyright>=1.1.408",
+    "pyright>=1.1.410",
     "pytest>=9.0.2",
     "qlever>=0.5.45",
     "requests>=2.32.5",
@@ -48,6 +48,10 @@ Documentation = "https://opencitations.github.io/time-agnostic-library"
 
 [project.scripts]
 test = "tests.run_all_tests:main"
+
+[tool.pyright]
+include = ["src", "tests", "benchmark"]
+exclude = ["benchmark/bear/data"]
 
 [tool.ruff]
 target-version = "py310"

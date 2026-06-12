@@ -11,10 +11,15 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 from rich.console import Console
-from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 from rich.table import Table
 
 from time_agnostic_library.agnostic_query import VersionQuery
@@ -52,7 +57,7 @@ BASE_TIMESTAMP = datetime.fromisoformat("2015-08-01T00:00:00+00:00")
 VERSION_LINE_RE = re.compile(r"^\[Solution in version (\d+)\]")
 
 
-def parse_bear_result_file(filepath: Path) -> Dict[int, int]:
+def parse_bear_result_file(filepath: Path) -> dict[int, int]:
     counts = defaultdict(int)
     with open(filepath, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -65,7 +70,7 @@ def parse_bear_result_file(filepath: Path) -> Dict[int, int]:
     return dict(counts)
 
 
-def parse_bear_query_file(filepath: Path) -> List[Tuple[str, str, str]]:
+def parse_bear_query_file(filepath: Path) -> list[tuple[str, str, str]]:
     queries = []
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
@@ -83,7 +88,7 @@ def parse_bear_query_file(filepath: Path) -> List[Tuple[str, str, str]]:
     return queries
 
 
-def bear_pattern_to_sparql(pattern: Tuple[str, str, str], pattern_type: str) -> str:
+def bear_pattern_to_sparql(pattern: tuple[str, str, str], pattern_type: str) -> str:
     _, p, o = pattern
     if pattern_type == "p":
         return f"SELECT ?s ?o WHERE {{ ?s {p} ?o . }}"
@@ -108,7 +113,7 @@ def run_vm_query(sparql: str, version: int, interval: timedelta, config: dict) -
     return len(result[latest_ts]), elapsed
 
 
-def run_vq_query(sparql: str, config: dict) -> tuple[Dict[str, int], float]:
+def run_vq_query(sparql: str, config: dict) -> tuple[dict[str, int], float]:
     start = time.perf_counter()
     vq = VersionQuery(sparql, config_dict=config)
     result, _ = vq.run_agnostic_query(include_all_timestamps=True)
@@ -118,13 +123,13 @@ def run_vq_query(sparql: str, config: dict) -> tuple[Dict[str, int], float]:
 
 def verify_pattern_vm(
     pattern_idx: int,
-    pattern: Tuple[str, str, str],
+    pattern: tuple[str, str, str],
     pattern_type: str,
     config: dict,
     results_dir: Path,
     sample_versions: list[int],
     interval: timedelta,
-) -> List[dict]:
+) -> list[dict]:
     result_prefix = f"mat-{pattern_type}-queries"
     result_dir = results_dir / pattern_type / "mat" / result_prefix
     file_idx = pattern_idx + 1
@@ -163,13 +168,13 @@ def verify_pattern_vm(
 
 def verify_pattern_vq(
     pattern_idx: int,
-    pattern: Tuple[str, str, str],
+    pattern: tuple[str, str, str],
     pattern_type: str,
     config: dict,
     results_dir: Path,
     num_versions: int,
     interval: timedelta,
-) -> List[dict]:
+) -> list[dict]:
     result_prefix = f"ver-{pattern_type}-queries"
     result_dir = results_dir / pattern_type / "ver" / result_prefix
     file_idx = pattern_idx + 1
@@ -220,7 +225,7 @@ def verify_pattern_vq(
     return results
 
 
-def collect_timing(results: List[dict]) -> dict[str, list[float]]:
+def collect_timing(results: list[dict]) -> dict[str, list[float]]:
     timing: dict[str, list[float]] = defaultdict(list)
     seen_vq: set[tuple[str, int]] = set()
     for r in results:
@@ -236,7 +241,7 @@ def collect_timing(results: List[dict]) -> dict[str, list[float]]:
     return dict(timing)
 
 
-def print_summary(results: List[dict], baseline: dict | None = None) -> None:
+def print_summary(results: list[dict], baseline: dict | None = None) -> None:
     matched = sum(1 for r in results if r["match"])
     total = len(results)
 
