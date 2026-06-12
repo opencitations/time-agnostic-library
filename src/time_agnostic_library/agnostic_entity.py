@@ -12,27 +12,27 @@ from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql, _n3_value
 from time_agnostic_library.support import convert_to_datetime
 
-_OPERATION_RE = re.compile(r'(DELETE|INSERT)\s+DATA', re.IGNORECASE)
-_GRAPH_BLOCK_RE = re.compile(r'GRAPH\s*<([^>]+)>\s*\{', re.IGNORECASE)
+_OPERATION_RE = re.compile(r"(DELETE|INSERT)\s+DATA", re.IGNORECASE)
+_GRAPH_BLOCK_RE = re.compile(r"GRAPH\s*<([^>]+)>\s*\{", re.IGNORECASE)
 
 _RDF_TERM_RE = re.compile(
-    r'<([^>]+)>'
+    r"<([^>]+)>"
     r'|"((?:[^"\\]|\\.)*)"\^\^<([^>]+)>'
     r'|"((?:[^"\\]|\\.)*)"@([a-zA-Z][\w-]*)'
     r'|"((?:[^"\\]|\\.)*)"'
     r"|'((?:[^'\\]|\\.)*)'"
-    r'|(_:\S+)',
+    r"|(_:\S+)",
     re.DOTALL,
 )
 
-_ESCAPE_CHAR_RE = re.compile(r'\\(.)')
-_ESCAPE_CHAR_MAP = {'n': '\n', 'r': '\r', 't': '\t'}
+_ESCAPE_CHAR_RE = re.compile(r"\\(.)")
+_ESCAPE_CHAR_MAP = {"n": "\n", "r": "\r", "t": "\t"}
 
 _RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
 
 
 def _unescape_literal(s: str) -> str:
-    if '\\' not in s:
+    if "\\" not in s:
         return s
     return _ESCAPE_CHAR_RE.sub(
         lambda m: _ESCAPE_CHAR_MAP.get(m.group(1), m.group(1)), s
@@ -41,7 +41,12 @@ def _unescape_literal(s: str) -> str:
 
 def _normalize_literal(raw: str) -> str:
     unescaped = _unescape_literal(raw)
-    return unescaped.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
+    return (
+        unescaped.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+    )
 
 
 def _regex_match_to_n3(match: re.Match) -> str:
@@ -81,10 +86,10 @@ def _find_matching_close_brace(text: str, start: int) -> int:
             return length
         pos = m.start()
         char = text[pos]
-        if char == '{':
+        if char == "{":
             depth += 1
             pos += 1
-        elif char == '}':
+        elif char == "}":
             depth -= 1
             if depth == 0:
                 return pos
@@ -99,7 +104,7 @@ def _find_matching_close_brace(text: str, start: int) -> int:
                     break
                 num_backslashes = 0
                 check = q - 1
-                while check >= start and text[check] == '\\':
+                while check >= start and text[check] == "\\":
                     num_backslashes += 1
                     check -= 1
                 if num_backslashes % 2 == 0:
@@ -109,16 +114,26 @@ def _find_matching_close_brace(text: str, start: int) -> int:
     return length
 
 
-def _fast_parse_update(update_query: str) -> list[tuple[str, list[tuple[str, str, str, str]]]]:
+def _fast_parse_update(
+    update_query: str,
+) -> list[tuple[str, list[tuple[str, str, str, str]]]]:
     operations: list[tuple[str, list[tuple[str, str, str, str]]]] = []
     operation_matches = list(_OPERATION_RE.finditer(update_query))
     query_len = len(update_query)
 
     for i, operation_match in enumerate(operation_matches):
-        operation_type = 'DeleteData' if operation_match.group(1).upper() == 'DELETE' else 'InsertData'
+        operation_type = (
+            "DeleteData"
+            if operation_match.group(1).upper() == "DELETE"
+            else "InsertData"
+        )
 
         op_start = operation_match.end()
-        op_end = operation_matches[i + 1].start() if i + 1 < len(operation_matches) else query_len
+        op_end = (
+            operation_matches[i + 1].start()
+            if i + 1 < len(operation_matches)
+            else query_len
+        )
         operation_body = update_query[op_start:op_end]
 
         quads: list[tuple[str, str, str, str]] = []
@@ -147,13 +162,13 @@ def _compose_update_queries(
     deletions: set[tuple[str, ...]] = set()
     for uq in update_queries:
         for op_type, quads in _fast_parse_update(uq):
-            if op_type == 'DeleteData':
+            if op_type == "DeleteData":
                 for quad in quads:
                     if quad in additions:
                         additions.discard(quad)
                     else:
                         deletions.add(quad)
-            elif op_type == 'InsertData':
+            elif op_type == "InsertData":
                 for quad in quads:
                     if quad in deletions:
                         deletions.discard(quad)
@@ -176,7 +191,9 @@ _GEN_AT_TIME_N3 = f"<{ProvEntity.iri_generated_at_time}>"
 _HAS_UQ_N3 = f"<{ProvEntity.iri_has_update_query}>"
 
 
-def _extract_snapshot_update_queries(quads: set[tuple[str, ...]]) -> dict[str, str | None]:
+def _extract_snapshot_update_queries(
+    quads: set[tuple[str, ...]],
+) -> dict[str, str | None]:
     by_subject: dict[str, dict[str, str]] = {}
     for quad in quads:
         if quad[1] in (_GEN_AT_TIME_N3, _HAS_UQ_N3):
@@ -199,23 +216,41 @@ def _find_related_object_uris(entity_uri: str, graphs: dict) -> set[str]:
         if quad_set is None:
             continue
         for quad in quad_set:
-            if quad[0] == entity_n3 and quad[2].startswith('<') and _PROV_PREFIX not in quad[1] and quad[1] != _RDF_TYPE_N3:
+            if (
+                quad[0] == entity_n3
+                and quad[2].startswith("<")
+                and _PROV_PREFIX not in quad[1]
+                and quad[1] != _RDF_TYPE_N3
+            ):
                 result.add(_n3_value(quad[2]))
     return result
 
 
 class AgnosticEntity:
-    def __init__(self, res:str, config:dict, include_related_objects:bool=False, include_merged_entities:bool=False, include_reverse_relations:bool=False):
+    def __init__(
+        self,
+        res: str,
+        config: dict,
+        include_related_objects: bool = False,
+        include_merged_entities: bool = False,
+        include_reverse_relations: bool = False,
+    ):
         self.res = res
         self.include_related_objects = include_related_objects
         self.include_merged_entities = include_merged_entities
         self.include_reverse_relations = include_reverse_relations
         self.config = config
 
-    def get_history(self, include_prov_metadata: bool=False) -> tuple:
-        if self.include_related_objects or self.include_merged_entities or self.include_reverse_relations:
+    def get_history(self, include_prov_metadata: bool = False) -> tuple:
+        if (
+            self.include_related_objects
+            or self.include_merged_entities
+            or self.include_reverse_relations
+        ):
             histories = {}
-            self._collect_all_related_entities_histories(histories, include_prov_metadata)
+            self._collect_all_related_entities_histories(
+                histories, include_prov_metadata
+            )
             return self._get_merged_histories(histories, include_prov_metadata)
         else:
             entity_history = self._get_entity_current_state(include_prov_metadata)
@@ -226,12 +261,33 @@ class AgnosticEntity:
                         entity_history[0][uri][ts] = set()
             return tuple(entity_history)
 
+    def get_histories_by_entity(self, include_prov_metadata: bool = False) -> tuple:
+        histories = {}
+        self._collect_all_related_entities_histories(histories, include_prov_metadata)
+        entity_histories = {}
+        metadata = {}
+        for entity_uri, (entity_history_dict, entity_metadata) in histories.items():
+            entity_states = entity_history_dict[entity_uri]
+            if not entity_states:
+                continue
+            entity_histories[entity_uri] = {
+                timestamp: quad_set if quad_set is not None else set()
+                for timestamp, quad_set in entity_states.items()
+            }
+            if include_prov_metadata and entity_metadata:
+                metadata[entity_uri] = entity_metadata[entity_uri]
+        return entity_histories, metadata
+
     def _collect_all_related_entities_histories(
-        self,
-        histories: dict,
-        include_prov_metadata: bool
+        self, histories: dict, include_prov_metadata: bool
     ) -> None:
-        main_entity = AgnosticEntity(self.res, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+        main_entity = AgnosticEntity(
+            self.res,
+            self.config,
+            include_related_objects=False,
+            include_merged_entities=False,
+            include_reverse_relations=False,
+        )
         entity_history = main_entity._get_entity_current_state(include_prov_metadata)
         entity_history = main_entity._get_old_graphs(entity_history)
         histories[self.res] = (entity_history[0], entity_history[1])
@@ -239,13 +295,19 @@ class AgnosticEntity:
         processed_entities = {self.res}
 
         if self.include_related_objects:
-            self._collect_related_objects_recursively(self.res, processed_entities, histories, include_prov_metadata)
+            self._collect_related_objects_recursively(
+                self.res, processed_entities, histories, include_prov_metadata
+            )
 
         if self.include_merged_entities:
-            self._collect_merged_entities_recursively(self.res, processed_entities, histories, include_prov_metadata)
+            self._collect_merged_entities_recursively(
+                self.res, processed_entities, histories, include_prov_metadata
+            )
 
         if self.include_reverse_relations:
-            self._collect_reverse_relations_recursively(self.res, processed_entities, histories, include_prov_metadata)
+            self._collect_reverse_relations_recursively(
+                self.res, processed_entities, histories, include_prov_metadata
+            )
 
     def _collect_related_objects_recursively(
         self,
@@ -253,25 +315,41 @@ class AgnosticEntity:
         processed_entities: set[str],
         histories: dict,
         include_prov_metadata: bool,
-        depth: int | None = None
+        depth: int | None = None,
     ) -> None:
         if depth is not None and depth <= 0:
             return
 
         next_depth = None if depth is None else depth - 1
 
-        entity_graphs = histories[entity_uri][0][entity_uri] if entity_uri in histories else None
+        entity_graphs = (
+            histories[entity_uri][0][entity_uri] if entity_uri in histories else None
+        )
         if not entity_graphs:
             return
 
         for obj_uri in _find_related_object_uris(entity_uri, entity_graphs):
             if obj_uri not in processed_entities:
                 processed_entities.add(obj_uri)
-                agnostic_entity = AgnosticEntity(obj_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-                entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
+                agnostic_entity = AgnosticEntity(
+                    obj_uri,
+                    self.config,
+                    include_related_objects=False,
+                    include_merged_entities=False,
+                    include_reverse_relations=False,
+                )
+                entity_history = agnostic_entity._get_entity_current_state(
+                    include_prov_metadata
+                )
                 entity_history = agnostic_entity._get_old_graphs(entity_history)
                 histories[obj_uri] = (entity_history[0], entity_history[1])
-                self._collect_related_objects_recursively(obj_uri, processed_entities, histories, include_prov_metadata, next_depth)
+                self._collect_related_objects_recursively(
+                    obj_uri,
+                    processed_entities,
+                    histories,
+                    include_prov_metadata,
+                    next_depth,
+                )
 
     def _collect_merged_entities_recursively(
         self,
@@ -279,7 +357,7 @@ class AgnosticEntity:
         processed_entities: set[str],
         histories: dict,
         include_prov_metadata: bool,
-        depth: int | None = None
+        depth: int | None = None,
     ) -> None:
         if depth is not None and depth <= 0:
             return
@@ -291,11 +369,25 @@ class AgnosticEntity:
         for merged_entity_uri in merged_entities:
             if merged_entity_uri not in processed_entities:
                 processed_entities.add(merged_entity_uri)
-                agnostic_entity = AgnosticEntity(merged_entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-                entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
+                agnostic_entity = AgnosticEntity(
+                    merged_entity_uri,
+                    self.config,
+                    include_related_objects=False,
+                    include_merged_entities=False,
+                    include_reverse_relations=False,
+                )
+                entity_history = agnostic_entity._get_entity_current_state(
+                    include_prov_metadata
+                )
                 entity_history = agnostic_entity._get_old_graphs(entity_history)
                 histories[merged_entity_uri] = (entity_history[0], entity_history[1])
-                self._collect_merged_entities_recursively(merged_entity_uri, processed_entities, histories, include_prov_metadata, next_depth)
+                self._collect_merged_entities_recursively(
+                    merged_entity_uri,
+                    processed_entities,
+                    histories,
+                    include_prov_metadata,
+                    next_depth,
+                )
 
     def _collect_reverse_relations_recursively(
         self,
@@ -303,7 +395,7 @@ class AgnosticEntity:
         processed_entities: set[str],
         histories: dict,
         include_prov_metadata: bool,
-        depth: int | None = None
+        depth: int | None = None,
     ) -> None:
         if depth is not None and depth <= 0:
             return
@@ -315,16 +407,28 @@ class AgnosticEntity:
         for reverse_entity_uri in reverse_related_entities:
             if reverse_entity_uri not in processed_entities:
                 processed_entities.add(reverse_entity_uri)
-                agnostic_entity = AgnosticEntity(reverse_entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-                entity_history = agnostic_entity._get_entity_current_state(include_prov_metadata)
+                agnostic_entity = AgnosticEntity(
+                    reverse_entity_uri,
+                    self.config,
+                    include_related_objects=False,
+                    include_merged_entities=False,
+                    include_reverse_relations=False,
+                )
+                entity_history = agnostic_entity._get_entity_current_state(
+                    include_prov_metadata
+                )
                 entity_history = agnostic_entity._get_old_graphs(entity_history)
                 histories[reverse_entity_uri] = (entity_history[0], entity_history[1])
-                self._collect_reverse_relations_recursively(reverse_entity_uri, processed_entities, histories, include_prov_metadata, next_depth)
+                self._collect_reverse_relations_recursively(
+                    reverse_entity_uri,
+                    processed_entities,
+                    histories,
+                    include_prov_metadata,
+                    next_depth,
+                )
 
     def _get_merged_histories(
-        self,
-        histories: dict,
-        include_prov_metadata: bool
+        self, histories: dict, include_prov_metadata: bool
     ) -> tuple:
         entity_histories = {}
         metadata = {}
@@ -344,8 +448,7 @@ class AgnosticEntity:
             if entity_uri == self.res:
                 continue
             related_sorted_times[entity_uri] = sorted(
-                ((t, _parse_datetime(t)) for t in entity_history),
-                key=lambda x: x[1]
+                ((t, _parse_datetime(t)) for t in entity_history), key=lambda x: x[1]
             )
 
         for timestamp in main_entity_times:
@@ -370,10 +473,16 @@ class AgnosticEntity:
         self,
         time: tuple[str | None, str | None],
         include_prov_metadata: bool = False,
-        ) -> tuple:
-        if self.include_related_objects or self.include_merged_entities or self.include_reverse_relations:
+    ) -> tuple:
+        if (
+            self.include_related_objects
+            or self.include_merged_entities
+            or self.include_reverse_relations
+        ):
             histories = {}
-            self._collect_all_related_entities_states_at_time(histories, time, include_prov_metadata)
+            self._collect_all_related_entities_states_at_time(
+                histories, time, include_prov_metadata
+            )
             return self._get_merged_histories_at_time(histories, include_prov_metadata)
         else:
             return self._get_entity_state_at_time(time, include_prov_metadata)
@@ -399,12 +508,12 @@ class AgnosticEntity:
             }}
         """
         results = Sparql(query_snapshots, config=self.config).run_select_query()
-        bindings = results['results']['bindings']
+        bindings = results["results"]["bindings"]
         if not bindings:
             return set(), set()
         start_dt = _parse_datetime(time_start)
         end_dt = _parse_datetime(time_end)
-        parsed = [(b, _parse_datetime(b['time']['value'])) for b in bindings]
+        parsed = [(b, _parse_datetime(b["time"]["value"])) for b in bindings]
         first_snapshot_dt = min(dt for _, dt in parsed)
         if first_snapshot_dt > start_dt:
             entity_graphs, _, _ = self._get_entity_state_at_time(
@@ -415,33 +524,55 @@ class AgnosticEntity:
             state_at_end = next(iter(entity_graphs.values()))
             return state_at_end, set()
         relevant = sorted(
-            ((b, dt) for b, dt in parsed
-             if start_dt < dt <= end_dt
-             and 'updateQuery' in b and 'value' in b['updateQuery']),
+            (
+                (b, dt)
+                for b, dt in parsed
+                if start_dt < dt <= end_dt
+                and "updateQuery" in b
+                and "value" in b["updateQuery"]
+            ),
             key=lambda x: x[1],
         )
-        return _compose_update_queries([b['updateQuery']['value'] for b, _ in relevant])
+        return _compose_update_queries([b["updateQuery"]["value"] for b, _ in relevant])
 
     def _collect_all_related_entities_states_at_time(
         self,
         histories: dict,
         time: tuple[str | None, str | None],
-        include_prov_metadata: bool
+        include_prov_metadata: bool,
     ) -> None:
-        main_entity = AgnosticEntity(self.res, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-        entity_graphs, entity_snapshots, other_snapshots_metadata = main_entity._get_entity_state_at_time(time, include_prov_metadata)
-        histories[self.res] = (entity_graphs, entity_snapshots, other_snapshots_metadata)
+        main_entity = AgnosticEntity(
+            self.res,
+            self.config,
+            include_related_objects=False,
+            include_merged_entities=False,
+            include_reverse_relations=False,
+        )
+        entity_graphs, entity_snapshots, other_snapshots_metadata = (
+            main_entity._get_entity_state_at_time(time, include_prov_metadata)
+        )
+        histories[self.res] = (
+            entity_graphs,
+            entity_snapshots,
+            other_snapshots_metadata,
+        )
 
         processed_entities = {self.res}
 
         if self.include_related_objects:
-            self._collect_related_objects_states_at_time(self.res, processed_entities, histories, time, include_prov_metadata)
+            self._collect_related_objects_states_at_time(
+                self.res, processed_entities, histories, time, include_prov_metadata
+            )
 
         if self.include_merged_entities:
-            self._collect_merged_entities_states_at_time(self.res, processed_entities, histories, time, include_prov_metadata)
+            self._collect_merged_entities_states_at_time(
+                self.res, processed_entities, histories, time, include_prov_metadata
+            )
 
         if self.include_reverse_relations:
-            self._collect_reverse_relations_states_at_time(self.res, processed_entities, histories, time, include_prov_metadata)
+            self._collect_reverse_relations_states_at_time(
+                self.res, processed_entities, histories, time, include_prov_metadata
+            )
 
     def _collect_related_objects_states_at_time(
         self,
@@ -450,7 +581,7 @@ class AgnosticEntity:
         histories: dict,
         time: tuple[str | None, str | None],
         include_prov_metadata: bool,
-        depth: int | None = None
+        depth: int | None = None,
     ) -> None:
         if depth is not None and depth <= 0:
             return
@@ -464,10 +595,31 @@ class AgnosticEntity:
         for obj_uri in _find_related_object_uris(entity_uri, entity_graphs):
             if obj_uri not in processed_entities:
                 processed_entities.add(obj_uri)
-                agnostic_entity = AgnosticEntity(obj_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-                entity_graphs_new, entity_snapshots, other_snapshots_metadata = agnostic_entity._get_entity_state_at_time(time, include_prov_metadata)
-                histories[obj_uri] = (entity_graphs_new, entity_snapshots, other_snapshots_metadata)
-                self._collect_related_objects_states_at_time(obj_uri, processed_entities, histories, time, include_prov_metadata, next_depth)
+                agnostic_entity = AgnosticEntity(
+                    obj_uri,
+                    self.config,
+                    include_related_objects=False,
+                    include_merged_entities=False,
+                    include_reverse_relations=False,
+                )
+                entity_graphs_new, entity_snapshots, other_snapshots_metadata = (
+                    agnostic_entity._get_entity_state_at_time(
+                        time, include_prov_metadata
+                    )
+                )
+                histories[obj_uri] = (
+                    entity_graphs_new,
+                    entity_snapshots,
+                    other_snapshots_metadata,
+                )
+                self._collect_related_objects_states_at_time(
+                    obj_uri,
+                    processed_entities,
+                    histories,
+                    time,
+                    include_prov_metadata,
+                    next_depth,
+                )
 
     def _collect_merged_entities_states_at_time(
         self,
@@ -476,7 +628,7 @@ class AgnosticEntity:
         histories: dict,
         time: tuple[str | None, str | None],
         include_prov_metadata: bool,
-        depth: int | None = None
+        depth: int | None = None,
     ) -> None:
         if depth is not None and depth <= 0:
             return
@@ -488,10 +640,31 @@ class AgnosticEntity:
         for merged_entity_uri in merged_entities:
             if merged_entity_uri not in processed_entities:
                 processed_entities.add(merged_entity_uri)
-                agnostic_entity = AgnosticEntity(merged_entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-                entity_graphs, entity_snapshots, other_snapshots_metadata = agnostic_entity._get_entity_state_at_time(time, include_prov_metadata)
-                histories[merged_entity_uri] = (entity_graphs, entity_snapshots, other_snapshots_metadata)
-                self._collect_merged_entities_states_at_time(merged_entity_uri, processed_entities, histories, time, include_prov_metadata, next_depth)
+                agnostic_entity = AgnosticEntity(
+                    merged_entity_uri,
+                    self.config,
+                    include_related_objects=False,
+                    include_merged_entities=False,
+                    include_reverse_relations=False,
+                )
+                entity_graphs, entity_snapshots, other_snapshots_metadata = (
+                    agnostic_entity._get_entity_state_at_time(
+                        time, include_prov_metadata
+                    )
+                )
+                histories[merged_entity_uri] = (
+                    entity_graphs,
+                    entity_snapshots,
+                    other_snapshots_metadata,
+                )
+                self._collect_merged_entities_states_at_time(
+                    merged_entity_uri,
+                    processed_entities,
+                    histories,
+                    time,
+                    include_prov_metadata,
+                    next_depth,
+                )
 
     def _collect_reverse_relations_states_at_time(
         self,
@@ -500,7 +673,7 @@ class AgnosticEntity:
         histories: dict,
         time: tuple[str | None, str | None],
         include_prov_metadata: bool,
-        depth: int | None = None
+        depth: int | None = None,
     ) -> None:
         if depth is not None and depth <= 0:
             return
@@ -512,24 +685,51 @@ class AgnosticEntity:
         for reverse_entity_uri in reverse_related_entities:
             if reverse_entity_uri not in processed_entities:
                 processed_entities.add(reverse_entity_uri)
-                agnostic_entity = AgnosticEntity(reverse_entity_uri, self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
-                entity_graphs, entity_snapshots, other_snapshots_metadata = agnostic_entity._get_entity_state_at_time(time, include_prov_metadata)
-                histories[reverse_entity_uri] = (entity_graphs, entity_snapshots, other_snapshots_metadata)
-                self._collect_reverse_relations_states_at_time(reverse_entity_uri, processed_entities, histories, time, include_prov_metadata, next_depth)
+                agnostic_entity = AgnosticEntity(
+                    reverse_entity_uri,
+                    self.config,
+                    include_related_objects=False,
+                    include_merged_entities=False,
+                    include_reverse_relations=False,
+                )
+                entity_graphs, entity_snapshots, other_snapshots_metadata = (
+                    agnostic_entity._get_entity_state_at_time(
+                        time, include_prov_metadata
+                    )
+                )
+                histories[reverse_entity_uri] = (
+                    entity_graphs,
+                    entity_snapshots,
+                    other_snapshots_metadata,
+                )
+                self._collect_reverse_relations_states_at_time(
+                    reverse_entity_uri,
+                    processed_entities,
+                    histories,
+                    time,
+                    include_prov_metadata,
+                    next_depth,
+                )
 
     def _get_merged_histories_at_time(
-        self,
-        histories: dict,
-        include_prov_metadata: bool
+        self, histories: dict, include_prov_metadata: bool
     ) -> tuple:
         entity_histories = {}
         entity_snapshots_metadata = {}
         other_snapshots_metadata = {} if include_prov_metadata else None
 
-        for entity_uri, (entity_graphs, entity_snapshots, other_snapshots) in histories.items():
+        for entity_uri, (
+            entity_graphs,
+            entity_snapshots,
+            other_snapshots,
+        ) in histories.items():
             entity_histories[entity_uri] = entity_graphs
             entity_snapshots_metadata[entity_uri] = entity_snapshots
-            if include_prov_metadata and other_snapshots and other_snapshots_metadata is not None:
+            if (
+                include_prov_metadata
+                and other_snapshots
+                and other_snapshots_metadata is not None
+            ):
                 other_snapshots_metadata[entity_uri] = other_snapshots
 
         main_entity_times = sorted(
@@ -543,8 +743,7 @@ class AgnosticEntity:
             if entity_uri == self.res:
                 continue
             related_sorted_times[entity_uri] = sorted(
-                ((t, _parse_datetime(t)) for t in graphs_at_times),
-                key=lambda x: x[1]
+                ((t, _parse_datetime(t)) for t in graphs_at_times), key=lambda x: x[1]
             )
 
         for timestamp in main_entity_times:
@@ -573,9 +772,7 @@ class AgnosticEntity:
         return merged_histories, entity_snapshots_metadata, other_snapshots_metadata
 
     def _get_entity_state_at_time(
-        self,
-        time: tuple[str | None, str | None],
-        include_prov_metadata: bool
+        self, time: tuple[str | None, str | None], include_prov_metadata: bool
     ) -> tuple:
         other_snapshots_metadata = {}
         is_quadstore = self.config["provenance"]["is_quadstore"]
@@ -619,30 +816,54 @@ class AgnosticEntity:
                 }}
             """
         results = Sparql(query_snapshots, config=self.config).run_select_query()
-        bindings = results['results']['bindings']
+        bindings = results["results"]["bindings"]
         if not bindings:
             return {}, {}, other_snapshots_metadata
-        sorted_results = sorted(bindings, key=lambda x: _parse_datetime(x['time']['value']), reverse=True)
-        relevant_results = _filter_timestamps_by_interval(time, sorted_results, time_index='time')
+        sorted_results = sorted(
+            bindings, key=lambda x: _parse_datetime(x["time"]["value"]), reverse=True
+        )
+        relevant_results = _filter_timestamps_by_interval(
+            time, sorted_results, time_index="time"
+        )
         if include_prov_metadata:
-            relevant_snapshot_uris = {relevant_result['snapshot']['value'] for relevant_result in relevant_results}
-            other_snapshots = [snapshot for snapshot in bindings if snapshot['snapshot']['value'] not in relevant_snapshot_uris]
+            relevant_snapshot_uris = {
+                relevant_result["snapshot"]["value"]
+                for relevant_result in relevant_results
+            }
+            other_snapshots = [
+                snapshot
+                for snapshot in bindings
+                if snapshot["snapshot"]["value"] not in relevant_snapshot_uris
+            ]
             for other_snapshot in other_snapshots:
-                snapshot_uri = other_snapshot['snapshot']['value']
+                snapshot_uri = other_snapshot["snapshot"]["value"]
                 other_snapshots_metadata[snapshot_uri] = {
-                    "generatedAtTime": other_snapshot['time']['value'],
-                    "invalidatedAtTime": other_snapshot.get('invalidatedAtTime', {}).get('value'),
-                    "wasAttributedTo": other_snapshot['responsibleAgent']['value'],
-                    "hasUpdateQuery": other_snapshot.get('updateQuery', {}).get('value'),
-                    "hadPrimarySource": other_snapshot.get('primarySource', {}).get('value'),
-                    "description": other_snapshot.get('description', {}).get('value')
+                    "generatedAtTime": other_snapshot["time"]["value"],
+                    "invalidatedAtTime": other_snapshot.get(
+                        "invalidatedAtTime", {}
+                    ).get("value"),
+                    "wasAttributedTo": other_snapshot["responsibleAgent"]["value"],
+                    "hasUpdateQuery": other_snapshot.get("updateQuery", {}).get(
+                        "value"
+                    ),
+                    "hadPrimarySource": other_snapshot.get("primarySource", {}).get(
+                        "value"
+                    ),
+                    "description": other_snapshot.get("description", {}).get("value"),
                 }
         if not relevant_results:
             interval_start = _parse_datetime(time[0]) if time[0] else None
             if interval_start:
-                earlier_snapshots = [r for r in bindings if _parse_datetime(r['time']['value']) <= interval_start]
+                earlier_snapshots = [
+                    r
+                    for r in bindings
+                    if _parse_datetime(r["time"]["value"]) <= interval_start
+                ]
                 if earlier_snapshots:
-                    latest_snapshot = max(earlier_snapshots, key=lambda x: _parse_datetime(x['time']['value']))
+                    latest_snapshot = max(
+                        earlier_snapshots,
+                        key=lambda x: _parse_datetime(x["time"]["value"]),
+                    )
                     relevant_results = [latest_snapshot]
                 else:
                     return {}, {}, other_snapshots_metadata
@@ -651,34 +872,48 @@ class AgnosticEntity:
         entity_snapshots = {}
         entity_graphs: dict[str, set[tuple[str, ...]]] = {}
         entity_quads = self._query_dataset(self.res)
-        sorted_parsed = [(r, _parse_datetime(r['time']['value'])) for r in sorted_results]
+        sorted_parsed = [
+            (r, _parse_datetime(r["time"]["value"])) for r in sorted_results
+        ]
         last_idx = len(relevant_results) - 1
         for i, relevant_result in enumerate(relevant_results):
-            relevant_result_time = relevant_result['time']['value']
+            relevant_result_time = relevant_result["time"]["value"]
             relevant_result_dt = _parse_datetime(relevant_result_time)
             update_parts = [
-                r['updateQuery']['value']
+                r["updateQuery"]["value"]
                 for r, r_dt in sorted_parsed
-                if 'updateQuery' in r and 'value' in r['updateQuery'] and r_dt > relevant_result_dt
+                if "updateQuery" in r
+                and "value" in r["updateQuery"]
+                and r_dt > relevant_result_dt
             ]
             entity_present_graph = entity_quads if i == last_idx else set(entity_quads)
             if update_parts:
-                self._manage_update_queries(entity_present_graph, ";".join(update_parts))
+                self._manage_update_queries(
+                    entity_present_graph, ";".join(update_parts)
+                )
             timestamp_key = convert_to_datetime(relevant_result_time, stringify=True)
             entity_graphs[timestamp_key] = entity_present_graph  # type: ignore[index]
             if include_prov_metadata:
-                snapshot_uri = relevant_result['snapshot']['value']
+                snapshot_uri = relevant_result["snapshot"]["value"]
                 entity_snapshots[snapshot_uri] = {
                     "generatedAtTime": relevant_result_time,
-                    "invalidatedAtTime": relevant_result.get('invalidatedAtTime', {}).get('value'),
-                    "wasAttributedTo": relevant_result['responsibleAgent']['value'],
-                    "hasUpdateQuery": relevant_result.get('updateQuery', {}).get('value'),
-                    "hadPrimarySource": relevant_result.get('primarySource', {}).get('value'),
-                    "description": relevant_result.get('description', {}).get('value')
+                    "invalidatedAtTime": relevant_result.get(
+                        "invalidatedAtTime", {}
+                    ).get("value"),
+                    "wasAttributedTo": relevant_result["responsibleAgent"]["value"],
+                    "hasUpdateQuery": relevant_result.get("updateQuery", {}).get(
+                        "value"
+                    ),
+                    "hadPrimarySource": relevant_result.get("primarySource", {}).get(
+                        "value"
+                    ),
+                    "description": relevant_result.get("description", {}).get("value"),
                 }
         return entity_graphs, entity_snapshots, other_snapshots_metadata
 
-    def _include_prov_metadata(self, triples_generated_at_time: list, current_state: set[tuple[str, ...]]) -> dict:
+    def _include_prov_metadata(
+        self, triples_generated_at_time: list, current_state: set[tuple[str, ...]]
+    ) -> dict:
         res_n3 = f"<{self.res}>"
         entity_n3 = f"<{ProvEntity.iri_entity}>"
         for quad in current_state:
@@ -690,11 +925,9 @@ class AgnosticEntity:
             f"<{ProvEntity.iri_had_primary_source}>": "hadPrimarySource",
             f"<{ProvEntity.iri_description}>": "description",
             f"<{ProvEntity.iri_has_update_query}>": "hasUpdateQuery",
-            f"<{ProvEntity.iri_was_derived_from}>": "wasDerivedFrom"
+            f"<{ProvEntity.iri_was_derived_from}>": "wasDerivedFrom",
         }
-        prov_metadata: dict = {
-            self.res: {}
-        }
+        prov_metadata: dict = {self.res: {}}
         for triple in triples_generated_at_time:
             time = convert_to_datetime(_n3_value(triple[2]), stringify=True)
             snapshot_uri_str = _n3_value(triple[0])
@@ -705,13 +938,15 @@ class AgnosticEntity:
                 "hadPrimarySource": None,
                 "description": None,
                 "hasUpdateQuery": None,
-                "wasDerivedFrom": []
+                "wasDerivedFrom": [],
             }
         prov_prop_n3_set = set(prov_properties)
         index: dict[str, dict[str, list[str]]] = {}
         for quad in current_state:
             if quad[1] in prov_prop_n3_set:
-                index.setdefault(quad[0], {}).setdefault(quad[1], []).append(_n3_value(quad[2]))
+                index.setdefault(quad[0], {}).setdefault(quad[1], []).append(
+                    _n3_value(quad[2])
+                )
         for metadata in dict(prov_metadata).values():
             for se_uri_str, snapshot_data in metadata.items():
                 se_n3 = f"<{se_uri_str}>"
@@ -723,7 +958,9 @@ class AgnosticEntity:
                         else:
                             snapshot_data[abbr] = value
                 if isinstance(snapshot_data.get("wasDerivedFrom"), list):
-                    snapshot_data["wasDerivedFrom"] = sorted(snapshot_data["wasDerivedFrom"])
+                    snapshot_data["wasDerivedFrom"] = sorted(
+                        snapshot_data["wasDerivedFrom"]
+                    )
 
         return prov_metadata
 
@@ -763,18 +1000,20 @@ class AgnosticEntity:
         return entity_current_state
 
     def _get_old_graphs(self, entity_current_state: list) -> list:
-        prov_quads = entity_current_state.pop(2) if len(entity_current_state) > 2 else set()
+        prov_quads = (
+            entity_current_state.pop(2) if len(entity_current_state) > 2 else set()
+        )
         snapshot_update_queries = _extract_snapshot_update_queries(prov_quads)
         ordered_data: list[tuple[str, set[tuple[str, ...]]]] = sorted(
             entity_current_state[0][self.res].items(),
             key=lambda x: _parse_datetime(str(x[0])),
-            reverse=True
+            reverse=True,
         )
         if not ordered_data:
             return entity_current_state
         for index, date_graph in enumerate(ordered_data):
             if index > 0:
-                next_snapshot = ordered_data[index-1][0]
+                next_snapshot = ordered_data[index - 1][0]
                 previous_graph = set(entity_current_state[0][self.res][next_snapshot])
                 update_query = snapshot_update_queries.get(str(next_snapshot))
                 if update_query is None:
@@ -795,7 +1034,9 @@ class AgnosticEntity:
         dataset_quads = self._query_dataset(self.res)
         working: set[tuple[str, ...]] = set(dataset_quads)
         snapshots = _extract_snapshot_update_queries(prov_quads)
-        ordered = sorted(snapshots.items(), key=lambda x: _parse_datetime(x[0]), reverse=True)
+        ordered = sorted(
+            snapshots.items(), key=lambda x: _parse_datetime(x[0]), reverse=True
+        )
         for i, (time_str, _update_query) in enumerate(ordered):
             if i > 0:
                 prev_update = ordered[i - 1][1]
@@ -808,17 +1049,17 @@ class AgnosticEntity:
     def _manage_update_queries(cls, graph: set, update_query: str) -> None:
         operations = _fast_parse_update(update_query)
         for operation_type, quads in operations:
-            if operation_type == 'DeleteData':
+            if operation_type == "DeleteData":
                 for quad in quads:
                     graph.add(quad)
-            elif operation_type == 'InsertData':
+            elif operation_type == "InsertData":
                 for quad in quads:
                     graph.discard(quad)
 
     def _query_dataset(self, entity_uri: str | None = None) -> set[tuple[str, ...]]:
         entity_uri = self.res if entity_uri is None else entity_uri
 
-        is_quadstore = self.config['dataset']['is_quadstore']
+        is_quadstore = self.config["dataset"]["is_quadstore"]
 
         if is_quadstore:
             query_dataset = f"""
@@ -841,7 +1082,9 @@ class AgnosticEntity:
 
         return Sparql(query_dataset, config=self.config).run_select_to_quad_set()
 
-    def _query_provenance(self, include_prov_metadata:bool=False) -> set[tuple[str, ...]]:
+    def _query_provenance(
+        self, include_prov_metadata: bool = False
+    ) -> set[tuple[str, ...]]:
         if include_prov_metadata:
             query_provenance = f"""
                 SELECT ?s ?p ?o WHERE {{
@@ -891,10 +1134,13 @@ class AgnosticEntity:
         """
         try:
             results = Sparql(query_simple, config=self.config).run_select_query()
-            bindings = results.get('results', {}).get('bindings', [])
+            bindings = results.get("results", {}).get("bindings", [])
             for binding in bindings:
-                if 'merged_entity_uri' in binding and 'value' in binding['merged_entity_uri']:
-                    merged_entity_uris.add(binding['merged_entity_uri']['value'])
+                if (
+                    "merged_entity_uri" in binding
+                    and "value" in binding["merged_entity_uri"]
+                ):
+                    merged_entity_uris.add(binding["merged_entity_uri"]["value"])
         except Exception as e:
             print(f"Error querying for merged entities for {entity_uri}: {e}")
 
@@ -903,7 +1149,7 @@ class AgnosticEntity:
     def _find_reverse_related_entities(self, entity_uri: str) -> set[str]:
         reverse_related_entity_uris = set()
 
-        is_quadstore = self.config['dataset']['is_quadstore']
+        is_quadstore = self.config["dataset"]["is_quadstore"]
 
         if is_quadstore:
             query = f"""
@@ -924,20 +1170,44 @@ class AgnosticEntity:
                 }}
             """
 
+        prov_query = f"""
+            SELECT DISTINCT ?subject
+            WHERE {{
+                ?snapshot <{ProvEntity.iri_specialization_of}> ?subject .
+                ?snapshot <{ProvEntity.iri_has_update_query}> ?update_query .
+                FILTER(CONTAINS(?update_query, "<{entity_uri}>"))
+            }}
+        """
+
+        self._add_reverse_related_entities_from_query(
+            query, entity_uri, reverse_related_entity_uris
+        )
+        self._add_reverse_related_entities_from_query(
+            prov_query, entity_uri, reverse_related_entity_uris
+        )
+
+        return reverse_related_entity_uris
+
+    def _add_reverse_related_entities_from_query(
+        self, select_query: str, entity_uri: str, reverse_related_entity_uris: set[str]
+    ) -> None:
         try:
-            results = Sparql(query, config=self.config).run_select_query()
-            bindings = results.get('results', {}).get('bindings', [])
+            results = Sparql(select_query, config=self.config).run_select_query()
+            bindings = results.get("results", {}).get("bindings", [])
             for binding in bindings:
-                if 'subject' in binding and 'value' in binding['subject']:
-                    subject_uri = binding['subject']['value']
+                if "subject" in binding and "value" in binding["subject"]:
+                    subject_uri = binding["subject"]["value"]
                     if subject_uri != entity_uri:
                         reverse_related_entity_uris.add(subject_uri)
         except Exception as e:
             print(f"Error querying for reverse related entities for {entity_uri}: {e}")
 
-        return reverse_related_entity_uris
 
-def _filter_timestamps_by_interval(interval: tuple[str | None, str | None] | None, iterator: list, time_index: str | None = None) -> list:
+def _filter_timestamps_by_interval(
+    interval: tuple[str | None, str | None] | None,
+    iterator: list,
+    time_index: str | None = None,
+) -> list:
     if interval:
         after_time = _parse_datetime(interval[0]) if interval[0] else None
         before_time = _parse_datetime(interval[1]) if interval[1] else None
@@ -945,8 +1215,8 @@ def _filter_timestamps_by_interval(interval: tuple[str | None, str | None] | Non
         for timestamp in iterator:
             if time_index is not None and time_index in timestamp:
                 time_binding = timestamp[time_index]
-                if 'value' in time_binding:
-                    time_str = time_binding['value']
+                if "value" in time_binding:
+                    time_str = time_binding["value"]
                     time = _parse_datetime(time_str)
                 else:
                     continue
