@@ -59,9 +59,9 @@ VERSION_LINE_RE = re.compile(r"^\[Solution in version (\d+)\]")
 
 def parse_bear_result_file(filepath: Path) -> dict[int, int]:
     counts = defaultdict(int)
-    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
-            line = line.strip()
+    with filepath.open(encoding="utf-8", errors="replace") as f:
+        for raw_line in f:
+            line = raw_line.strip()
             if not line:
                 continue
             m = VERSION_LINE_RE.match(line)
@@ -72,9 +72,9 @@ def parse_bear_result_file(filepath: Path) -> dict[int, int]:
 
 def parse_bear_query_file(filepath: Path) -> list[tuple[str, str, str]]:
     queries = []
-    with open(filepath, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
+    with filepath.open(encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
             parts = line.split(" ", 2)
@@ -94,14 +94,17 @@ def bear_pattern_to_sparql(pattern: tuple[str, str, str], pattern_type: str) -> 
         return f"SELECT ?s ?o WHERE {{ ?s {p} ?o . }}"
     if pattern_type == "po":
         return f"SELECT ?s WHERE {{ ?s {p} {o} . }}"
-    raise ValueError(f"Unknown pattern type: {pattern_type}")
+    msg = f"Unknown pattern type: {pattern_type}"
+    raise ValueError(msg)
 
 
 def version_to_timestamp(version: int, interval: timedelta) -> str:
     return (BASE_TIMESTAMP + interval * version).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
 
-def run_vm_query(sparql: str, version: int, interval: timedelta, config: dict) -> tuple[int, float]:
+def run_vm_query(
+    sparql: str, version: int, interval: timedelta, config: dict
+) -> tuple[int, float]:
     ts = version_to_timestamp(version, interval)
     start = time.perf_counter()
     vq = VersionQuery(sparql, on_time=(ts, ts), config_dict=config)
@@ -147,16 +150,18 @@ def verify_pattern_vm(
         expected = expected_counts.get(version, 0)
         actual, elapsed = run_vm_query(sparql, version, interval, config)
         match = expected == actual
-        results.append({
-            "query_type": "vm",
-            "pattern_type": pattern_type,
-            "pattern_index": pattern_idx,
-            "version": version,
-            "expected": expected,
-            "actual": actual,
-            "match": match,
-            "time_s": elapsed,
-        })
+        results.append(
+            {
+                "query_type": "vm",
+                "pattern_type": pattern_type,
+                "pattern_index": pattern_idx,
+                "version": version,
+                "expected": expected,
+                "actual": actual,
+                "match": match,
+                "time_s": elapsed,
+            }
+        )
         if not match:
             console.print(
                 f"  [red]MISMATCH VM {pattern_type}[{pattern_idx}] v{version}: "
@@ -203,16 +208,18 @@ def verify_pattern_vq(
         expected = expected_counts.get(version, 0)
         actual = actual_by_version.get(version, 0)
         match = expected == actual
-        results.append({
-            "query_type": "vq",
-            "pattern_type": pattern_type,
-            "pattern_index": pattern_idx,
-            "version": version,
-            "expected": expected,
-            "actual": actual,
-            "match": match,
-            "time_s": vq_elapsed,
-        })
+        results.append(
+            {
+                "query_type": "vq",
+                "pattern_type": pattern_type,
+                "pattern_index": pattern_idx,
+                "version": version,
+                "expected": expected,
+                "actual": actual,
+                "match": match,
+                "time_s": vq_elapsed,
+            }
+        )
         if not match:
             mismatches += 1
 
@@ -299,7 +306,9 @@ def print_summary(results: list[dict], baseline: dict | None = None) -> None:
             if base_times:
                 base_med = statistics.median(base_times) * 1000
                 speedup = base_med / med if med > 0 else float("inf")
-                color = "[green]" if speedup > 1.05 else "[red]" if speedup < 0.95 else ""
+                color = (
+                    "[green]" if speedup > 1.05 else "[red]" if speedup < 0.95 else ""
+                )
                 row.extend([f"{base_med:.1f}", f"{color}{speedup:.2f}x"])
             else:
                 row.extend(["N/A", "N/A"])
@@ -312,23 +321,29 @@ def print_summary(results: list[dict], baseline: dict | None = None) -> None:
 def load_baseline(path: Path) -> dict[str, list[float]] | None:
     if not path.exists():
         return None
-    with open(path, "r", encoding="utf-8") as f:
+    with path.open(encoding="utf-8") as f:
         return json.load(f)
 
 
 def save_timing(timing: dict[str, list[float]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    with path.open("w", encoding="utf-8") as f:
         json.dump(timing, f, indent=2)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
-    parser.add_argument("--save-baseline", action="store_true",
-                        help="Save timing as baseline for future comparison")
-    parser.add_argument("--compare", action="store_true",
-                        help="Compare against saved baseline")
+    parser.add_argument(
+        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+    )
+    parser.add_argument(
+        "--save-baseline",
+        action="store_true",
+        help="Save timing as baseline for future comparison",
+    )
+    parser.add_argument(
+        "--compare", action="store_true", help="Compare against saved baseline"
+    )
     args = parser.parse_args()
 
     config_g = GRANULARITY_CONFIG[args.granularity]
@@ -374,10 +389,17 @@ def main():
 
         for pattern_idx, pattern, pattern_type in all_patterns:
             status_text = f"[green]{passed}[/green] OK  [red]{failed}[/red] FAIL"
-            progress.update(task, label=f"{pattern_type}[{pattern_idx}] VM", status=status_text)
+            progress.update(
+                task, label=f"{pattern_type}[{pattern_idx}] VM", status=status_text
+            )
             vm_results = verify_pattern_vm(
-                pattern_idx, pattern, pattern_type, config,
-                results_dir, sample_versions, interval,
+                pattern_idx,
+                pattern,
+                pattern_type,
+                config,
+                results_dir,
+                sample_versions,
+                interval,
             )
             vm_ok = all(r["match"] for r in vm_results) if vm_results else True
             all_results.extend(vm_results)
@@ -385,8 +407,13 @@ def main():
 
             progress.update(task, label=f"{pattern_type}[{pattern_idx}] VQ")
             vq_results = verify_pattern_vq(
-                pattern_idx, pattern, pattern_type, config,
-                results_dir, num_versions, interval,
+                pattern_idx,
+                pattern,
+                pattern_type,
+                config,
+                results_dir,
+                num_versions,
+                interval,
             )
             vq_ok = all(r["match"] for r in vq_results) if vq_results else True
             all_results.extend(vq_results)
@@ -407,7 +434,10 @@ def main():
 
     baseline = load_baseline(baseline_file) if args.compare else None
     if args.compare and baseline is None:
-        console.print(f"[yellow]No baseline found at {baseline_file}, run with --save-baseline first")
+        console.print(
+            f"[yellow]No baseline found at {baseline_file}, "
+            "run with --save-baseline first"
+        )
 
     print_summary(all_results, baseline=baseline)
 
@@ -417,7 +447,7 @@ def main():
         console.print(f"\nBaseline saved to {baseline_file}")
 
     output_file = DATA_DIR / "verification_results.json"
-    with open(output_file, "w", encoding="utf-8") as f:
+    with output_file.open("w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2)
     console.print(f"\nDetailed results saved to {output_file}")
 

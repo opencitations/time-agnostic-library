@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # SPDX-FileCopyrightText: 2021-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # SPDX-License-Identifier: ISC
@@ -30,15 +28,40 @@ _ISHELDBY_ADDITION = (
 _RA_GRAPH = f"<{_RA}/>"
 _RA_15519 = f"<{_RA}/15519>"
 _DELETED_ENTITY_DELETIONS = {
-    (_RA_15519, '<http://xmlns.com/foaf/0.1/name>', '"Giulio Marini"^^<http://www.w3.org/2001/XMLSchema#string>', _RA_GRAPH),
-    (_RA_15519, '<http://xmlns.com/foaf/0.1/givenName>', '"Giulio"^^<http://www.w3.org/2001/XMLSchema#string>', _RA_GRAPH),
-    (_RA_15519, '<http://purl.org/spar/datacite/hasIdentifier>', f'<{_ID}/85509>', _RA_GRAPH),
-    (_RA_15519, '<http://xmlns.com/foaf/0.1/familyName>', '"Marini"^^<http://www.w3.org/2001/XMLSchema#string>', _RA_GRAPH),
-    (_RA_15519, '<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>', '<http://xmlns.com/foaf/0.1/Agent>', _RA_GRAPH),
+    (
+        _RA_15519,
+        "<http://xmlns.com/foaf/0.1/name>",
+        '"Giulio Marini"^^<http://www.w3.org/2001/XMLSchema#string>',
+        _RA_GRAPH,
+    ),
+    (
+        _RA_15519,
+        "<http://xmlns.com/foaf/0.1/givenName>",
+        '"Giulio"^^<http://www.w3.org/2001/XMLSchema#string>',
+        _RA_GRAPH,
+    ),
+    (
+        _RA_15519,
+        "<http://purl.org/spar/datacite/hasIdentifier>",
+        f"<{_ID}/85509>",
+        _RA_GRAPH,
+    ),
+    (
+        _RA_15519,
+        "<http://xmlns.com/foaf/0.1/familyName>",
+        '"Marini"^^<http://www.w3.org/2001/XMLSchema#string>',
+        _RA_GRAPH,
+    ),
+    (
+        _RA_15519,
+        "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>",
+        "<http://xmlns.com/foaf/0.1/Agent>",
+        _RA_GRAPH,
+    ),
 }
 
 
-class Test_DeltaQuery:
+class TestDeltaQuery:
     def test_run_agnostic_query_cross_delta(self):
         query = """
             prefix pro: <http://purl.org/spar/pro/>
@@ -48,10 +71,12 @@ class Test_DeltaQuery:
             }
         """
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}
-        delta_query = DeltaQuery(query=query, changed_properties=changed_properties, config_dict=CONFIG)
+        delta_query = DeltaQuery(
+            query=query, changed_properties=changed_properties, config_dict=CONFIG
+        )
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
-            f'{_AR}/15519': {
+            f"{_AR}/15519": {
                 "created": "2021-05-07T09:59:15+00:00",
                 "deleted": None,
                 "additions": {_ISHELDBY_ADDITION},
@@ -70,10 +95,15 @@ class Test_DeltaQuery:
         """
         on_time = (None, "2021-06-02T18:46:41+00:00")
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_dict=CONFIG)
+        delta_query = DeltaQuery(
+            query=query,
+            on_time=on_time,
+            changed_properties=changed_properties,
+            config_dict=CONFIG,
+        )
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
-            f'{_AR}/15519': {
+            f"{_AR}/15519": {
                 "created": "2021-05-07T09:59:15+00:00",
                 "deleted": None,
                 "additions": {_ISHELDBY_ADDITION},
@@ -92,10 +122,15 @@ class Test_DeltaQuery:
         """
         on_time = ("2021-06-01T00:00:00+00:00", "2021-06-02T18:46:41+00:00")
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_dict=CONFIG)
+        delta_query = DeltaQuery(
+            query=query,
+            on_time=on_time,
+            changed_properties=changed_properties,
+            config_dict=CONFIG,
+        )
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
-            f'{_AR}/15519': {
+            f"{_AR}/15519": {
                 "created": None,
                 "deleted": None,
                 "additions": {_ISHELDBY_ADDITION},
@@ -114,7 +149,12 @@ class Test_DeltaQuery:
         """
         on_time = ("2021-06-02T00:00:00+00:00", None)
         changed_properties = {"http://purl.org/spar/pro/isHeldBy"}
-        delta_query = DeltaQuery(query=query, on_time=on_time, changed_properties=changed_properties, config_dict=CONFIG)
+        delta_query = DeltaQuery(
+            query=query,
+            on_time=on_time,
+            changed_properties=changed_properties,
+            config_dict=CONFIG,
+        )
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {}
         assert agnostic_results == expected_output
@@ -130,18 +170,18 @@ class Test_DeltaQuery:
         delta_query = DeltaQuery(query=query, config_dict=CONFIG_PROV_IN_TRIPLESTORE)
         agnostic_results = delta_query.run_agnostic_query()
         expected_output = {
-            f'{_RA}/15519': {
-                'created': '2021-05-07T09:59:15+00:00',
-                'deleted': '2021-06-01T18:46:41+00:00',
-                'additions': set(),
-                'deletions': _DELETED_ENTITY_DELETIONS,
+            f"{_RA}/15519": {
+                "created": "2021-05-07T09:59:15+00:00",
+                "deleted": "2021-06-01T18:46:41+00:00",
+                "additions": set(),
+                "deletions": _DELETED_ENTITY_DELETIONS,
             },
-            f'{_RA}/4': {
-                'created': '2021-05-07T09:59:15+00:00',
-                'deleted': None,
-                'additions': set(),
-                'deletions': set(),
-            }
+            f"{_RA}/4": {
+                "created": "2021-05-07T09:59:15+00:00",
+                "deleted": None,
+                "additions": set(),
+                "deletions": set(),
+            },
         }
         assert agnostic_results == expected_output
 

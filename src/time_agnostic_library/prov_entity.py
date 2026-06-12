@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # SPDX-FileCopyrightText: 2016 Silvio Peroni <essepuntato@gmail.com>
 # SPDX-FileCopyrightText: 2021-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 #
@@ -29,8 +27,14 @@ class ProvEntity:
     def get_prov_properties(cls) -> tuple[str, ...]:
         if not cls._prov_properties:
             cls._prov_properties = (
-                cls.iri_entity, cls.iri_generated_at_time, cls.iri_invalidated_at_time,
-                cls.iri_specialization_of, cls.iri_was_derived_from, cls.iri_had_primary_source,
-                cls.iri_was_attributed_to, cls.iri_description, cls.iri_has_update_query
+                cls.iri_entity,
+                cls.iri_generated_at_time,
+                cls.iri_invalidated_at_time,
+                cls.iri_specialization_of,
+                cls.iri_was_derived_from,
+                cls.iri_had_primary_source,
+                cls.iri_was_attributed_to,
+                cls.iri_description,
+                cls.iri_has_update_query,
             )
         return cls._prov_properties

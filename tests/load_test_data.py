@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # SPDX-FileCopyrightText: 2025-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # SPDX-License-Identifier: ISC
@@ -36,18 +34,30 @@ UPDATE_ENDPOINT = _UPDATE_ENDPOINTS[TRIPLESTORE]
 
 _CHECK_QUERY = """
     ASK {
-        GRAPH <https://github.com/arcangelo7/time_agnostic/br/> {
-            <https://github.com/arcangelo7/time_agnostic/br/2>
-            <http://purl.org/dc/terms/title>
-            "Mapping the web relations of science centres and museums from Latin America"
-        }
+      GRAPH <https://github.com/arcangelo7/time_agnostic/br/> {
+        <https://github.com/arcangelo7/time_agnostic/br/2>
+        <http://purl.org/dc/terms/title>
+        "Mapping the web relations of science centres and museums from Latin America"
+      }
     }
 """
 
 _VERIFY_QUERIES = [
-    ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/br/31830> ?p ?o } }', 1),
-    ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/id/27139> ?p ?o } }', 1),
-    ('SELECT ?p ?o WHERE { GRAPH ?g { <https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o } }', 1),
+    (
+        "SELECT ?p ?o WHERE { GRAPH ?g { "
+        "<https://github.com/arcangelo7/time_agnostic/br/31830> ?p ?o } }",
+        1,
+    ),
+    (
+        "SELECT ?p ?o WHERE { GRAPH ?g { "
+        "<https://github.com/arcangelo7/time_agnostic/id/27139> ?p ?o } }",
+        1,
+    ),
+    (
+        "SELECT ?p ?o WHERE { GRAPH ?g { "
+        "<https://github.com/arcangelo7/time_agnostic/ar/15519> ?p ?o } }",
+        1,
+    ),
 ]
 
 
@@ -55,15 +65,15 @@ def wait_for_triplestore(endpoint=ENDPOINT, timeout=60):
     start_time = time.time()
     while True:
         if time.time() - start_time > timeout:
-            raise TimeoutError(
-                f"{TRIPLESTORE} did not become available within {timeout}s"
-            )
+            msg = f"{TRIPLESTORE} did not become available within {timeout}s"
+            raise TimeoutError(msg)
         try:
             with SPARQLClient(endpoint) as client:
                 client.ask("ASK { ?s ?p ?o }")
-            return True
         except SPARQLError:
             time.sleep(1)
+        else:
+            return True
 
 
 def check_data_exists(endpoint=ENDPOINT):
@@ -87,11 +97,12 @@ def _process_chunk(chunk, client, chunk_num, total):
 
     try:
         client.update(f"INSERT DATA {{ {' '.join(insert_parts)} }}")
-        print(f"Loaded chunk {chunk_num}/{total}")
-        return True
     except SPARQLError as e:
         print(f"Error loading chunk: {e}")
         return False
+    else:
+        print(f"Loaded chunk {chunk_num}/{total}")
+        return True
 
 
 def load_data(data_file, update_endpoint=UPDATE_ENDPOINT):
@@ -106,7 +117,9 @@ def load_data(data_file, update_endpoint=UPDATE_ENDPOINT):
 
     with SPARQLClient(update_endpoint) as client:
         for i in range(0, len(triples), chunk_size):
-            _process_chunk(triples[i:i + chunk_size], client, (i // chunk_size) + 1, total_chunks)
+            _process_chunk(
+                triples[i : i + chunk_size], client, (i // chunk_size) + 1, total_chunks
+            )
 
 
 def _verify_data_loaded(endpoint=ENDPOINT, timeout=60):
@@ -115,7 +128,8 @@ def _verify_data_loaded(endpoint=ENDPOINT, timeout=60):
         for query, min_results in _VERIFY_QUERIES:
             while True:
                 if time.time() - start_time > timeout:
-                    raise TimeoutError(f"Data verification timed out: {query}")
+                    msg = f"Data verification timed out: {query}"
+                    raise TimeoutError(msg)
                 result = client.query(query)
                 if len(result["results"]["bindings"]) >= min_results:
                     break

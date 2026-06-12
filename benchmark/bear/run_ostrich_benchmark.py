@@ -26,19 +26,28 @@ QUERY_FILES = ["p.txt", "po.txt"]
 
 def run_ostrich_queries(query_file: str, evalrun_dir: Path) -> str:
     cmd = [
-        "docker", "run", "--rm",
-        "--ulimit", "nofile=65536:65536",
-        "-v", f"{evalrun_dir}:/var/evalrun",
-        "-v", f"{QUERIES_DIR}:/var/queries",
+        "docker",
+        "run",
+        "--rm",
+        "--ulimit",
+        "nofile=65536:65536",
+        "-v",
+        f"{evalrun_dir}:/var/evalrun",
+        "-v",
+        f"{QUERIES_DIR}:/var/queries",
         IMAGE_NAME,
         "query",
-        f"/var/queries/{query_file}", str(NUM_REPLICATIONS),
+        f"/var/queries/{query_file}",
+        str(NUM_REPLICATIONS),
     ]
     console.print(f"Running OSTRICH queries for {query_file}...")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=3600, check=False
+    )
     if result.returncode != 0:
         console.print(f"[red]OSTRICH error: {result.stderr[:500]}")
-        raise RuntimeError(f"OSTRICH query failed with exit code {result.returncode}")
+        msg = f"OSTRICH query failed with exit code {result.returncode}"
+        raise RuntimeError(msg)
     return result.stdout
 
 
@@ -47,8 +56,8 @@ def parse_ostrich_output(raw_output: str) -> list[dict]:
     current_pattern = None
     current_section = None
 
-    for line in raw_output.splitlines():
-        line = line.strip()
+    for raw_line in raw_output.splitlines():
+        line = raw_line.strip()
 
         match = re.match(r"---PATTERN START:\s*(.+)", line)
         if match:
@@ -72,7 +81,7 @@ def parse_ostrich_output(raw_output: str) -> list[dict]:
             current_section = "vq"
             continue
 
-        if line.startswith("---") or line.startswith("patch,") or line.startswith("patch_start,") or line.startswith("offset,"):
+        if line.startswith(("---", "patch,", "patch_start,", "offset,")):
             continue
 
         if current_pattern is None or current_section is None:
@@ -80,26 +89,32 @@ def parse_ostrich_output(raw_output: str) -> list[dict]:
 
         parts = line.split(",")
         if current_section == "vm" and len(parts) >= 7:
-            current_pattern["vm"].append({
-                "patch": int(parts[0]),
-                "median_us": float(parts[4]),
-                "lookup_us": float(parts[5]),
-                "results": int(parts[6]),
-            })
+            current_pattern["vm"].append(
+                {
+                    "patch": int(parts[0]),
+                    "median_us": float(parts[4]),
+                    "lookup_us": float(parts[5]),
+                    "results": int(parts[6]),
+                }
+            )
         elif current_section == "dm" and len(parts) >= 8:
-            current_pattern["dm"].append({
-                "patch_start": int(parts[0]),
-                "patch_end": int(parts[1]),
-                "median_us": float(parts[5]),
-                "lookup_us": float(parts[6]),
-                "results": int(parts[7]),
-            })
+            current_pattern["dm"].append(
+                {
+                    "patch_start": int(parts[0]),
+                    "patch_end": int(parts[1]),
+                    "median_us": float(parts[5]),
+                    "lookup_us": float(parts[6]),
+                    "results": int(parts[7]),
+                }
+            )
         elif current_section == "vq" and len(parts) >= 5:
-            current_pattern["vq"].append({
-                "median_us": float(parts[2]),
-                "lookup_us": float(parts[3]),
-                "results": int(parts[4]),
-            })
+            current_pattern["vq"].append(
+                {
+                    "median_us": float(parts[2]),
+                    "lookup_us": float(parts[3]),
+                    "results": int(parts[4]),
+                }
+            )
 
     return patterns
 
@@ -113,18 +128,22 @@ def build_per_version_detail(all_patterns: dict[str, list[dict]]) -> dict:
         for pat_idx, pattern in enumerate(patterns):
             for entry in pattern["vm"]:
                 version = entry["patch"]
-                vm_by_version.setdefault(version, []).append({
-                    "pattern_type": pattern_type,
-                    "pattern_index": pat_idx,
-                    "median_us": entry["median_us"],
-                })
+                vm_by_version.setdefault(version, []).append(
+                    {
+                        "pattern_type": pattern_type,
+                        "pattern_index": pat_idx,
+                        "median_us": entry["median_us"],
+                    }
+                )
             for entry in pattern["dm"]:
                 key = (entry["patch_start"], entry["patch_end"])
-                dm_by_delta.setdefault(key, []).append({
-                    "pattern_type": pattern_type,
-                    "pattern_index": pat_idx,
-                    "median_us": entry["median_us"],
-                })
+                dm_by_delta.setdefault(key, []).append(
+                    {
+                        "pattern_type": pattern_type,
+                        "pattern_index": pat_idx,
+                        "median_us": entry["median_us"],
+                    }
+                )
             vq_entries.extend(
                 {
                     "pattern_type": pattern_type,
@@ -135,8 +154,7 @@ def build_per_version_detail(all_patterns: dict[str, list[dict]]) -> dict:
             )
 
     per_version_vm = [
-        {"version": v, "patterns": pats}
-        for v, pats in sorted(vm_by_version.items())
+        {"version": v, "patterns": pats} for v, pats in sorted(vm_by_version.items())
     ]
     per_delta_dm = [
         {"patch_start": k[0], "patch_end": k[1], "patterns": pats}
@@ -201,14 +219,16 @@ def print_summary(results: dict) -> None:
         if not data:
             continue
         table.add_row(
-            qt.upper(), "all",
+            qt.upper(),
+            "all",
             str(data["count"]),
             f"{data['mean_ms']:.4f}",
             f"{data['median_ms']:.4f}",
         )
         for pt, pt_data in data.get("by_pattern", {}).items():
             table.add_row(
-                "", pt,
+                "",
+                pt,
                 str(pt_data["count"]),
                 f"{pt_data['mean_ms']:.4f}",
                 f"{pt_data['median_ms']:.4f}",
@@ -232,7 +252,9 @@ def parse_ingestion_time(ingestion_log: Path) -> float | None:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    parser.add_argument(
+        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+    )
     args = parser.parse_args()
 
     evalrun_dir = OSTRICH_DIR / f"evalrun_{args.granularity}"
@@ -246,7 +268,7 @@ def main():
         raw_output = run_ostrich_queries(query_file, evalrun_dir)
 
         raw_path = DATA_DIR / f"ostrich_raw_{pattern_type}_{args.granularity}.txt"
-        with open(raw_path, "w", encoding="utf-8") as f:
+        with raw_path.open("w", encoding="utf-8") as f:
             f.write(raw_output)
         console.print(f"  Raw output saved to {raw_path}")
 
@@ -266,11 +288,13 @@ def main():
         "ingestion_s": ingestion_s,
         "results": results,
         "detail": detail,
-        "raw_patterns": {pt: [p["triple_pattern"] for p in pats] for pt, pats in all_patterns.items()},
+        "raw_patterns": {
+            pt: [p["triple_pattern"] for p in pats] for pt, pats in all_patterns.items()
+        },
     }
 
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_file, "w", encoding="utf-8") as f:
+    with output_file.open("w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
     console.print(f"\nResults saved to {output_file}")
 

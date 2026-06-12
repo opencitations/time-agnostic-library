@@ -1,11 +1,10 @@
-#!/usr/bin/python
-
 # SPDX-FileCopyrightText: 2025-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # SPDX-License-Identifier: ISC
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from triplestore_config import CONFIG
 
 from time_agnostic_library.agnostic_entity import (
@@ -118,13 +117,12 @@ class TestAgnosticEntityEdgeCases:
 
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
-        mock_sparql_instance.run_select_query.side_effect = Exception(
+        mock_sparql_instance.run_select_query.side_effect = RuntimeError(
             "SPARQL execution error"
         )
 
-        merged_entities = agnostic_entity._find_merged_entities(entity_uri)
-
-        assert merged_entities == set()
+        with pytest.raises(RuntimeError, match="SPARQL execution error"):
+            agnostic_entity._find_merged_entities(entity_uri)
 
     @patch("time_agnostic_library.agnostic_entity.Sparql")
     def test_find_reverse_related_entities_with_sparql_error(self, mock_sparql_class):
@@ -133,13 +131,12 @@ class TestAgnosticEntityEdgeCases:
 
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
-        mock_sparql_instance.run_select_query.side_effect = Exception(
+        mock_sparql_instance.run_select_query.side_effect = RuntimeError(
             "SPARQL execution error"
         )
 
-        reverse_entities = agnostic_entity._find_reverse_related_entities(entity_uri)
-
-        assert reverse_entities == set()
+        with pytest.raises(RuntimeError, match="SPARQL execution error"):
+            agnostic_entity._find_reverse_related_entities(entity_uri)
 
     @patch("time_agnostic_library.agnostic_entity.Sparql")
     def test_query_dataset_with_non_quadstore(self, mock_sparql_class):
@@ -205,8 +202,7 @@ class TestAgnosticEntityEdgeCases:
         assert "SELECT ?subject" in dataset_query
         assert f'CONTAINS(?update_query, "<{entity_uri}>")' in provenance_query
 
-    @patch("time_agnostic_library.agnostic_entity.Sparql")
-    def test_filter_timestamps_with_missing_time_value(self, mock_sparql_class):
+    def test_filter_timestamps_with_missing_time_value(self):
         iterator = [
             {"time": {"value": "2021-05-07T09:59:15.000Z"}},
             {"time": {}},
@@ -221,8 +217,7 @@ class TestAgnosticEntityEdgeCases:
         assert result[0]["time"]["value"] == "2021-05-07T09:59:15.000Z"
         assert result[1]["time"]["value"] == "2021-06-01T18:46:41.000Z"
 
-    @patch("time_agnostic_library.agnostic_entity.Sparql")
-    def test_filter_timestamps_with_missing_time_index(self, mock_sparql_class):
+    def test_filter_timestamps_with_missing_time_index(self):
         iterator = [
             {"time": {"value": "2021-05-07T09:59:15.000Z"}},
             {"other_key": {"value": "2021-06-01T18:46:41.000Z"}},
@@ -236,8 +231,7 @@ class TestAgnosticEntityEdgeCases:
 
         assert len(result) == 0
 
-    @patch("time_agnostic_library.agnostic_entity.Sparql")
-    def test_filter_timestamps_with_only_after_time(self, mock_sparql_class):
+    def test_filter_timestamps_with_only_after_time(self):
         iterator = [
             {"time": {"value": "2021-05-07T09:59:15.000Z"}},
             {"time": {"value": "2021-06-01T18:46:41.000Z"}},
@@ -302,7 +296,8 @@ class TestAgnosticEntityEdgeCases:
     def test_fast_parse_update_with_escaped_literal(self):
         query = (
             "INSERT DATA { GRAPH <http://ex.com/g/> { "
-            '<http://ex.com/s> <http://ex.com/p> "line1\\nline2"^^<http://www.w3.org/2001/XMLSchema#string> . } }'
+            "<http://ex.com/s> <http://ex.com/p> "
+            '"line1\\nline2"^^<http://www.w3.org/2001/XMLSchema#string> . } }'
         )
         ops = _fast_parse_update(query)
         assert len(ops) == 1
@@ -436,13 +431,15 @@ class TestAgnosticEntityEdgeCases:
                     {
                         "time": {"value": "2021-06-01T00:00:00+00:00"},
                         "updateQuery": {
-                            "value": 'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "new" . } }'
+                            "value": "INSERT DATA { GRAPH <http://g/> { <http://s> "
+                            '<http://p> "new" . } }'
                         },
                     },
                     {
                         "time": {"value": "2021-08-01T00:00:00+00:00"},
                         "updateQuery": {
-                            "value": 'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "later" . } }'
+                            "value": "INSERT DATA { GRAPH <http://g/> { <http://s> "
+                            '<http://p> "later" . } }'
                         },
                     },
                 ]
@@ -509,6 +506,7 @@ class TestAgnosticEntityEdgeCases:
         }
 
         entity_graphs, _, _ = entity._get_entity_state_at_time(
-            ("2021-05-01T00:00:00+00:00", "2021-06-01T00:00:00+00:00"), False
+            ("2021-05-01T00:00:00+00:00", "2021-06-01T00:00:00+00:00"),
+            include_prov_metadata=False,
         )
         assert gen_time in entity_graphs

@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # SPDX-FileCopyrightText: 2021-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # SPDX-License-Identifier: ISC
@@ -9,6 +7,7 @@ import atexit
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
@@ -26,6 +25,8 @@ from time_agnostic_library.support import convert_to_datetime
 
 CONFIG_PATH = "./config.json"
 
+_OBJECT_POS = 2
+
 _PARALLEL_THRESHOLD = os.cpu_count() or 1
 
 _IO_EXECUTOR = ThreadPoolExecutor(max_workers=2)
@@ -38,21 +39,25 @@ def _run_in_parallel(worker_fn, args_list):
             yield worker_fn(*args)
         return
     with ThreadPoolExecutor() as executor:
-        futures = {executor.submit(worker_fn, *args): i for i, args in enumerate(args_list)}
+        futures = {
+            executor.submit(worker_fn, *args): i for i, args in enumerate(args_list)
+        }
         for future in as_completed(futures):
             yield future.result()
 
 
 def _reconstruct_entity_worker(entity, config, on_time, other_snapshots_flag):
     agnostic_entity = AgnosticEntity(
-        entity, config=config,
+        entity,
+        config=config,
         include_related_objects=False,
         include_merged_entities=False,
         include_reverse_relations=False,
     )
     if on_time:
         entity_graphs, _, other_snapshots = agnostic_entity.get_state_at_time(
-            time=on_time, include_prov_metadata=other_snapshots_flag,
+            time=on_time,
+            include_prov_metadata=other_snapshots_flag,
         )
         return entity, entity_graphs, other_snapshots
     entity_history = agnostic_entity.get_history(include_prov_metadata=True)
@@ -63,13 +68,15 @@ def _sparql_values(uris: set[str]) -> str:
     return " ".join(f"<{uri}>" for uri in uris)
 
 
-def _wrap_in_graph(body: str, is_quadstore: bool) -> str:
+def _wrap_in_graph(body: str, *, is_quadstore: bool) -> str:
     if is_quadstore:
         return f"GRAPH ?g {{ {body} }}"
     return body
 
 
-def _batch_query_provenance_snapshots(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
+def _batch_query_provenance_snapshots(
+    entity_uris: set[str], config: dict
+) -> dict[str, list[dict]]:
     values = _sparql_values(entity_uris)
     body = f"""
         ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
@@ -77,15 +84,17 @@ def _batch_query_provenance_snapshots(entity_uris: set[str], config: dict) -> di
         OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
         VALUES ?entity {{ {values} }}
     """
-    wrapped = _wrap_in_graph(body, config["provenance"]["is_quadstore"])
+    wrapped = _wrap_in_graph(body, is_quadstore=config["provenance"]["is_quadstore"])
     query = f"SELECT ?entity ?time ?updateQuery WHERE {{ {wrapped} }}"
     results = Sparql(query, config).run_select_query()
     output: dict[str, list[dict]] = {uri: [] for uri in entity_uris}
-    for binding in results['results']['bindings']:
-        entity_uri = binding['entity']['value']
+    for binding in results["results"]["bindings"]:
+        entity_uri = binding["entity"]["value"]
         entry = {
-            'time': binding['time']['value'],
-            'updateQuery': binding['updateQuery']['value'] if 'updateQuery' in binding else None,
+            "time": binding["time"]["value"],
+            "updateQuery": binding["updateQuery"]["value"]
+            if "updateQuery" in binding
+            else None,
         }
         output[entity_uri].append(entry)
     return output
@@ -95,21 +104,23 @@ def _sparql_filter_in(var: str, uris: set[str]) -> str:
     return f"FILTER({var} IN ({', '.join(f'<{uri}>' for uri in uris)}))"
 
 
-def _batch_query_dataset_triples(entity_uris: set[str], config: dict) -> dict[str, set[tuple]]:
-    is_quadstore = config['dataset']['is_quadstore']
+def _batch_query_dataset_triples(
+    entity_uris: set[str], config: dict
+) -> dict[str, set[tuple]]:
+    is_quadstore = config["dataset"]["is_quadstore"]
     body = f"?s ?p ?o. {_sparql_filter_in('?s', entity_uris)}"
-    wrapped = _wrap_in_graph(body, is_quadstore)
+    wrapped = _wrap_in_graph(body, is_quadstore=is_quadstore)
     select_vars = "?s ?p ?o ?g" if is_quadstore else "?s ?p ?o"
     query = f"SELECT {select_vars} WHERE {{ {wrapped} }}"
     results = Sparql(query, config).run_select_query()
     output: dict[str, set[tuple]] = {uri: set() for uri in entity_uris}
-    for binding in results['results']['bindings']:
-        s_val = binding['s']['value']
-        s = _binding_to_n3(binding['s'])
-        p = _binding_to_n3(binding['p'])
-        o = _binding_to_n3(binding['o'])
-        if is_quadstore and 'g' in binding:
-            output[s_val].add((s, p, o, _binding_to_n3(binding['g'])))
+    for binding in results["results"]["bindings"]:
+        s_val = binding["s"]["value"]
+        s = _binding_to_n3(binding["s"])
+        p = _binding_to_n3(binding["p"])
+        o = _binding_to_n3(binding["o"])
+        if is_quadstore and "g" in binding:
+            output[s_val].add((s, p, o, _binding_to_n3(binding["g"])))
         else:
             output[s_val].add((s, p, o))
     return output
@@ -120,24 +131,26 @@ def _iter_versions_as_sets(
     dataset_quads: set[tuple],
     relevant_times: set[str] | None = None,
 ) -> list[tuple[str, tuple]]:
-    sorted_snaps = sorted(prov_snapshots, key=lambda x: _parse_datetime(x['time']), reverse=True)
+    sorted_snaps = sorted(
+        prov_snapshots, key=lambda x: _parse_datetime(x["time"]), reverse=True
+    )
     target_count = len(relevant_times) if relevant_times else None
     working = set(dataset_quads)
     results = []
     found = 0
     for i, snap in enumerate(sorted_snaps):
         if i > 0:
-            prev_uq = sorted_snaps[i - 1]['updateQuery']
+            prev_uq = sorted_snaps[i - 1]["updateQuery"]
             if prev_uq is not None:
                 for op_type, quads in _fast_parse_update(prev_uq):
-                    if op_type == 'DeleteData':
+                    if op_type == "DeleteData":
                         for quad in quads:
                             working.add(quad)
-                    elif op_type == 'InsertData':
+                    elif op_type == "InsertData":
                         for quad in quads:
                             working.discard(quad)
-        if relevant_times is None or snap['time'] in relevant_times:
-            normalized = str(convert_to_datetime(snap['time'], stringify=True))
+        if relevant_times is None or snap["time"] in relevant_times:
+            normalized = str(convert_to_datetime(snap["time"], stringify=True))
             results.append((normalized, tuple(working)))
             found += 1
             if target_count is not None and found == target_count:
@@ -152,32 +165,36 @@ def _reconstruct_at_time_as_sets(
 ) -> list[tuple[str, tuple]]:
     if not prov_snapshots:
         return []
-    sorted_snaps = sorted(prov_snapshots, key=lambda x: _parse_datetime(x['time']), reverse=True)
+    sorted_snaps = sorted(
+        prov_snapshots, key=lambda x: _parse_datetime(x["time"]), reverse=True
+    )
     relevant = _filter_timestamps_by_interval(
         on_time,
-        [{'time': {'value': s['time']}} for s in sorted_snaps],
-        time_index='time',
+        [{"time": {"value": s["time"]}} for s in sorted_snaps],
+        time_index="time",
     )
     if not relevant:
         interval_start = _parse_datetime(on_time[0]) if on_time[0] else None
         if interval_start:
-            earlier = [s for s in sorted_snaps if _parse_datetime(s['time']) <= interval_start]
+            earlier = [
+                s for s in sorted_snaps if _parse_datetime(s["time"]) <= interval_start
+            ]
             if earlier:
-                best = max(earlier, key=lambda x: _parse_datetime(x['time']))
-                relevant = [{'time': {'value': best['time']}}]
+                best = max(earlier, key=lambda x: _parse_datetime(x["time"]))
+                relevant = [{"time": {"value": best["time"]}}]
             else:
                 return []
         else:
             return []
-    relevant_times = {r['time']['value'] for r in relevant}
+    relevant_times = {r["time"]["value"] for r in relevant}
     return _iter_versions_as_sets(prov_snapshots, dataset_quads, relevant_times)
 
 
 def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
     s_pat, p_pat, o_pat = triple_pattern[0], triple_pattern[1], triple_pattern[2]
-    s_is_var = s_pat.startswith('?')
-    p_is_var = p_pat.startswith('?')
-    o_is_var = o_pat.startswith('?')
+    s_is_var = s_pat.startswith("?")
+    p_is_var = p_pat.startswith("?")
+    o_is_var = o_pat.startswith("?")
     bindings = []
     for quad in quads:
         s, p, o = quad[0], quad[1], quad[2]
@@ -198,7 +215,9 @@ def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
     return bindings
 
 
-def _merge_entity_bindings(entity_bindings: dict[str, dict[str, list[dict]]]) -> dict[str, list[dict]]:
+def _merge_entity_bindings(
+    entity_bindings: dict[str, dict[str, list[dict]]],
+) -> dict[str, list[dict]]:
     all_timestamps: set[str] = set()
     for per_ts in entity_bindings.values():
         all_timestamps.update(per_ts.keys())
@@ -216,7 +235,9 @@ def _merge_entity_bindings(entity_bindings: dict[str, dict[str, list[dict]]]) ->
     return result
 
 
-def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str, list[dict]]:
+def _batch_query_dm_provenance(
+    entity_uris: set[str], config: dict
+) -> dict[str, list[dict]]:
     values = _sparql_values(entity_uris)
     query = f"""
         SELECT ?entity ?time ?updateQuery ?invalidatedAtTime
@@ -234,12 +255,16 @@ def _batch_query_dm_provenance(entity_uris: set[str], config: dict) -> dict[str,
     """
     results = Sparql(query, config).run_select_query()
     output: dict[str, list[dict]] = {uri: [] for uri in entity_uris}
-    for binding in results['results']['bindings']:
-        entity_uri = binding['entity']['value']
+    for binding in results["results"]["bindings"]:
+        entity_uri = binding["entity"]["value"]
         entry = {
-            'time': binding['time']['value'],
-            'updateQuery': binding['updateQuery']['value'] if 'updateQuery' in binding else None,
-            'invalidatedAtTime': binding['invalidatedAtTime']['value'] if 'invalidatedAtTime' in binding else None,
+            "time": binding["time"]["value"],
+            "updateQuery": binding["updateQuery"]["value"]
+            if "updateQuery" in binding
+            else None,
+            "invalidatedAtTime": binding["invalidatedAtTime"]["value"]
+            if "invalidatedAtTime" in binding
+            else None,
         }
         output[entity_uri].append(entry)
     return output
@@ -252,7 +277,7 @@ def _build_delta_result(
     changed_properties: set[str],
 ) -> dict:
     output: dict[str, dict] = {}
-    parsed_snaps = [(snap, _parse_datetime(snap['time'])) for snap in snapshots]
+    parsed_snaps = [(snap, _parse_datetime(snap["time"])) for snap in snapshots]
     parsed_snaps.sort(key=lambda x: x[1])
     after_dt = _parse_datetime(on_time[0]) if on_time and on_time[0] else None
     before_dt = _parse_datetime(on_time[1]) if on_time and on_time[1] else None
@@ -268,8 +293,8 @@ def _build_delta_result(
         has_relevant = True
         if snap_dt == creation_dt:
             created = creation_dt.isoformat()
-        elif snap['updateQuery']:
-            update_queries.append(snap['updateQuery'])
+        elif snap["updateQuery"]:
+            update_queries.append(snap["updateQuery"])
     if not has_relevant:
         return output
     additions, deletions = _compose_update_queries(update_queries)
@@ -278,7 +303,9 @@ def _build_delta_result(
         additions = {q for q in additions if q[1] in prop_n3_set}
         deletions = {q for q in deletions if q[1] in prop_n3_set}
     last_snap = parsed_snaps[-1][0]
-    deleted = parsed_snaps[-1][1].isoformat() if last_snap['invalidatedAtTime'] else None
+    deleted = (
+        parsed_snaps[-1][1].isoformat() if last_snap["invalidatedAtTime"] else None
+    )
     output[entity_str] = {
         "created": created,
         "deleted": deleted,
@@ -294,7 +321,15 @@ class AgnosticQuery:
     virtuoso_full_text_search: bool
     graphdb_connector_name: str
 
-    def __init__(self, query: str, on_time: tuple[str | None, str | None] | None = (None, None), other_snapshots: bool = False, config_path: str = CONFIG_PATH, config_dict: dict | None = None):
+    def __init__(
+        self,
+        query: str,
+        on_time: tuple[str | None, str | None] | None = (None, None),
+        *,
+        other_snapshots: bool = False,
+        config_path: str = CONFIG_PATH,
+        config_dict: dict | None = None,
+    ):
         self.query = query
         self.other_snapshots = other_snapshots
         self.config_path = config_path
@@ -302,13 +337,16 @@ class AgnosticQuery:
         if config_dict is not None:
             self.config = config_dict
         else:
-            with open(config_path, encoding="utf8") as json_file:
+            with Path(config_path).open(encoding="utf8") as json_file:
                 self.config = json.load(json_file)
         self.__init_text_index(self.config)
         if on_time:
             after_time = convert_to_datetime(on_time[0], stringify=True)
             before_time = convert_to_datetime(on_time[1], stringify=True)
-            self.on_time: tuple[str | None, str | None] | None = (after_time, before_time)  # type: ignore[assignment]
+            self.on_time: tuple[str | None, str | None] | None = (
+                after_time,
+                before_time,
+            )  # type: ignore[assignment]
         else:
             self.on_time = None
         self.reconstructed_entities: set[str] = set()
@@ -317,18 +355,47 @@ class AgnosticQuery:
         self.relevant_graphs: dict[str, set[tuple[str, ...]]] = {}
         self._rebuild_relevant_graphs()
 
-    def __init_text_index(self, config:dict):
-        for full_text_search in ("blazegraph_full_text_search", "fuseki_full_text_search", "virtuoso_full_text_search"):
-            ts_full_text_search:str = config[full_text_search]
+    def __init_text_index(self, config: dict):
+        for full_text_search in (
+            "blazegraph_full_text_search",
+            "fuseki_full_text_search",
+            "virtuoso_full_text_search",
+        ):
+            ts_full_text_search: str = config[full_text_search]
             if ts_full_text_search.lower() in {"true", "1", 1, "t", "y", "yes", "ok"}:
                 setattr(self, full_text_search, True)
-            elif ts_full_text_search.lower() in {"false", "0", 0, "n", "f", "no"} or not ts_full_text_search:
+            elif (
+                ts_full_text_search.lower() in {"false", "0", 0, "n", "f", "no"}
+                or not ts_full_text_search
+            ):
                 setattr(self, full_text_search, False)
             else:
-                raise ValueError(f"Enter a valid value for '{full_text_search}' in the configuration file, for example 'yes' or 'no'.")
+                msg = (
+                    f"Enter a valid value for '{full_text_search}' in the "
+                    "configuration file, for example 'yes' or 'no'."
+                )
+                raise ValueError(msg)
         self.graphdb_connector_name = config["graphdb_connector_name"]
-        if len([index for index in [self.blazegraph_full_text_search, self.fuseki_full_text_search, self.virtuoso_full_text_search, self.graphdb_connector_name] if index]) > 1:
-            raise ValueError("The use of multiple indexing systems simultaneously is currently not supported.")
+        if (
+            len(
+                [
+                    index
+                    for index in [
+                        self.blazegraph_full_text_search,
+                        self.fuseki_full_text_search,
+                        self.virtuoso_full_text_search,
+                        self.graphdb_connector_name,
+                    ]
+                    if index
+                ]
+            )
+            > 1
+        ):
+            msg = (
+                "The use of multiple indexing systems simultaneously "
+                "is currently not supported."
+            )
+            raise ValueError(msg)
 
     def _process_query(self) -> list[tuple[str, ...]]:
         # Parse the SPARQL string into an algebra tree via rdflib, then walk
@@ -336,7 +403,8 @@ class AgnosticQuery:
         # mandatory patterns from OPTIONAL groups.
         algebra = prepareQuery(self.query).algebra
         if algebra.name != "SelectQuery":
-            raise ValueError("Only SELECT queries are allowed.")
+            msg = "Only SELECT queries are allowed."
+            raise ValueError(msg)
         mandatory: list[tuple[str, ...]] = []
         self._optional_groups: list[list[tuple[str, ...]]] = []
         self._collect_patterns(algebra, mandatory)
@@ -345,38 +413,48 @@ class AgnosticQuery:
             all_triples.extend(group)
         # Reject triples made of only variables (e.g. ?s ?p ?o): they would
         # match every entity in the dataset, making the query too expensive.
-        triples_without_hook = [t for t in all_triples if all(el.startswith('?') for el in t)]
+        triples_without_hook = [
+            t for t in all_triples if all(el.startswith("?") for el in t)
+        ]
         if triples_without_hook:
-            raise ValueError("Could not perform a generic time agnostic query. Please, specify at least one URI or Literal within the query.")
-        self._select_vars = [str(v) for v in algebra['PV']]
+            msg = (
+                "Could not perform a generic time agnostic query. "
+                "Please, specify at least one URI or Literal within the query."
+            )
+            raise ValueError(msg)
+        self._select_vars = [str(v) for v in algebra["PV"]]
         self._mandatory_triples = mandatory
         return all_triples
 
-    def _collect_patterns(self, node: CompValue, mandatory: list[tuple[str, ...]]) -> None:
+    def _collect_patterns(
+        self, node: CompValue, mandatory: list[tuple[str, ...]]
+    ) -> None:
         name = node.name
-        if name == 'LeftJoin':
+        if name == "LeftJoin":
             # OPTIONAL = left join: p1 (left, mandatory) must match, p2 (right,
             # optional) extends the binding if possible, otherwise it's ignored
-            self._collect_patterns(node['p1'], mandatory)
+            self._collect_patterns(node["p1"], mandatory)
             opt_group: list[tuple[str, ...]] = []
-            self._collect_triples_flat(node['p2'], opt_group)
+            self._collect_triples_flat(node["p2"], opt_group)
             if opt_group:
                 self._optional_groups.append(opt_group)
-        elif name == 'Join':
+        elif name == "Join":
             # Both sides are mandatory (rdflib splits BGPs into Join nodes)
-            self._collect_patterns(node['p1'], mandatory)
-            self._collect_patterns(node['p2'], mandatory)
-        elif 'triples' in node:
+            self._collect_patterns(node["p1"], mandatory)
+            self._collect_patterns(node["p2"], mandatory)
+        elif "triples" in node:
             # BGP leaf node: convert rdflib terms to N3 strings
-            mandatory.extend(tuple(el.n3() for el in t) for t in node['triples'])
+            mandatory.extend(tuple(el.n3() for el in t) for t in node["triples"])
         else:
             for v in node.values():
                 if isinstance(v, CompValue):
                     self._collect_patterns(v, mandatory)
 
-    def _collect_triples_flat(self, node: CompValue, triples: list[tuple[str, ...]]) -> None:
-        if 'triples' in node:
-            triples.extend(tuple(el.n3() for el in t) for t in node['triples'])
+    def _collect_triples_flat(
+        self, node: CompValue, triples: list[tuple[str, ...]]
+    ) -> None:
+        if "triples" in node:
+            triples.extend(tuple(el.n3() for el in t) for t in node["triples"])
         for v in node.values():
             if isinstance(v, CompValue):
                 self._collect_triples_flat(v, triples)
@@ -386,7 +464,9 @@ class AgnosticQuery:
         all_isolated = True
         self.triples = self._process_query()
         for triple in self.triples:
-            if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
+            if self._is_isolated(triple) and self._is_a_new_triple(
+                triple, triples_checked
+            ):
                 present_entities = self._get_present_entities(triple)
                 self._rebuild_relevant_entity(triple[0])
                 self._find_entities_in_update_queries(triple, present_entities)
@@ -399,9 +479,9 @@ class AgnosticQuery:
             self._solve_variables()
 
     def _is_isolated(self, triple: tuple) -> bool:
-        if triple[0].startswith('<') and triple[0].endswith('>'):
+        if triple[0].startswith("<") and triple[0].endswith(">"):
             return False
-        variables = [el for el in triple if el.startswith('?')]
+        variables = [el for el in triple if el.startswith("?")]
         for variable in variables:
             other_triples = {t for t in self.triples if t != triple}
             if self._there_is_transitive_closure(variable, other_triples):
@@ -411,16 +491,18 @@ class AgnosticQuery:
     def _there_is_transitive_closure(self, variable: str, triples: set[tuple]) -> bool:
         there_is_transitive_closure = False
         for triple in triples:
-            if variable in triple and triple.index(variable) == 2:
-                if triple[0].startswith('<') and triple[0].endswith('>'):
+            if variable in triple and triple.index(variable) == _OBJECT_POS:
+                if triple[0].startswith("<") and triple[0].endswith(">"):
                     return True
-                elif triple[0].startswith('?'):
+                if triple[0].startswith("?"):
                     other_triples = {t for t in triples if t != triple}
-                    there_is_transitive_closure = self._there_is_transitive_closure(triple[0], other_triples)
+                    there_is_transitive_closure = self._there_is_transitive_closure(
+                        triple[0], other_triples
+                    )
         return there_is_transitive_closure
 
     def _rebuild_relevant_entity(self, entity_n3: str) -> None:
-        if entity_n3.startswith('<') and entity_n3.endswith('>'):
+        if entity_n3.startswith("<") and entity_n3.endswith(">"):
             entity_uri = entity_n3[1:-1]
             if entity_uri not in self.reconstructed_entities:
                 self.reconstructed_entities.add(entity_uri)
@@ -429,87 +511,124 @@ class AgnosticQuery:
                     self._merge_entity_result(entity_uri, *result)
 
     def _reconstruct_entity_state(self, entity_uri: str) -> tuple[dict, dict] | None:
-        agnostic_entity = AgnosticEntity(entity_uri, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+        agnostic_entity = AgnosticEntity(
+            entity_uri,
+            config=self.config,
+            include_related_objects=False,
+            include_merged_entities=False,
+            include_reverse_relations=False,
+        )
         if self.on_time:
-            entity_graphs, _, other_snapshots = agnostic_entity.get_state_at_time(time=self.on_time, include_prov_metadata=self.other_snapshots)
+            entity_graphs, _, other_snapshots = agnostic_entity.get_state_at_time(
+                time=self.on_time, include_prov_metadata=self.other_snapshots
+            )
             return entity_graphs, other_snapshots
         entity_history = agnostic_entity.get_history(include_prov_metadata=True)
         return entity_history[0], {}
 
-    def _merge_entity_result(self, entity_uri: str, entity_graphs: dict, other_snapshots: dict) -> None:
+    def _merge_entity_result(
+        self, entity_uri: str, entity_graphs: dict, other_snapshots: dict
+    ) -> None:
         if other_snapshots:
             self.other_snapshots_metadata.update(other_snapshots)
         if self.on_time:
             if entity_graphs:
                 for relevant_timestamp, quad_set in entity_graphs.items():
-                    self.relevant_entities_graphs.setdefault(entity_uri, {})[relevant_timestamp] = quad_set
-        else:
-            if entity_graphs.get(entity_uri):
-                self.relevant_entities_graphs.update(entity_graphs)
+                    self.relevant_entities_graphs.setdefault(entity_uri, {})[
+                        relevant_timestamp
+                    ] = quad_set
+        elif entity_graphs.get(entity_uri):
+            self.relevant_entities_graphs.update(entity_graphs)
 
     def _get_present_entities(self, triple: tuple) -> set[str]:
-        variables = [el for el in triple if el.startswith('?')]
-        if self.config['dataset']['is_quadstore']:
-            query = f"SELECT {' '.join(variables)} WHERE {{GRAPH ?_g {{{triple[0]} {triple[1]} {triple[2]}}} FILTER(!CONTAINS(STR(?_g), '/prov/'))}}"
+        variables = [el for el in triple if el.startswith("?")]
+        if self.config["dataset"]["is_quadstore"]:
+            query = (
+                f"SELECT {' '.join(variables)} WHERE "
+                f"{{GRAPH ?_g {{{triple[0]} {triple[1]} {triple[2]}}} "
+                "FILTER(!CONTAINS(STR(?_g), '/prov/'))}"
+            )
         else:
-            query = f"SELECT {' '.join(variables)} WHERE {{{triple[0]} {triple[1]} {triple[2]}}}"
+            query = (
+                f"SELECT {' '.join(variables)} WHERE "
+                f"{{{triple[0]} {triple[1]} {triple[2]}}}"
+            )
         results = Sparql(query, self.config).run_select_query()
-        bindings = results['results']['bindings']
-        if triple[1].startswith('^'):
-            if triple[2].startswith('?'):
+        bindings = results["results"]["bindings"]
+        if triple[1].startswith("^"):
+            if triple[2].startswith("?"):
                 var_name = triple[2][1:]
-                return {b[var_name]['value'] for b in bindings if var_name in b and b[var_name]['type'] == 'uri'}
+                return {
+                    b[var_name]["value"]
+                    for b in bindings
+                    if var_name in b and b[var_name]["type"] == "uri"
+                }
             return {triple[2][1:-1]} if bindings else set()
         var_name = triple[0][1:]
-        return {b[var_name]['value'] for b in bindings if var_name in b and b[var_name]['type'] == 'uri'}
+        return {
+            b[var_name]["value"]
+            for b in bindings
+            if var_name in b and b[var_name]["type"] == "uri"
+        }
 
     def _is_a_new_triple(self, triple: tuple, triples_checked: set) -> bool:
-        uris_in_triple = {el for el in triple if el.startswith('<') and el.endswith('>')}
+        uris_in_triple = {
+            el for el in triple if el.startswith("<") and el.endswith(">")
+        }
         for triple_checked in triples_checked:
-            uris_in_triple_checked = {el for el in triple_checked if el.startswith('<') and el.endswith('>')}
+            uris_in_triple_checked = {
+                el for el in triple_checked if el.startswith("<") and el.endswith(">")
+            }
             if not uris_in_triple.difference(uris_in_triple_checked):
                 return False
         return True
 
     def _get_query_to_update_queries(self, triple: tuple) -> str:
-        uris_n3 = {el for el in triple if el.startswith('<') and el.endswith('>')}
+        uris_n3 = {el for el in triple if el.startswith("<") and el.endswith(">")}
         return self.get_full_text_search(uris_n3)
 
     def get_full_text_search(self, uris_in_triple: set) -> str:
-        uris_in_triple = {el[1:-1] if el.startswith('<') and el.endswith('>') else el for el in uris_in_triple}
+        uris_in_triple = {
+            el[1:-1] if el.startswith("<") and el.endswith(">") else el
+            for el in uris_in_triple
+        }
         if self.blazegraph_full_text_search:
-            query_to_identify = f'''
+            query_to_identify = f"""
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
             SELECT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                ?updateQuery bds:search "{' '.join(uris_in_triple)}";
+                ?updateQuery bds:search "{" ".join(uris_in_triple)}";
                     bds:matchAllTerms 'true'.
             }}
-            '''
+            """
         elif self.fuseki_full_text_search:
             query_obj = '\\" AND \\"'.join(uris_in_triple)
-            query_to_identify = f'''
+            query_to_identify = f"""
                 PREFIX text: <http://jena.apache.org/text#>
                 SELECT ?updateQuery WHERE {{
                     ?se text:query "\\"{query_obj}\\"";
                         <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 }}
-            '''
+            """
         elif self.virtuoso_full_text_search:
             query_obj = "' AND '".join(uris_in_triple)
-            query_to_identify = f'''
+            query_to_identify = f"""
             PREFIX bif: <bif:>
             SELECT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 ?updateQuery bif:contains "'{query_obj}'".
             }}
-            '''
+            """
         elif self.graphdb_connector_name:
-            all = '\"'
-            con_queries = f"con:query '{all}" + f"{all}'; con:query '{all}".join(uris_in_triple) + f"{all}'"
-            query_to_identify = f'''
+            quote = '"'
+            con_queries = (
+                f"con:query '{quote}"
+                + f"{quote}'; con:query '{quote}".join(uris_in_triple)
+                + f"{quote}'"
+            )
+            query_to_identify = f"""
             PREFIX con: <http://www.ontotext.com/connectors/lucene#>
             PREFIX con-inst: <http://www.ontotext.com/connectors/lucene/instance#>
             SELECT ?updateQuery
@@ -519,22 +638,31 @@ class AgnosticQuery:
                     {con_queries};
                     con:entities ?snapshot.
             }}
-            '''
+            """
         else:
-            query_to_identify = f'''
+            filters = ").".join(
+                f"FILTER CONTAINS (?updateQuery, '{uri}'" for uri in uris_in_triple
+            )
+            query_to_identify = f"""
             SELECT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                {').'.join([f"FILTER CONTAINS (?updateQuery, '{uri}'" for uri in uris_in_triple])}).
+                {filters}).
             }}
-            '''
+            """
         return query_to_identify
 
     def _find_entity_uris_in_update_queries(self, triple: tuple, entities: set) -> None:
-        uris_n3 = {el for el in triple if el.startswith('<') and el.endswith('>')}
+        uris_n3 = {el for el in triple if el.startswith("<") and el.endswith(">")}
         uris_str = {el[1:-1] for el in uris_n3}
-        if not any([self.blazegraph_full_text_search, self.fuseki_full_text_search,
-                     self.virtuoso_full_text_search, self.graphdb_connector_name]):
+        if not any(
+            [
+                self.blazegraph_full_text_search,
+                self.fuseki_full_text_search,
+                self.virtuoso_full_text_search,
+                self.graphdb_connector_name,
+            ]
+        ):
             filter_clauses = ".".join(
                 f"FILTER CONTAINS (?uq, '{uri}')" for uri in uris_str
             )
@@ -546,21 +674,27 @@ class AgnosticQuery:
                 }}
             """
             results = Sparql(query, self.config).run_select_query()
-            for binding in results['results']['bindings']:
-                entities.add(binding['entity']['value'])
+            for binding in results["results"]["bindings"]:
+                entities.add(binding["entity"]["value"])
             return
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config).run_select_query()
-        for binding in results['results']['bindings']:
-            uq = binding.get('updateQuery')
-            if uq and uq.get('value'):
-                for _, quads in _fast_parse_update(uq['value']):
+        for binding in results["results"]["bindings"]:
+            uq = binding.get("updateQuery")
+            if uq and uq.get("value"):
+                for _, quads in _fast_parse_update(uq["value"]):
                     for quad in quads:
-                        quad_uris = {el for el in quad[:3] if el.startswith('<') and el.endswith('>')}
+                        quad_uris = {
+                            el
+                            for el in quad[:3]
+                            if el.startswith("<") and el.endswith(">")
+                        }
                         if uris_n3.issubset(quad_uris):
                             entities.add(quad[0][1:-1])
 
-    def _find_entities_in_update_queries(self, triple: tuple, present_entities: set | None = None):
+    def _find_entities_in_update_queries(
+        self, triple: tuple, present_entities: set | None = None
+    ):
         if present_entities is None:
             present_entities = set()
         relevant_entities_found = present_entities
@@ -590,7 +724,7 @@ class AgnosticQuery:
     def _there_are_variables(self) -> bool:
         for triples in self.vars_to_explicit_by_time.values():
             for triple in triples:
-                if any(el.startswith('?') for el in triple):
+                if any(el.startswith("?") for el in triple):
                     return True
         return False
 
@@ -598,28 +732,42 @@ class AgnosticQuery:
         explicit_triples: dict[str, dict[str, set]] = {}
         for se, triples in self.vars_to_explicit_by_time.items():
             for triple in triples:
-                variables = [el for el in triple if el.startswith('?')]
+                variables = [el for el in triple if el.startswith("?")]
                 if len(variables) == 1:
                     variable = variables[0]
                     variable_index = triple.index(variable)
-                    if variable_index == 2:
-                        matching = [q for q in self.relevant_graphs[se]
-                                    if q[0] == triple[0] and q[1] == triple[1]]
+                    if variable_index == _OBJECT_POS:
+                        matching = [
+                            q
+                            for q in self.relevant_graphs[se]
+                            if q[0] == triple[0] and q[1] == triple[1]
+                        ]
                         query_results = [(triple[0], triple[1], q[2]) for q in matching]
                         for row in query_results:
                             explicit_triples.setdefault(se, {})
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(row)
                         args_list = [
-                            (row[2][1:-1], self.config, self.on_time, self.other_snapshots)
+                            (
+                                row[2][1:-1],
+                                self.config,
+                                self.on_time,
+                                self.other_snapshots,
+                            )
                             for row in query_results
-                            if row[2].startswith('<') and row[2].endswith('>') and row[2][1:-1] not in self.reconstructed_entities
+                            if row[2].startswith("<")
+                            and row[2].endswith(">")
+                            and row[2][1:-1] not in self.reconstructed_entities
                         ]
-                        for result_data in _run_in_parallel(_reconstruct_entity_worker, args_list):
+                        for result_data in _run_in_parallel(
+                            _reconstruct_entity_worker, args_list
+                        ):
                             if result_data is not None:
                                 entity, entity_graphs, other_snapshots = result_data
                                 self.reconstructed_entities.add(entity)
-                                self._merge_entity_result(entity, entity_graphs, other_snapshots)
+                                self._merge_entity_result(
+                                    entity, entity_graphs, other_snapshots
+                                )
         return explicit_triples
 
     def _align_snapshots(self) -> None:
@@ -641,8 +789,14 @@ class AgnosticQuery:
                 prev_subjects = {q[0] for q in self.relevant_graphs[previous_se]}
                 cur_subjects = {q[0] for q in quad_set}
                 for subject_n3 in prev_subjects:
-                    subject_uri = subject_n3[1:-1] if subject_n3.startswith('<') else subject_n3
-                    if subject_n3 not in cur_subjects and subject_uri in self.relevant_entities_graphs and se not in self.relevant_entities_graphs[subject_uri]:
+                    subject_uri = (
+                        subject_n3[1:-1] if subject_n3.startswith("<") else subject_n3
+                    )
+                    if (
+                        subject_n3 not in cur_subjects
+                        and subject_uri in self.relevant_entities_graphs
+                        and se not in self.relevant_entities_graphs[subject_uri]
+                    ):
                         for quad in self.relevant_graphs[previous_se]:
                             if quad[0] == subject_n3:
                                 self.relevant_graphs[se].add(quad)
@@ -658,14 +812,26 @@ class AgnosticQuery:
                         if solved_var in triple:
                             for solved_triple in solved_triples:
                                 new_triple = None
-                                if solved_triple[0] != triple[0] and solved_triple[1] == triple[1]:
+                                if (
+                                    solved_triple[0] != triple[0]
+                                    and solved_triple[1] == triple[1]
+                                ):
                                     continue
-                                elif solved_triple[0] == triple[0] and solved_triple[1] == triple[1]:
+                                if (
+                                    solved_triple[0] == triple[0]
+                                    and solved_triple[1] == triple[1]
+                                ):
                                     new_triple = solved_triple
                                 else:
-                                    new_triple = (solved_triple[2], triple[1], triple[2])
+                                    new_triple = (
+                                        solved_triple[2],
+                                        triple[1],
+                                        triple[2],
+                                    )
                                 new_triples.add(new_triple)
-                        elif not any(el.startswith('?') for el in triple) or not any(var for var in solved_variables[se] if var in triple):
+                        elif not any(el.startswith("?") for el in triple) or not any(
+                            var for var in solved_variables[se] if var in triple
+                        ):
                             new_triples.add(triple)
             vars_to_explicit_by_time[se] = new_triples
         self.vars_to_explicit_by_time = vars_to_explicit_by_time
@@ -677,37 +843,64 @@ class AgnosticQuery:
                 if relevant_triples is None:
                     relevant_triples = set()
                     for triple in self.triples:
-                        if any(el for el in triple if el.startswith('?') and not self._is_a_dead_end(el, triple)) and not self._is_isolated(triple):
+                        if any(
+                            el
+                            for el in triple
+                            if el.startswith("?")
+                            and not self._is_a_dead_end(el, triple)
+                        ) and not self._is_isolated(triple):
                             relevant_triples.add(triple)
                 self.vars_to_explicit_by_time[se] = set(relevant_triples)
 
     def _is_a_dead_end(self, el: str, triple: tuple) -> bool:
-        return el.startswith('?') and triple.index(el) == 2 and not any(t for t in self.triples if el in t if t.index(el) == 0)
+        return (
+            el.startswith("?")
+            and triple.index(el) == _OBJECT_POS
+            and not any(t for t in self.triples if el in t if t.index(el) == 0)
+        )
 
 
 class VersionQuery(AgnosticQuery):
-    """
-    This class allows time-travel queries, both on a single version and all versions of the dataset.
+    """Time-travel queries, both on a single version and all versions of the dataset.
 
     :param query: The SPARQL query string.
     :type query: str
-    :param on_time: If you want to query a specific version, specify the time interval here. The format is (START, END). If one of the two values is None, only the other is considered. Dates must be in ISO 8601 format.
+    :param on_time: If you want to query a specific version, specify the time
+        interval here. The format is (START, END). If one of the two values is None,
+        only the other is considered. Dates must be in ISO 8601 format.
     :type on_time: Tuple[Union[str, None]], optional
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time: tuple[str | None, str | None] | None = None, other_snapshots:bool=False, config_path:str=CONFIG_PATH, config_dict: dict | None = None):
+
+    def __init__(
+        self,
+        query: str,
+        on_time: tuple[str | None, str | None] | None = None,
+        *,
+        other_snapshots: bool = False,
+        config_path: str = CONFIG_PATH,
+        config_dict: dict | None = None,
+    ):
         self._streaming_results: dict[str, list[dict]] = {}
-        super().__init__(query, on_time, other_snapshots, config_path, config_dict)
+        super().__init__(
+            query,
+            on_time,
+            other_snapshots=other_snapshots,
+            config_path=config_path,
+            config_dict=config_dict,
+        )
 
     def _rebuild_relevant_graphs(self) -> None:
         self.triples = self._process_query()
         if self.on_time is not None:
-            if (len(self.triples) == 1
-                    and self._is_isolated(self.triples[0])
-                    and not self.triples[0][1].startswith('^')
-                    and not self.other_snapshots):
-                self._rebuild_vm_batch()
+            if (
+                len(self.triples) == 1
+                and self._is_isolated(self.triples[0])
+                and not self.triples[0][1].startswith("^")
+                and not self.other_snapshots
+            ):
+                self._rebuild_vm_batch(self.on_time)
                 return
             super()._rebuild_relevant_graphs()
             return
@@ -723,28 +916,35 @@ class VersionQuery(AgnosticQuery):
     def _discover_entities_parallel(self, triple: tuple) -> set[str]:
         fut_present = _IO_EXECUTOR.submit(self._get_present_entities, triple)
         entities_set: set = set()
-        fut_prov = _IO_EXECUTOR.submit(self._find_entity_uris_in_update_queries, triple, entities_set)
+        fut_prov = _IO_EXECUTOR.submit(
+            self._find_entity_uris_in_update_queries, triple, entities_set
+        )
         present_entities = fut_present.result()
         fut_prov.result()
         all_entities = set(present_entities)
         all_entities.update(entities_set)
         return all_entities
 
-    def _rebuild_vm_batch(self) -> None:
-        assert self.on_time is not None
+    def _rebuild_vm_batch(self, on_time: tuple[str | None, str | None]) -> None:
         triple = self.triples[0]
         all_entity_strs = self._discover_entities_parallel(triple)
         if not all_entity_strs:
             return
-        fut_prov = _IO_EXECUTOR.submit(_batch_query_provenance_snapshots, all_entity_strs, self.config)
-        fut_data = _IO_EXECUTOR.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
+        fut_prov = _IO_EXECUTOR.submit(
+            _batch_query_provenance_snapshots, all_entity_strs, self.config
+        )
+        fut_data = _IO_EXECUTOR.submit(
+            _batch_query_dataset_triples, all_entity_strs, self.config
+        )
         prov_data = fut_prov.result()
         dataset_data = fut_data.result()
         entity_bindings: dict[str, dict[str, list[dict]]] = {}
         for entity_str in all_entity_strs:
             per_ts: dict[str, list[dict]] = {}
             for ts, quad_set in _reconstruct_at_time_as_sets(
-                prov_data[entity_str], dataset_data[entity_str], self.on_time,
+                prov_data[entity_str],
+                dataset_data[entity_str],
+                on_time,
             ):
                 per_ts[ts] = _match_single_pattern(triple, quad_set)
             entity_bindings[entity_str] = per_ts
@@ -774,16 +974,23 @@ class VersionQuery(AgnosticQuery):
         for b in bindings:
             projected_n3: dict[str, str] = {}
             for var in self._select_vars:
-                key = '?' + var
+                key = "?" + var
                 if key in b:
                     projected_n3[var] = b[key]
             frozen = frozenset(projected_n3.items())
             if frozen not in seen:
                 seen.add(frozen)
-                result.append({var: _n3_to_binding(val) for var, val in projected_n3.items()})
+                result.append(
+                    {var: _n3_to_binding(val) for var, val in projected_n3.items()}
+                )
         return result
 
-    def _left_join(self, bindings: list[dict], opt_triples: list[tuple], quads: set[tuple[str, ...]]) -> list[dict]:
+    def _left_join(
+        self,
+        bindings: list[dict],
+        opt_triples: list[tuple],
+        quads: set[tuple[str, ...]],
+    ) -> list[dict]:
         # For each binding, try to add values from the optional patterns.
         # If a quad matches, the binding grows with new variables.
         # If nothing matches, the binding is kept unchanged.
@@ -810,7 +1017,7 @@ class VersionQuery(AgnosticQuery):
         # Check if a triple pattern (s, p, o) matches a quad.
         new_binding = dict(binding)
         for expected, actual in zip(pattern[:3], quad[:3], strict=True):
-            is_variable = expected.startswith('?')
+            is_variable = expected.startswith("?")
             if is_variable and expected in new_binding:
                 # Variable already bound: check consistency
                 if new_binding[expected] != actual:
@@ -829,7 +1036,7 @@ class VersionQuery(AgnosticQuery):
         use_fast_path = (
             len(self.triples) == 1
             and self._is_isolated(self.triples[0])
-            and not self.triples[0][1].startswith('^')
+            and not self.triples[0][1].startswith("^")
         )
         for triple in self.triples:
             if self._is_a_new_triple(triple, triples_checked):
@@ -843,28 +1050,42 @@ class VersionQuery(AgnosticQuery):
             self._streaming_results = {}
             return
         if use_fast_path:
-            fut_prov = _IO_EXECUTOR.submit(_batch_query_provenance_snapshots, all_entity_strs, self.config)
-            fut_data = _IO_EXECUTOR.submit(_batch_query_dataset_triples, all_entity_strs, self.config)
+            fut_prov = _IO_EXECUTOR.submit(
+                _batch_query_provenance_snapshots, all_entity_strs, self.config
+            )
+            fut_data = _IO_EXECUTOR.submit(
+                _batch_query_dataset_triples, all_entity_strs, self.config
+            )
             prov_data = fut_prov.result()
             dataset_data = fut_data.result()
             triple = self.triples[0]
             entity_bindings: dict[str, dict[str, list[dict]]] = {}
             for entity_str in all_entity_strs:
                 per_ts: dict[str, list[dict]] = {}
-                for ts, quad_set in _iter_versions_as_sets(prov_data[entity_str], dataset_data[entity_str]):
+                for ts, quad_set in _iter_versions_as_sets(
+                    prov_data[entity_str], dataset_data[entity_str]
+                ):
                     per_ts[ts] = _match_single_pattern(triple, quad_set)
                 entity_bindings[entity_str] = per_ts
         else:
             entity_bindings = {}
             for entity_str in all_entity_strs:
-                ae = AgnosticEntity(entity_str, config=self.config, include_related_objects=False, include_merged_entities=False, include_reverse_relations=False)
+                ae = AgnosticEntity(
+                    entity_str,
+                    config=self.config,
+                    include_related_objects=False,
+                    include_merged_entities=False,
+                    include_reverse_relations=False,
+                )
                 per_ts = {}
                 for ts, quad_set in ae.iter_versions():
                     per_ts[ts] = self._extract_bindings(quad_set)
                 entity_bindings[entity_str] = per_ts
         self._streaming_results = _merge_entity_bindings(entity_bindings)
 
-    def run_agnostic_query(self, include_all_timestamps: bool = False) -> tuple[dict[str, list[dict]], set]:
+    def run_agnostic_query(
+        self, *, include_all_timestamps: bool = False
+    ) -> tuple[dict[str, list[dict]], set]:
         if self.on_time is None or self._streaming_results:
             agnostic_result = self._streaming_results
             if include_all_timestamps:
@@ -874,7 +1095,9 @@ class VersionQuery(AgnosticQuery):
         for timestamp, graph in self.relevant_graphs.items():
             normalized = str(convert_to_datetime(timestamp, stringify=True))
             agnostic_result[normalized] = self._extract_bindings(graph)
-        return agnostic_result, {data["generatedAtTime"] for _, data in self.other_snapshots_metadata.items()}
+        return agnostic_result, {
+            data["generatedAtTime"] for _, data in self.other_snapshots_metadata.items()
+        }
 
     def _get_all_provenance_timestamps(self) -> set:
         query = f"""
@@ -883,7 +1106,7 @@ class VersionQuery(AgnosticQuery):
             }}
         """
         results = Sparql(query, self.config).run_select_query()
-        return {r['time']['value'] for r in results['results']['bindings']}
+        return {r["time"]["value"] for r in results["results"]["bindings"]}
 
     def _fill_timestamp_gaps(self, result: dict) -> dict:
         all_timestamps = self._get_all_provenance_timestamps()
@@ -893,7 +1116,7 @@ class VersionQuery(AgnosticQuery):
         min_ts = _parse_datetime(sorted_result_ts[0])
         relevant_timestamps = sorted(
             [t for t in all_timestamps if min_ts <= _parse_datetime(t)],
-            key=_parse_datetime
+            key=_parse_datetime,
         )
         filled = dict(result)
         last_known = None
@@ -907,22 +1130,38 @@ class VersionQuery(AgnosticQuery):
 
 
 class DeltaQuery(AgnosticQuery):
-    """
-    This class allows single time and cross-time delta structured queries.
+    """Single time and cross-time delta structured queries.
 
-    :param query: A SPARQL query string. It is useful to identify the entities whose change you want to investigate.
+    :param query: A SPARQL query string. It is useful to identify the entities
+        whose change you want to investigate.
     :type query: str
-    :param on_time: If you want to query specific snapshots, specify the time interval here. The format is (START, END). If one of the two values is None, only the other is considered. Dates must be in ISO 8601 format.
+    :param on_time: If you want to query specific snapshots, specify the time
+        interval here. The format is (START, END). If one of the two values is None,
+        only the other is considered. Dates must be in ISO 8601 format.
     :type on_time: Tuple[Union[str, None]], optional
-    :param changed_properties: A set of properties. It narrows the field to those entities where the properties specified in the set have changed.
+    :param changed_properties: A set of properties. It narrows the field to those
+        entities where the properties specified in the set have changed.
     :type changed_properties: Set[str], optional
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
-    def __init__(self, query:str, on_time: tuple[str | None, str | None] | None = None, changed_properties:set[str] | None=None, config_path:str = CONFIG_PATH, config_dict: dict | None = None):
+
+    def __init__(
+        self,
+        query: str,
+        on_time: tuple[str | None, str | None] | None = None,
+        changed_properties: set[str] | None = None,
+        config_path: str = CONFIG_PATH,
+        config_dict: dict | None = None,
+    ):
         if changed_properties is None:
             changed_properties = set()
-        super().__init__(query=query, on_time=on_time, config_path=config_path, config_dict=config_dict)
+        super().__init__(
+            query=query,
+            on_time=on_time,
+            config_path=config_path,
+            config_dict=config_dict,
+        )
         self.changed_properties = changed_properties
 
     def _rebuild_relevant_graphs(self) -> None:
@@ -930,7 +1169,9 @@ class DeltaQuery(AgnosticQuery):
         self.triples = self._process_query()
         needs_graph_alignment = False
         for triple in self.triples:
-            if self._is_isolated(triple) and self._is_a_new_triple(triple, triples_checked):
+            if self._is_isolated(triple) and self._is_a_new_triple(
+                triple, triples_checked
+            ):
                 present_entities = self._get_present_entities(triple)
                 self.reconstructed_entities.update(present_entities)
                 prov_entities: set = set()
@@ -955,11 +1196,14 @@ class DeltaQuery(AgnosticQuery):
             if not snapshots:
                 continue
             result = _build_delta_result(
-                entity_str, snapshots,
-                self.on_time, self.changed_properties,
+                entity_str,
+                snapshots,
+                self.on_time,
+                self.changed_properties,
             )
             output.update(result)
         return output
+
 
 def get_insert_query(graph_iri: str, data: set[tuple[str, ...]]) -> tuple[str, int]:
     if not data:

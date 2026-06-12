@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: ISC
 
 import argparse
-import glob
 import json
 import os
 import platform
@@ -62,15 +61,15 @@ def get_hardware_info() -> dict[str, str | int]:
     try:
         result = subprocess.run(["nproc"], capture_output=True, text=True, check=True)
         info["cpu_cores"] = int(result.stdout.strip())
-    except Exception:
+    except (OSError, subprocess.CalledProcessError, ValueError):
         info["cpu_cores"] = os.cpu_count() or 1
     try:
-        with open("/proc/meminfo", "r") as f:
+        with Path("/proc/meminfo").open() as f:
             for line in f:
                 if line.startswith("MemTotal:"):
                     info["memory_total_kb"] = int(line.split()[1])
                     break
-    except Exception:
+    except (OSError, ValueError):
         pass
     return info
 
@@ -94,6 +93,7 @@ def run_vm_query(sparql: str, on_time: tuple, config: dict) -> dict:
         vq = VersionQuery(sparql, on_time=on_time, config_dict=config)
         result, _ = vq.run_agnostic_query()
         return {"num_results": sum(len(v) for v in result.values())}
+
     return _measure_query(fn)
 
 
@@ -103,7 +103,12 @@ def run_dm_query(sparql: str, on_time: tuple, config: dict) -> dict:
         result = dq.run_agnostic_query()
         total_additions = sum(len(v["additions"]) for v in result.values())
         total_deletions = sum(len(v["deletions"]) for v in result.values())
-        return {"num_entities": len(result), "additions": total_additions, "deletions": total_deletions}
+        return {
+            "num_entities": len(result),
+            "additions": total_additions,
+            "deletions": total_deletions,
+        }
+
     return _measure_query(fn)
 
 
@@ -111,11 +116,17 @@ def run_vq_query(sparql: str, config: dict) -> dict:
     def fn() -> dict:
         vq = VersionQuery(sparql, config_dict=config)
         result, _ = vq.run_agnostic_query()
-        return {"num_results": sum(len(v) for v in result.values()), "num_versions": len(result)}
+        return {
+            "num_results": sum(len(v) for v in result.values()),
+            "num_versions": len(result),
+        }
+
     return _measure_query(fn)
 
 
-def _dispatch_query(qt: str, sparql: str, on_time: Sequence[str] | None, config: dict) -> dict | None:
+def _dispatch_query(
+    qt: str, sparql: str, on_time: Sequence[str] | None, config: dict
+) -> dict | None:
     if qt == "vq":
         return run_vq_query(sparql, config)
     assert on_time is not None
@@ -126,10 +137,12 @@ def _dispatch_query(qt: str, sparql: str, on_time: Sequence[str] | None, config:
     return None
 
 
-def _try_query(qt: str, sparql: str, on_time: Sequence[str] | None, config: dict, label: str) -> dict | None:
+def _try_query(
+    qt: str, sparql: str, on_time: Sequence[str] | None, config: dict, label: str
+) -> dict | None:
     try:
         return _dispatch_query(qt, sparql, on_time, config)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- keep benchmarking past any single query failure
         console.print(f"    {label} error: {e}")
         return None
 
@@ -159,7 +172,9 @@ def benchmark_queries(
             memory_peaks = []
             last_result: dict | None = None
             for run_idx in range(num_runs):
-                result = _try_query(qt, sparql, on_time, config, f"[red]Run {run_idx + 1}")
+                result = _try_query(
+                    qt, sparql, on_time, config, f"[red]Run {run_idx + 1}"
+                )
                 if result:
                     last_result = result
                     times.append(result["time_s"])
@@ -178,12 +193,18 @@ def benchmark_queries(
                 "std_s": statistics.stdev(valid_times) if len(valid_times) > 1 else 0.0,
                 "median_s": statistics.median(valid_times) if valid_times else None,
                 "memory_peak_bytes": memory_peaks,
-                "mean_memory_bytes": statistics.mean(valid_memory) if valid_memory else None,
-                "median_memory_bytes": statistics.median(valid_memory) if valid_memory else None,
+                "mean_memory_bytes": statistics.mean(valid_memory)
+                if valid_memory
+                else None,
+                "median_memory_bytes": statistics.median(valid_memory)
+                if valid_memory
+                else None,
                 "max_memory_bytes": max(valid_memory) if valid_memory else None,
             }
             if last_result:
-                entry["num_results"] = last_result.get("num_results", last_result.get("num_entities", 0))
+                entry["num_results"] = last_result.get(
+                    "num_results", last_result.get("num_entities", 0)
+                )
             all_results["results"][query_type].append(entry)
             save_results(all_results, output_file)
             progress.advance(task)
@@ -191,7 +212,7 @@ def benchmark_queries(
 
 def save_results(all_results: dict, output_file: Path) -> None:
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_file, "w", encoding="utf-8") as f:
+    with output_file.open("w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2)
 
 
@@ -218,10 +239,9 @@ def print_summary_table(all_results: dict) -> None:
 
 
 def find_latest_run(granularity: str) -> Path | None:
-    pattern = str(DATA_DIR / f"benchmark_runs_{granularity}_*.json")
-    matches = sorted(glob.glob(pattern))
+    matches = sorted(DATA_DIR.glob(f"benchmark_runs_{granularity}_*.json"))
     if matches:
-        return Path(matches[-1])
+        return matches[-1]
     return None
 
 
@@ -232,27 +252,45 @@ def create_run_file(granularity: str) -> Path:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
-    parser.add_argument("--only", choices=ALL_QUERY_TYPES, nargs="+", help="Run only specified query types (e.g. --only vq)")
-    parser.add_argument("--runs", type=int, default=NUM_RUNS, help="Number of repetitions per query (default: 5)")
-    parser.add_argument("--resume", action="store_true", help="Resume from latest run file, continuing from where it stopped")
+    parser.add_argument(
+        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+    )
+    parser.add_argument(
+        "--only",
+        choices=ALL_QUERY_TYPES,
+        nargs="+",
+        help="Run only specified query types (e.g. --only vq)",
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=NUM_RUNS,
+        help="Number of repetitions per query (default: 5)",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume from latest run file, continuing from where it stopped",
+    )
     args = parser.parse_args()
 
     queries_file = DATA_DIR / f"parsed_queries_{args.granularity}.json"
     canonical_file = DATA_DIR / f"benchmark_results_{args.granularity}.json"
 
-    query_types = args.only if args.only else ALL_QUERY_TYPES
+    query_types = args.only or ALL_QUERY_TYPES
 
     if not queries_file.exists():
         console.print(f"[yellow]Parsed queries not found, generating {queries_file}...")
         gc = GRANULARITY_CONFIG[args.granularity]
-        all_queries = parse_and_generate(gc["num_versions"], gc["interval"], DM_STEPS[args.granularity])
+        all_queries = parse_and_generate(
+            gc["num_versions"], gc["interval"], DM_STEPS[args.granularity]
+        )
         queries_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(queries_file, "w", encoding="utf-8") as f:
+        with queries_file.open("w", encoding="utf-8") as f:
             json.dump(all_queries, f, indent=2)
         console.print(f"[green]Saved parsed queries to {queries_file}")
     else:
-        with open(queries_file, "r", encoding="utf-8") as f:
+        with queries_file.open(encoding="utf-8") as f:
             all_queries = json.load(f)
 
     config = build_config(args.granularity)
@@ -264,7 +302,7 @@ def main():
         run_file = find_latest_run(args.granularity)
         if run_file:
             console.print(f"[bold]Resuming from {run_file}[/bold]")
-            with open(run_file, "r", encoding="utf-8") as f:
+            with run_file.open(encoding="utf-8") as f:
                 all_results = json.load(f)
         else:
             console.print("[yellow]No previous run file found, starting fresh[/yellow]")
@@ -279,22 +317,31 @@ def main():
         existing_count = len(all_results["results"].get(query_type, []))
 
         if existing_count >= len(queries):
-            console.print(f"[dim]Skipping {query_type.upper()} ({existing_count}/{len(queries)} already completed)[/dim]")
+            console.print(
+                f"[dim]Skipping {query_type.upper()} "
+                f"({existing_count}/{len(queries)} already completed)[/dim]"
+            )
             continue
 
         if query_type not in all_results["results"]:
             all_results["results"][query_type] = []
 
-        console.rule(f"[bold]{query_type.upper()} queries[/bold] ({len(queries)} queries, {args.runs} runs each)")
+        console.rule(
+            f"[bold]{query_type.upper()} queries[/bold] "
+            f"({len(queries)} queries, {args.runs} runs each)"
+        )
         benchmark_queries(
-            queries, config,
+            queries,
+            config,
             num_runs=args.runs,
             all_results=all_results,
             query_type=query_type,
             output_file=run_file,
             skip=existing_count,
         )
-        console.print(f"[green]Saved {query_type.upper()} results to {run_file}[/green]")
+        console.print(
+            f"[green]Saved {query_type.upper()} results to {run_file}[/green]"
+        )
 
     shutil.copy2(run_file, canonical_file)
     console.print(f"\nAll results saved to {canonical_file}")

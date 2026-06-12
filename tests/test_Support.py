@@ -1,13 +1,11 @@
-#!/usr/bin/python
-
 # SPDX-FileCopyrightText: 2021-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # SPDX-License-Identifier: ISC
 
 
 import json
-import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from time_agnostic_library.support import (
     _NT_TERM_RE,
@@ -19,39 +17,35 @@ from time_agnostic_library.support import (
 )
 
 
-class Test_Support:
+class TestSupport:
     def setup_method(self):
         self.config_path = "tests/config_support_test.json"
         self.initial_config = {
             "dataset": {
                 "triplestore_urls": ["http://127.0.0.1:41720/sparql"],
                 "file_paths": [],
-                "is_quadstore": True
+                "is_quadstore": True,
             },
             "provenance": {
                 "triplestore_urls": [],
                 "file_paths": ["tests/prov.json"],
-                "is_quadstore": False
+                "is_quadstore": False,
             },
             "blazegraph_full_text_search": "no",
             "fuseki_full_text_search": "no",
             "virtuoso_full_text_search": "no",
-            "graphdb_connector_name": ""
+            "graphdb_connector_name": "",
         }
-        with open(self.config_path, 'w', encoding='utf-8') as f:
+        with Path(self.config_path).open("w", encoding="utf-8") as f:
             json.dump(self.initial_config, f)
 
     def teardown_method(self):
-        try:
-            if os.path.exists(self.config_path):
-                os.remove(self.config_path)
-        except Exception as e:
-            print(f"Error during cleanup: {e}")
+        Path(self.config_path).unlink(missing_ok=True)
 
     def test_convert_to_datetime(self):
-        input = "2021-05-21T19:08:56+00:00"
+        time_string = "2021-05-21T19:08:56+00:00"
         expected_output = datetime(2021, 5, 21, 19, 8, 56, tzinfo=timezone.utc)
-        assert convert_to_datetime(input) == expected_output
+        assert convert_to_datetime(time_string) == expected_output
 
     def test_convert_to_datetime_naive(self):
         result = convert_to_datetime("2021-05-21T19:08:56")
@@ -60,45 +54,41 @@ class Test_Support:
     def test_generate_config_file(self):
         # Test case 1: Basic configuration with default values
         expected_config = {
-            'dataset': {
-                'triplestore_urls': [],
-                'file_paths': [],
-                'is_quadstore': True
+            "dataset": {"triplestore_urls": [], "file_paths": [], "is_quadstore": True},
+            "provenance": {
+                "triplestore_urls": [],
+                "file_paths": [],
+                "is_quadstore": True,
             },
-            'provenance': {
-                'triplestore_urls': [],
-                'file_paths': [],
-                'is_quadstore': True
-            },
-            'blazegraph_full_text_search': 'false',
-            'fuseki_full_text_search': 'false',
-            'virtuoso_full_text_search': 'false',
-            'graphdb_connector_name': ''
+            "blazegraph_full_text_search": "false",
+            "fuseki_full_text_search": "false",
+            "virtuoso_full_text_search": "false",
+            "graphdb_connector_name": "",
         }
         config = generate_config_file(self.config_path)
-        with open(self.config_path, encoding='utf-8') as f:
+        with Path(self.config_path).open(encoding="utf-8") as f:
             generated_config = json.load(f)
         assert config == expected_config
         assert generated_config == expected_config
 
         # Test case 2: Configuration with custom values
-        test_dataset_urls = ['http://example.com/dataset']
-        test_provenance_urls = ['http://example.com/provenance']
+        test_dataset_urls = ["http://example.com/dataset"]
+        test_provenance_urls = ["http://example.com/provenance"]
         expected_config_custom = {
-            'dataset': {
-                'triplestore_urls': test_dataset_urls,
-                'file_paths': [],
-                'is_quadstore': False
+            "dataset": {
+                "triplestore_urls": test_dataset_urls,
+                "file_paths": [],
+                "is_quadstore": False,
             },
-            'provenance': {
-                'triplestore_urls': test_provenance_urls,
-                'file_paths': [],
-                'is_quadstore': True
+            "provenance": {
+                "triplestore_urls": test_provenance_urls,
+                "file_paths": [],
+                "is_quadstore": True,
             },
-            'blazegraph_full_text_search': 'true',
-            'fuseki_full_text_search': 'false',
-            'virtuoso_full_text_search': 'true',
-            'graphdb_connector_name': 'test_connector'
+            "blazegraph_full_text_search": "true",
+            "fuseki_full_text_search": "false",
+            "virtuoso_full_text_search": "true",
+            "graphdb_connector_name": "test_connector",
         }
         config = generate_config_file(
             config_path=self.config_path,
@@ -107,46 +97,46 @@ class Test_Support:
             provenance_urls=test_provenance_urls,
             blazegraph_full_text_search=True,
             virtuoso_full_text_search=True,
-            graphdb_connector_name='test_connector'
+            graphdb_connector_name="test_connector",
         )
-        with open(self.config_path, encoding='utf-8') as f:
+        with Path(self.config_path).open(encoding="utf-8") as f:
             generated_config = json.load(f)
         assert config == expected_config_custom
         assert generated_config == expected_config_custom
 
         # Test case 3: Test with file paths
-        test_dataset_dirs = ['path/to/dataset']
-        test_provenance_dirs = ['path/to/provenance']
+        test_dataset_dirs = ["path/to/dataset"]
+        test_provenance_dirs = ["path/to/provenance"]
         expected_config_paths = {
-            'dataset': {
-                'triplestore_urls': [],
-                'file_paths': test_dataset_dirs,
-                'is_quadstore': True
+            "dataset": {
+                "triplestore_urls": [],
+                "file_paths": test_dataset_dirs,
+                "is_quadstore": True,
             },
-            'provenance': {
-                'triplestore_urls': [],
-                'file_paths': test_provenance_dirs,
-                'is_quadstore': False
+            "provenance": {
+                "triplestore_urls": [],
+                "file_paths": test_provenance_dirs,
+                "is_quadstore": False,
             },
-            'blazegraph_full_text_search': 'false',
-            'fuseki_full_text_search': 'true',
-            'virtuoso_full_text_search': 'false',
-            'graphdb_connector_name': ''
+            "blazegraph_full_text_search": "false",
+            "fuseki_full_text_search": "true",
+            "virtuoso_full_text_search": "false",
+            "graphdb_connector_name": "",
         }
         config = generate_config_file(
             config_path=self.config_path,
             dataset_dirs=test_dataset_dirs,
             provenance_dirs=test_provenance_dirs,
             provenance_is_quadstore=False,
-            fuseki_full_text_search=True
+            fuseki_full_text_search=True,
         )
-        with open(self.config_path, encoding='utf-8') as f:
+        with Path(self.config_path).open(encoding="utf-8") as f:
             generated_config = json.load(f)
         assert config == expected_config_paths
         assert generated_config == expected_config_paths
 
-class TestSupportHelpers:
 
+class TestSupportHelpers:
     def test_nt_match_to_n3_lang_literal(self):
         match = _NT_TERM_RE.search('"hello"@en')
         assert match is not None
@@ -154,10 +144,10 @@ class TestSupportHelpers:
         assert result == '"hello"@en'
 
     def test_nt_match_to_n3_bnode(self):
-        match = _NT_TERM_RE.search('_:b0')
+        match = _NT_TERM_RE.search("_:b0")
         assert match is not None
         result = _nt_match_to_n3(match)
-        assert result == '_:b0'
+        assert result == "_:b0"
 
     def test_strip_literal_datatype_lang_tagged(self):
         result = _strip_literal_datatype('"hello"@en')
@@ -168,5 +158,5 @@ class TestSupportHelpers:
         assert result == '"no close'
 
     def test_nt_list_to_quad_set_empty_lines(self):
-        result = _nt_list_to_quad_set(['<http://s> <http://p> "o"', '', '  '])
-        assert result == {('<http://s>', '<http://p>', '"o"')}
+        result = _nt_list_to_quad_set(['<http://s> <http://p> "o"', "", "  "])
+        assert result == {("<http://s>", "<http://p>", '"o"')}

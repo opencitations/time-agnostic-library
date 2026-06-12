@@ -1,11 +1,13 @@
 <!--
-SPDX-FileCopyrightText: 2021-2025 Arcangelo Massari <arcangelo.massari@unibo.it>
+SPDX-FileCopyrightText: 2021-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 
 SPDX-License-Identifier: ISC
 -->
 
 ISC License (ISC)
 ==================================
+
+Copyright (c) 2021-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 
 Permission to use, copy, modify, and/or distribute this software for any purpose with or
 without fee is hereby granted, provided that the above copyright notice and this permission

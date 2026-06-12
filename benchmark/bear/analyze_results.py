@@ -9,9 +9,9 @@ import re
 import statistics
 from pathlib import Path
 
-import matplotlib
+import matplotlib as mpl
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -84,7 +84,7 @@ PUBLISHED_RESULTS = {
 
 
 def load_results(filepath: Path) -> dict:
-    with open(filepath, "r", encoding="utf-8") as f:
+    with filepath.open(encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -98,23 +98,23 @@ def load_disk_usage(granularity: str) -> dict[str, int | None]:
     }
     ocdm_file = DATA_DIR / f"ocdm_conversion_time_{granularity}.json"
     if ocdm_file.exists():
-        with open(ocdm_file, "r", encoding="utf-8") as f:
+        with ocdm_file.open(encoding="utf-8") as f:
             data = json.load(f)
         usage["ocdm_dataset_bytes"] = data.get("dataset_bytes")
         usage["ocdm_provenance_bytes"] = data.get("provenance_bytes")
     qlever_file = DATA_DIR / f"qlever_indexing_time_{granularity}.json"
     if qlever_file.exists():
-        with open(qlever_file, "r", encoding="utf-8") as f:
+        with qlever_file.open(encoding="utf-8") as f:
             data = json.load(f)
         usage["qlever_index_bytes"] = data.get("qlever_index_bytes")
     ostrich_file = DATA_DIR / f"ostrich_store_size_{granularity}.json"
     if ostrich_file.exists():
-        with open(ostrich_file, "r", encoding="utf-8") as f:
+        with ostrich_file.open(encoding="utf-8") as f:
             data = json.load(f)
         usage["ostrich_store_bytes"] = data.get("store_bytes")
     r43ples_file = DATA_DIR / f"r43ples_ingestion_time_{granularity}.json"
     if r43ples_file.exists():
-        with open(r43ples_file, "r", encoding="utf-8") as f:
+        with r43ples_file.open(encoding="utf-8") as f:
             data = json.load(f)
         usage["r43ples_store_bytes"] = data.get("store_bytes")
     return usage
@@ -142,15 +142,32 @@ def print_disk_usage_table(usage: dict[str, int | None]) -> None:
     ocdm_prov = usage["ocdm_provenance_bytes"]
     ocdm_total = (ocdm_ds or 0) + (ocdm_prov or 0) if ocdm_ds is not None else None
     qlever = usage["qlever_index_bytes"]
-    tal_total = (ocdm_total or 0) + (qlever or 0) if ocdm_total is not None or qlever is not None else None
+    tal_total = (
+        (ocdm_total or 0) + (qlever or 0)
+        if ocdm_total is not None or qlever is not None
+        else None
+    )
 
     table.add_row("OCDM dataset", _format_bytes(ocdm_ds), str(ocdm_ds or "---"))
     table.add_row("OCDM provenance", _format_bytes(ocdm_prov), str(ocdm_prov or "---"))
     table.add_row("OCDM total", _format_bytes(ocdm_total), str(ocdm_total or "---"))
     table.add_row("QLever index", _format_bytes(qlever), str(qlever or "---"))
-    table.add_row("TAL total (OCDM + QLever)", _format_bytes(tal_total), str(tal_total or "---"), style="bold green")
-    table.add_row("OSTRICH store", _format_bytes(usage["ostrich_store_bytes"]), str(usage["ostrich_store_bytes"] or "---"))
-    table.add_row("R43ples store", _format_bytes(usage["r43ples_store_bytes"]), str(usage["r43ples_store_bytes"] or "---"))
+    table.add_row(
+        "TAL total (OCDM + QLever)",
+        _format_bytes(tal_total),
+        str(tal_total or "---"),
+        style="bold green",
+    )
+    table.add_row(
+        "OSTRICH store",
+        _format_bytes(usage["ostrich_store_bytes"]),
+        str(usage["ostrich_store_bytes"] or "---"),
+    )
+    table.add_row(
+        "R43ples store",
+        _format_bytes(usage["r43ples_store_bytes"]),
+        str(usage["r43ples_store_bytes"] or "---"),
+    )
 
     console.print(table)
 
@@ -167,7 +184,11 @@ def compute_aggregates(results: list[dict]) -> dict:
         "min_ms": min(valid_means),
         "max_ms": max(valid_means),
     }
-    valid_memory = [r["median_memory_bytes"] for r in results if r.get("median_memory_bytes") is not None]
+    valid_memory = [
+        r["median_memory_bytes"]
+        for r in results
+        if r.get("median_memory_bytes") is not None
+    ]
     if valid_memory:
         agg["mean_memory_bytes"] = statistics.mean(valid_memory)
         agg["median_memory_bytes"] = statistics.median(valid_memory)
@@ -195,7 +216,9 @@ def compute_break_even(
     return ingestion_ms / diff_ms
 
 
-def _median_ms(entries: list[dict], key: str = "median_s", scale: float = 1000) -> float:
+def _median_ms(
+    entries: list[dict], key: str = "median_s", scale: float = 1000
+) -> float:
     return statistics.median(r[key] * scale for r in entries if r[key] is not None)
 
 
@@ -206,7 +229,9 @@ def _group_by(entries: list[dict], field: str) -> dict:
     return groups
 
 
-def load_tal_vm_by_version(vm_results: list[dict], pattern_filter: str | None = None) -> dict[int, float]:
+def load_tal_vm_by_version(
+    vm_results: list[dict], pattern_filter: str | None = None
+) -> dict[int, float]:
     filtered = [r for r in vm_results if r["median_s"] is not None]
     if pattern_filter:
         filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
@@ -214,7 +239,9 @@ def load_tal_vm_by_version(vm_results: list[dict], pattern_filter: str | None = 
     return {v: _median_ms(entries) for v, entries in sorted(by_version.items())}
 
 
-def load_tal_dm_by_version(dm_results: list[dict], pattern_filter: str | None = None) -> dict[int, float]:
+def load_tal_dm_by_version(
+    dm_results: list[dict], pattern_filter: str | None = None
+) -> dict[int, float]:
     filtered = [r for r in dm_results if r["median_s"] is not None]
     if pattern_filter:
         filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
@@ -222,7 +249,9 @@ def load_tal_dm_by_version(dm_results: list[dict], pattern_filter: str | None = 
     return {v: _median_ms(entries) for v, entries in sorted(by_end.items())}
 
 
-def load_tal_vq_median(vq_results: list[dict], pattern_filter: str | None = None) -> float:
+def load_tal_vq_median(
+    vq_results: list[dict], pattern_filter: str | None = None
+) -> float:
     filtered = [r for r in vq_results if r["median_s"] is not None]
     if pattern_filter:
         filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
@@ -230,6 +259,7 @@ def load_tal_vq_median(vq_results: list[dict], pattern_filter: str | None = None
 
 
 # --- OSTRICH raw file parsing ---
+
 
 def _parse_ostrich_raw_files(raw_files: list[Path]) -> list[dict]:
     patterns = []
@@ -239,11 +269,16 @@ def _parse_ostrich_raw_files(raw_files: list[Path]) -> list[dict]:
         pattern_type = raw_file.stem.replace("ostrich_raw_", "").rsplit("_", 1)[0]
         current_pattern = None
         current_section = None
-        for line in raw_file.read_text().splitlines():
-            line = line.strip()
+        for raw_line in raw_file.read_text().splitlines():
+            line = raw_line.strip()
             match = re.match(r"---PATTERN START:\s*(.+)", line)
             if match:
-                current_pattern = {"pattern_type": pattern_type, "vm": [], "dm": [], "vq": []}
+                current_pattern = {
+                    "pattern_type": pattern_type,
+                    "vm": [],
+                    "dm": [],
+                    "vq": [],
+                }
                 patterns.append(current_pattern)
                 current_section = None
                 continue
@@ -256,24 +291,35 @@ def _parse_ostrich_raw_files(raw_files: list[Path]) -> list[dict]:
             if line.startswith("--- ---VERSION"):
                 current_section = "vq"
                 continue
-            if line.startswith("---") or line.startswith("patch,") or line.startswith("patch_start,") or line.startswith("offset,"):
+            if line.startswith(("---", "patch,", "patch_start,", "offset,")):
                 continue
             if current_pattern is None or current_section is None:
                 continue
             parts = line.split(",")
             if current_section == "vm" and len(parts) >= 7:
-                current_pattern["vm"].append({"patch": int(parts[0]), "median_us": float(parts[4])})
+                current_pattern["vm"].append(
+                    {"patch": int(parts[0]), "median_us": float(parts[4])}
+                )
             elif current_section == "dm" and len(parts) >= 8:
-                current_pattern["dm"].append({
-                    "patch_start": int(parts[0]), "patch_end": int(parts[1]), "median_us": float(parts[5]),
-                })
+                current_pattern["dm"].append(
+                    {
+                        "patch_start": int(parts[0]),
+                        "patch_end": int(parts[1]),
+                        "median_us": float(parts[5]),
+                    }
+                )
             elif current_section == "vq" and len(parts) >= 5:
                 current_pattern["vq"].append({"median_us": float(parts[2])})
     return patterns
 
 
-def _ostrich_median_ms_by_version(patterns: list[dict], query_type: str, version_field: str,
-                                  pattern_filter: str | None = None, start_filter: int | None = None) -> dict[int, float]:
+def _ostrich_median_ms_by_version(
+    patterns: list[dict],
+    query_type: str,
+    version_field: str,
+    pattern_filter: str | None = None,
+    start_filter: int | None = None,
+) -> dict[int, float]:
     by_version: dict[int, list] = {}
     for pat in patterns:
         if pattern_filter and pat["pattern_type"] != pattern_filter:
@@ -289,11 +335,13 @@ def _ostrich_median_ms_by_version(patterns: list[dict], query_type: str, version
 def _load_r43ples_results(r43ples_file: Path) -> dict | None:
     if not r43ples_file.exists():
         return None
-    with open(r43ples_file, "r", encoding="utf-8") as f:
+    with r43ples_file.open(encoding="utf-8") as f:
         return json.load(f)
 
 
-def load_r43ples_vm_by_version(r43ples_file: Path, pattern_filter: str | None = None) -> dict[int, float]:
+def load_r43ples_vm_by_version(
+    r43ples_file: Path, pattern_filter: str | None = None
+) -> dict[int, float]:
     data = _load_r43ples_results(r43ples_file)
     if not data:
         return {}
@@ -307,7 +355,9 @@ def load_r43ples_vm_by_version(r43ples_file: Path, pattern_filter: str | None = 
     return {v: statistics.median(vals) for v, vals in sorted(by_version.items())}
 
 
-def load_r43ples_dm_by_version(r43ples_file: Path, pattern_filter: str | None = None) -> dict[int, float]:
+def load_r43ples_dm_by_version(
+    r43ples_file: Path, pattern_filter: str | None = None
+) -> dict[int, float]:
     data = _load_r43ples_results(r43ples_file)
     if not data:
         return {}
@@ -321,7 +371,9 @@ def load_r43ples_dm_by_version(r43ples_file: Path, pattern_filter: str | None = 
     return {v: statistics.median(vals) for v, vals in sorted(by_version.items())}
 
 
-def load_r43ples_vq_median(r43ples_file: Path, pattern_filter: str | None = None) -> float | None:
+def load_r43ples_vq_median(
+    r43ples_file: Path, pattern_filter: str | None = None
+) -> float | None:
     data = _load_r43ples_results(r43ples_file)
     if not data:
         return None
@@ -333,17 +385,25 @@ def load_r43ples_vq_median(r43ples_file: Path, pattern_filter: str | None = None
     return statistics.median(e["median_ms"] for e in entries)
 
 
-def load_ostrich_vm_by_version(raw_files: list[Path], pattern_filter: str | None = None) -> dict[int, float]:
+def load_ostrich_vm_by_version(
+    raw_files: list[Path], pattern_filter: str | None = None
+) -> dict[int, float]:
     patterns = _parse_ostrich_raw_files(raw_files)
     return _ostrich_median_ms_by_version(patterns, "vm", "patch", pattern_filter)
 
 
-def load_ostrich_dm_by_version(raw_files: list[Path], pattern_filter: str | None = None) -> dict[int, float]:
+def load_ostrich_dm_by_version(
+    raw_files: list[Path], pattern_filter: str | None = None
+) -> dict[int, float]:
     patterns = _parse_ostrich_raw_files(raw_files)
-    return _ostrich_median_ms_by_version(patterns, "dm", "patch_end", pattern_filter, start_filter=0)
+    return _ostrich_median_ms_by_version(
+        patterns, "dm", "patch_end", pattern_filter, start_filter=0
+    )
 
 
-def load_ostrich_vq_median(raw_files: list[Path], pattern_filter: str | None = None) -> float:
+def load_ostrich_vq_median(
+    raw_files: list[Path], pattern_filter: str | None = None
+) -> float:
     patterns = _parse_ostrich_raw_files(raw_files)
     medians = []
     for pat in patterns:
@@ -354,6 +414,7 @@ def load_ostrich_vq_median(raw_files: list[Path], pattern_filter: str | None = N
 
 
 # --- Plotting ---
+
 
 def _ms_formatter(val: float, _pos: int) -> str:
     if val >= 1:
@@ -375,7 +436,9 @@ def _save_plot(fig: Figure, plot_dir: Path, name: str) -> None:
     console.print(f"  Saved: {plot_dir / name}.{{pdf,jpg}}")
 
 
-def generate_comparison_table(tal_results: dict, ocdm_timing_file: Path, qlever_timing_file: Path) -> list[dict]:
+def generate_comparison_table(
+    tal_results: dict, ocdm_timing_file: Path, qlever_timing_file: Path
+) -> list[dict]:
     rows = []
     for system_name, published in PUBLISHED_RESULTS.items():
         row = {
@@ -408,10 +471,14 @@ def generate_comparison_table(tal_results: dict, ocdm_timing_file: Path, qlever_
         if published["ingestion_s"]:
             tal_vm = tal_results.get("vm", {}).get("mean_ms")
             if tal_vm and row["vm_ms"]:
-                row["break_even_vm"] = compute_break_even(tal_vm, row["vm_ms"], published["ingestion_s"])
+                row["break_even_vm"] = compute_break_even(
+                    tal_vm, row["vm_ms"], published["ingestion_s"]
+                )
             tal_vq = tal_results.get("vq", {}).get("mean_ms")
             if tal_vq and row["vq_ms"]:
-                row["break_even_vq"] = compute_break_even(tal_vq, row["vq_ms"], published["ingestion_s"])
+                row["break_even_vq"] = compute_break_even(
+                    tal_vq, row["vq_ms"], published["ingestion_s"]
+                )
 
         rows.append(row)
 
@@ -433,15 +500,87 @@ def generate_comparison_table(tal_results: dict, ocdm_timing_file: Path, qlever_
 
 def generate_capabilities_table() -> list[dict]:
     return [
-        {"system": "Jena-IC", "VM": "Y", "SV": "N", "CV": "N", "DM": "N", "SD": "N", "CD": "N"},
-        {"system": "Jena-CB", "VM": "N", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
-        {"system": "HDT-IC", "VM": "Y", "SV": "N", "CV": "N", "DM": "N", "SD": "N", "CD": "N"},
-        {"system": "HDT-CB", "VM": "N", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
-        {"system": "OSTRICH", "VM": "Y", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
-        {"system": "R43ples", "VM": "Y", "SV": "N", "CV": "N", "DM": "N", "SD": "N", "CD": "N"},
-        {"system": "v-RDFCSA", "VM": "Y", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
-        {"system": "TrieDF", "VM": "Y", "SV": "N", "CV": "N", "DM": "Y", "SD": "N", "CD": "N"},
-        {"system": "TAL (ours)", "VM": "Y", "SV": "Y", "CV": "Y", "DM": "Y", "SD": "Y", "CD": "Y"},
+        {
+            "system": "Jena-IC",
+            "VM": "Y",
+            "SV": "N",
+            "CV": "N",
+            "DM": "N",
+            "SD": "N",
+            "CD": "N",
+        },
+        {
+            "system": "Jena-CB",
+            "VM": "N",
+            "SV": "N",
+            "CV": "N",
+            "DM": "Y",
+            "SD": "N",
+            "CD": "N",
+        },
+        {
+            "system": "HDT-IC",
+            "VM": "Y",
+            "SV": "N",
+            "CV": "N",
+            "DM": "N",
+            "SD": "N",
+            "CD": "N",
+        },
+        {
+            "system": "HDT-CB",
+            "VM": "N",
+            "SV": "N",
+            "CV": "N",
+            "DM": "Y",
+            "SD": "N",
+            "CD": "N",
+        },
+        {
+            "system": "OSTRICH",
+            "VM": "Y",
+            "SV": "N",
+            "CV": "N",
+            "DM": "Y",
+            "SD": "N",
+            "CD": "N",
+        },
+        {
+            "system": "R43ples",
+            "VM": "Y",
+            "SV": "N",
+            "CV": "N",
+            "DM": "N",
+            "SD": "N",
+            "CD": "N",
+        },
+        {
+            "system": "v-RDFCSA",
+            "VM": "Y",
+            "SV": "N",
+            "CV": "N",
+            "DM": "Y",
+            "SD": "N",
+            "CD": "N",
+        },
+        {
+            "system": "TrieDF",
+            "VM": "Y",
+            "SV": "N",
+            "CV": "N",
+            "DM": "Y",
+            "SD": "N",
+            "CD": "N",
+        },
+        {
+            "system": "TAL (ours)",
+            "VM": "Y",
+            "SV": "Y",
+            "CV": "Y",
+            "DM": "Y",
+            "SD": "Y",
+            "CD": "Y",
+        },
     ]
 
 
@@ -449,7 +588,7 @@ def write_csv(rows: list[dict], filepath: Path) -> None:
     filepath.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
         return
-    with open(filepath, "w", newline="", encoding="utf-8") as f:
+    with filepath.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
@@ -482,12 +621,14 @@ def generate_latex_comparison(rows: list[dict], filepath: Path) -> None:
         ing = format_val(row["ingestion_s"], ".0f")
         be = format_val(row["break_even_vm"], ".0f") if row["break_even_vm"] else "---"
         lines.append(f"{system} & {vm} & {dm} & {vq} & {ing} & {be} \\\\")
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
-    with open(filepath, "w", encoding="utf-8") as f:
+    lines.extend(
+        [
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\end{table}",
+        ]
+    )
+    with filepath.open("w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     console.print(f"  Saved: {filepath}")
 
@@ -508,12 +649,14 @@ def generate_latex_capabilities(filepath: Path) -> None:
     for row in rows:
         vals = " & ".join(row[k] for k in ["VM", "SV", "CV", "DM", "SD", "CD"])
         lines.append(f"{row['system']} & {vals} \\\\")
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
-    with open(filepath, "w", encoding="utf-8") as f:
+    lines.extend(
+        [
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\end{table}",
+        ]
+    )
+    with filepath.open("w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     console.print(f"  Saved: {filepath}")
 
@@ -589,7 +732,7 @@ def load_measured_r43ples_results(r43ples_results_file: Path) -> None:
     if not r43ples_results_file.exists():
         return
     console.print("[bold]Loading measured R43ples results[/bold]")
-    with open(r43ples_results_file, "r", encoding="utf-8") as f:
+    with r43ples_results_file.open(encoding="utf-8") as f:
         r43ples_data = json.load(f)
     results = r43ples_data["results"]
     measured: dict = {"source": "measured (this hardware)"}
@@ -598,7 +741,9 @@ def load_measured_r43ples_results(r43ples_results_file: Path) -> None:
         if qt_data:
             by_pattern = qt_data.get("by_pattern", {})
             if by_pattern:
-                measured[f"{qt}_ms"] = {pt: v["mean_ms"] for pt, v in by_pattern.items()}
+                measured[f"{qt}_ms"] = {
+                    pt: v["mean_ms"] for pt, v in by_pattern.items()
+                }
             else:
                 measured[f"{qt}_ms"] = {"avg": qt_data["mean_ms"]}
     ingestion_s = r43ples_data.get("ingestion_s")
@@ -611,7 +756,7 @@ def load_measured_ostrich_results(ostrich_results_file: Path) -> None:
     if not ostrich_results_file.exists():
         return
     console.print("[bold]Loading measured OSTRICH results[/bold]")
-    with open(ostrich_results_file, "r", encoding="utf-8") as f:
+    with ostrich_results_file.open(encoding="utf-8") as f:
         ostrich_data = json.load(f)
     results = ostrich_data["results"]
     measured: dict = {"source": "measured (this hardware)"}
@@ -620,24 +765,28 @@ def load_measured_ostrich_results(ostrich_results_file: Path) -> None:
         if qt_data:
             by_pattern = qt_data.get("by_pattern", {})
             if by_pattern:
-                measured[f"{qt}_ms"] = {pt: v["mean_ms"] for pt, v in by_pattern.items()}
+                measured[f"{qt}_ms"] = {
+                    pt: v["mean_ms"] for pt, v in by_pattern.items()
+                }
             else:
                 measured[f"{qt}_ms"] = {"avg": qt_data["mean_ms"]}
     ingestion_s = ostrich_data.get("ingestion_s")
-    measured["ingestion_s"] = ingestion_s if ingestion_s else PUBLISHED_RESULTS["OSTRICH"]["ingestion_s"]
+    measured["ingestion_s"] = ingestion_s or PUBLISHED_RESULTS["OSTRICH"]["ingestion_s"]
     measured["notes"] = "measured on this hardware"
     PUBLISHED_RESULTS["OSTRICH"] = measured
 
 
-def load_tal_ingestion_time(ocdm_timing_file: Path, qlever_timing_file: Path) -> float | None:
+def load_tal_ingestion_time(
+    ocdm_timing_file: Path, qlever_timing_file: Path
+) -> float | None:
     total = 0.0
     found = False
     if ocdm_timing_file.exists():
-        with open(ocdm_timing_file, "r", encoding="utf-8") as f:
+        with ocdm_timing_file.open(encoding="utf-8") as f:
             total += json.load(f)["ocdm_conversion_s"]
             found = True
     if qlever_timing_file.exists():
-        with open(qlever_timing_file, "r", encoding="utf-8") as f:
+        with qlever_timing_file.open(encoding="utf-8") as f:
             total += json.load(f)["qlever_indexing_s"]
             found = True
     return total if found else None
@@ -645,16 +794,22 @@ def load_tal_ingestion_time(ocdm_timing_file: Path, qlever_timing_file: Path) ->
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    parser.add_argument(
+        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+    )
     args = parser.parse_args()
 
     results_file = DATA_DIR / f"benchmark_results_{args.granularity}.json"
-    ostrich_results_file = DATA_DIR / f"ostrich_benchmark_results_{args.granularity}.json"
+    ostrich_results_file = (
+        DATA_DIR / f"ostrich_benchmark_results_{args.granularity}.json"
+    )
     ocdm_timing_file = DATA_DIR / f"ocdm_conversion_time_{args.granularity}.json"
     qlever_timing_file = DATA_DIR / f"qlever_indexing_time_{args.granularity}.json"
     output_dir = DATA_DIR / "analysis" / args.granularity
 
-    r43ples_results_file = DATA_DIR / f"r43ples_benchmark_results_{args.granularity}.json"
+    r43ples_results_file = (
+        DATA_DIR / f"r43ples_benchmark_results_{args.granularity}.json"
+    )
 
     data = load_results(results_file)
     load_measured_ostrich_results(ostrich_results_file)
@@ -678,7 +833,9 @@ def main():
     print_results_table(tal_aggregates)
 
     console.rule("[bold]Generating output files")
-    comparison = generate_comparison_table(tal_aggregates, ocdm_timing_file, qlever_timing_file)
+    comparison = generate_comparison_table(
+        tal_aggregates, ocdm_timing_file, qlever_timing_file
+    )
     write_csv(comparison, output_dir / "comparison.csv")
     generate_latex_comparison(comparison, output_dir / "comparison.tex")
 
@@ -693,7 +850,7 @@ def main():
         "disk_usage": disk_usage,
     }
     summary_path = output_dir / "summary.json"
-    with open(summary_path, "w", encoding="utf-8") as f:
+    with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, default=str)
     console.print(f"  Saved: {summary_path}")
 

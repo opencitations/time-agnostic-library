@@ -38,6 +38,7 @@ def build_config(granularity: str) -> dict:
         "graphdb_connector_name": "",
     }
 
+
 BASE_TIMESTAMP = datetime.fromisoformat("2015-08-01T00:00:00+00:00")
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -46,9 +47,9 @@ QUERIES_DIR = DATA_DIR / "queries"
 
 def parse_bear_query_file(filepath: Path) -> list[tuple[str, str, str]]:
     queries = []
-    with open(filepath, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
+    with filepath.open(encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
             parts = line.split(" ", 2)
@@ -68,11 +69,15 @@ def bear_pattern_to_sparql(pattern: tuple[str, str, str], pattern_type: str) -> 
         return f"SELECT ?s ?o WHERE {{ ?s {p} ?o . }}"
     if pattern_type == "po":
         return f"SELECT ?s WHERE {{ ?s {p} {o} . }}"
-    raise ValueError(f"Unknown pattern type: {pattern_type}")
+    msg = f"Unknown pattern type: {pattern_type}"
+    raise ValueError(msg)
 
 
 def generate_timestamps(num_versions: int, interval: timedelta) -> list[str]:
-    return [(BASE_TIMESTAMP + interval * i).strftime("%Y-%m-%dT%H:%M:%S+00:00") for i in range(num_versions)]
+    return [
+        (BASE_TIMESTAMP + interval * i).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        for i in range(num_versions)
+    ]
 
 
 def generate_vm_queries(
@@ -84,15 +89,17 @@ def generate_vm_queries(
     for i, ts in enumerate(timestamps):
         for j, pattern in enumerate(patterns):
             sparql = bear_pattern_to_sparql(pattern, pattern_type)
-            queries.append({
-                "type": "vm",
-                "pattern_type": pattern_type,
-                "pattern_index": j,
-                "version_index": i,
-                "timestamp": ts,
-                "sparql": sparql,
-                "on_time": (ts, ts),
-            })
+            queries.append(
+                {
+                    "type": "vm",
+                    "pattern_type": pattern_type,
+                    "pattern_index": j,
+                    "version_index": i,
+                    "timestamp": ts,
+                    "sparql": sparql,
+                    "on_time": (ts, ts),
+                }
+            )
     return queries
 
 
@@ -102,7 +109,9 @@ def generate_dm_queries(
     timestamps: list[str],
     dm_step: int,
 ) -> list[dict]:
-    diff_versions = list(range(dm_step, min(len(timestamps), dm_step * 11 + 1), dm_step))
+    diff_versions = list(
+        range(dm_step, min(len(timestamps), dm_step * 11 + 1), dm_step)
+    )
     if len(timestamps) - 1 not in diff_versions:
         diff_versions.append(len(timestamps) - 1)
 
@@ -114,17 +123,19 @@ def generate_dm_queries(
         ti = timestamps[vi]
         for j, pattern in enumerate(patterns):
             sparql = bear_pattern_to_sparql(pattern, pattern_type)
-            queries.append({
-                "type": "dm",
-                "pattern_type": pattern_type,
-                "pattern_index": j,
-                "version_start": 0,
-                "version_end": vi,
-                "timestamp_start": t0,
-                "timestamp_end": ti,
-                "sparql": sparql,
-                "on_time": (t0, ti),
-            })
+            queries.append(
+                {
+                    "type": "dm",
+                    "pattern_type": pattern_type,
+                    "pattern_index": j,
+                    "version_start": 0,
+                    "version_end": vi,
+                    "timestamp_start": t0,
+                    "timestamp_end": ti,
+                    "sparql": sparql,
+                    "on_time": (t0, ti),
+                }
+            )
     return queries
 
 
@@ -135,13 +146,15 @@ def generate_vq_queries(
     queries = []
     for j, pattern in enumerate(patterns):
         sparql = bear_pattern_to_sparql(pattern, pattern_type)
-        queries.append({
-            "type": "vq",
-            "pattern_type": pattern_type,
-            "pattern_index": j,
-            "sparql": sparql,
-            "on_time": None,
-        })
+        queries.append(
+            {
+                "type": "vq",
+                "pattern_type": pattern_type,
+                "pattern_index": j,
+                "sparql": sparql,
+                "on_time": None,
+            }
+        )
     return queries
 
 
@@ -157,8 +170,12 @@ def parse_and_generate(num_versions: int, interval: timedelta, dm_step: int) -> 
         patterns = parse_bear_query_file(query_file)
         console.print(f"  Parsed {len(patterns)} {pattern_type} patterns")
 
-        all_queries["vm"].extend(generate_vm_queries(patterns, pattern_type, timestamps))
-        all_queries["dm"].extend(generate_dm_queries(patterns, pattern_type, timestamps, dm_step))
+        all_queries["vm"].extend(
+            generate_vm_queries(patterns, pattern_type, timestamps)
+        )
+        all_queries["dm"].extend(
+            generate_dm_queries(patterns, pattern_type, timestamps, dm_step)
+        )
         all_queries["vq"].extend(generate_vq_queries(patterns, pattern_type))
 
     return all_queries

@@ -1,12 +1,10 @@
-#!/usr/bin/python
-
 # SPDX-FileCopyrightText: 2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # SPDX-License-Identifier: ISC
 
 import gzip
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from time_agnostic_library.ocdm_converter import (
@@ -24,16 +22,23 @@ from time_agnostic_library.ocdm_converter import (
 
 class TestParseNtriplesLine:
     def test_uri_triple(self):
-        line = '<http://example.com/s> <http://example.com/p> <http://example.com/o> .'
-        assert parse_ntriples_line(line) == ('<http://example.com/s>', '<http://example.com/p>', '<http://example.com/o>')
+        line = "<http://example.com/s> <http://example.com/p> <http://example.com/o> ."
+        assert parse_ntriples_line(line) == (
+            "<http://example.com/s>",
+            "<http://example.com/p>",
+            "<http://example.com/o>",
+        )
 
     def test_literal_with_datatype(self):
-        line = '<http://example.com/s> <http://example.com/p> "42"^^<http://www.w3.org/2001/XMLSchema#integer> .'
+        line = (
+            "<http://example.com/s> <http://example.com/p> "
+            '"42"^^<http://www.w3.org/2001/XMLSchema#integer> .'
+        )
         result = parse_ntriples_line(line)
         assert result is not None
-        assert result[0] == '<http://example.com/s>'
-        assert result[1] == '<http://example.com/p>'
-        assert '42' in result[2]
+        assert result[0] == "<http://example.com/s>"
+        assert result[1] == "<http://example.com/p>"
+        assert "42" in result[2]
 
     def test_literal_with_lang_tag(self):
         line = '<http://example.com/s> <http://example.com/p> "hello"@en .'
@@ -48,28 +53,30 @@ class TestParseNtriplesLine:
         assert result[2] == '"plain text"'
 
     def test_blank_node_subject(self):
-        line = '_:b0 <http://example.com/p> <http://example.com/o> .'
+        line = "_:b0 <http://example.com/p> <http://example.com/o> ."
         result = parse_ntriples_line(line)
         assert result is not None
-        assert result[0] == '_:b0'
+        assert result[0] == "_:b0"
 
     def test_blank_node_object(self):
-        line = '<http://example.com/s> <http://example.com/p> _:b1 .'
+        line = "<http://example.com/s> <http://example.com/p> _:b1 ."
         result = parse_ntriples_line(line)
         assert result is not None
-        assert result[2] == '_:b1'
+        assert result[2] == "_:b1"
 
     def test_comment_line(self):
-        assert parse_ntriples_line('# This is a comment') is None
+        assert parse_ntriples_line("# This is a comment") is None
 
     def test_empty_line(self):
-        assert parse_ntriples_line('') is None
-        assert parse_ntriples_line('   ') is None
+        assert parse_ntriples_line("") is None
+        assert parse_ntriples_line("   ") is None
 
     def test_object_normalizer(self):
         line = '<http://example.com/s> <http://example.com/p> "value" .'
+
         def normalizer(obj):
             return obj.upper()
+
         result = parse_ntriples_line(line, object_normalizer=normalizer)
         assert result is not None
         assert result[2] == '"VALUE"'
@@ -78,205 +85,235 @@ class TestParseNtriplesLine:
         line = r'<http://example.com/s> <http://example.com/p> "line1\nline2" .'
         result = parse_ntriples_line(line)
         assert result is not None
-        assert 'line1' in result[2]
+        assert "line1" in result[2]
 
 
 class TestParseNtriplesLineFallback:
     def test_non_uri_datatype_fallback(self):
         line = '<http://s> <http://p> "42"^^xsd:integer .'
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '"42"^^xsd:integer')
+        assert result == ("<http://s>", "<http://p>", '"42"^^xsd:integer')
 
     def test_no_trailing_dot(self):
-        line = '<http://s> <http://p> <http://o>'
+        line = "<http://s> <http://p> <http://o>"
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '<http://o>')
+        assert result == ("<http://s>", "<http://p>", "<http://o>")
 
     def test_fallback_literal_with_datatype_uri(self):
         line = '<http://s> <http://p> "val"^^<http://type>'
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '"val"^^<http://type>')
+        assert result == ("<http://s>", "<http://p>", '"val"^^<http://type>')
 
     def test_fallback_literal_with_lang_tag(self):
         line = '<http://s> <http://p> "hello"@en'
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '"hello"@en')
+        assert result == ("<http://s>", "<http://p>", '"hello"@en')
 
     def test_fallback_plain_literal(self):
         line = '<http://s> <http://p> "text"'
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '"text"')
+        assert result == ("<http://s>", "<http://p>", '"text"')
 
     def test_fallback_blank_node(self):
-        line = '_:b0 <http://p> _:b1'
+        line = "_:b0 <http://p> _:b1"
         result = parse_ntriples_line(line)
-        assert result == ('_:b0', '<http://p>', '_:b1')
+        assert result == ("_:b0", "<http://p>", "_:b1")
 
     def test_fallback_escaped_literal(self):
         line = r'<http://s> <http://p> "line1\"quoted"'
         result = parse_ntriples_line(line)
         assert result is not None
-        assert 'quoted' in result[2]
+        assert "quoted" in result[2]
 
     def test_fallback_with_normalizer(self):
         line = '<http://s> <http://p> "value"'
+
         def normalizer(obj):
             return obj.upper()
+
         result = parse_ntriples_line(line, object_normalizer=normalizer)
         assert result is not None
         assert result[2] == '"VALUE"'
 
     def test_fallback_incomplete_line(self):
-        line = '<http://s> <http://p>'
+        line = "<http://s> <http://p>"
         result = parse_ntriples_line(line)
         assert result is None
 
     def test_fallback_dot_no_space(self):
-        line = '<http://s> <http://p> <http://o>.'
+        line = "<http://s> <http://p> <http://o>."
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '<http://o>')
+        assert result == ("<http://s>", "<http://p>", "<http://o>")
 
     def test_fallback_tab_separator(self):
-        line = '<http://s>\t<http://p>\t<http://o>'
+        line = "<http://s>\t<http://p>\t<http://o>"
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '<http://o>')
+        assert result == ("<http://s>", "<http://p>", "<http://o>")
 
     def test_fallback_dot_no_space_non_uri_dtype(self):
         line = '<http://s> <http://p> "42"^^xsd:integer.'
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '"42"^^xsd:integer')
+        assert result == ("<http://s>", "<http://p>", '"42"^^xsd:integer')
 
     def test_fallback_non_uri_datatype_with_trailing(self):
         line = '<http://s> <http://p> "42"^^xsd:integer extra'
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '"42"^^xsd:integer')
+        assert result == ("<http://s>", "<http://p>", '"42"^^xsd:integer')
 
     def test_fallback_non_uri_datatype_no_space(self):
         line = '<http://s> <http://p> "42"^^xsd:integer'
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '"42"^^xsd:integer')
+        assert result == ("<http://s>", "<http://p>", '"42"^^xsd:integer')
 
     def test_fallback_lang_tag_with_trailing(self):
         line = '<http://s> <http://p> "hello"@en extra'
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '"hello"@en')
+        assert result == ("<http://s>", "<http://p>", '"hello"@en')
 
     def test_fallback_unknown_chars(self):
-        line = 'foo <http://p> bar'
+        line = "foo <http://p> bar"
         result = parse_ntriples_line(line)
-        assert result == ('foo', '<http://p>', 'bar')
+        assert result == ("foo", "<http://p>", "bar")
 
     def test_fallback_lang_tag_no_space(self):
         line = '<http://s> <http://p> "ciao"@it'
         result = parse_ntriples_line(line)
-        assert result == ('<http://s>', '<http://p>', '"ciao"@it')
+        assert result == ("<http://s>", "<http://p>", '"ciao"@it')
 
 
 class TestExtractSubjectUri:
     def test_angle_bracket_uri(self):
-        assert extract_subject_uri('<http://example.com/s>') == 'http://example.com/s'
+        assert extract_subject_uri("<http://example.com/s>") == "http://example.com/s"
 
     def test_blank_node(self):
-        assert extract_subject_uri('_:b0') == '_:b0'
+        assert extract_subject_uri("_:b0") == "_:b0"
 
 
 class TestReadNtriplesFile:
     def test_read_plain_file(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.nt', delete=False) as f:
-            f.write('<http://example.com/s1> <http://example.com/p> <http://example.com/o1> .\n')
-            f.write('# comment\n')
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".nt", delete=False) as f:
+            f.write(
+                "<http://example.com/s1> <http://example.com/p> "
+                "<http://example.com/o1> .\n"
+            )
+            f.write("# comment\n")
             f.write('<http://example.com/s2> <http://example.com/p> "text" .\n')
             path = Path(f.name)
         result = read_ntriples_file(path)
         assert len(result) == 2
-        assert result[0][0] == '<http://example.com/s1>'
+        assert result[0][0] == "<http://example.com/s1>"
         assert result[1][2] == '"text"'
         path.unlink()
 
-
     def test_read_ntriples_file_gzip(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir) / 'test.nt.gz'
-            with gzip.open(path, 'wt', encoding='utf-8') as f:
-                f.write('<http://example.com/s> <http://example.com/p> <http://example.com/o> .\n')
+            path = Path(tmpdir) / "test.nt.gz"
+            with gzip.open(path, "wt", encoding="utf-8") as f:
+                f.write(
+                    "<http://example.com/s> <http://example.com/p> "
+                    "<http://example.com/o> .\n"
+                )
             result = read_ntriples_file(path)
-            assert result == [('<http://example.com/s>', '<http://example.com/p>', '<http://example.com/o>')]
+            assert result == [
+                (
+                    "<http://example.com/s>",
+                    "<http://example.com/p>",
+                    "<http://example.com/o>",
+                )
+            ]
 
 
 class TestGroupTriplesBySubject:
     def test_grouping(self):
         triples = [
-            ('<http://example.com/s1>', '<http://example.com/p1>', '"a"'),
-            ('<http://example.com/s1>', '<http://example.com/p2>', '"b"'),
-            ('<http://example.com/s2>', '<http://example.com/p1>', '"c"'),
+            ("<http://example.com/s1>", "<http://example.com/p1>", '"a"'),
+            ("<http://example.com/s1>", "<http://example.com/p2>", '"b"'),
+            ("<http://example.com/s2>", "<http://example.com/p1>", '"c"'),
         ]
         result = group_triples_by_subject(triples)
-        assert result['http://example.com/s1'] == {('<http://example.com/p1>', '"a"'), ('<http://example.com/p2>', '"b"')}
-        assert result['http://example.com/s2'] == {('<http://example.com/p1>', '"c"')}
+        assert result["http://example.com/s1"] == {
+            ("<http://example.com/p1>", '"a"'),
+            ("<http://example.com/p2>", '"b"'),
+        }
+        assert result["http://example.com/s2"] == {("<http://example.com/p1>", '"c"')}
 
 
 class TestReadAndGroup:
     def test_with_normalizer(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir) / 'test.nt'
+            path = Path(tmpdir) / "test.nt"
             path.write_text(
                 '<http://example.com/s1> <http://example.com/p> "abc" .\n'
                 '<http://example.com/s2> <http://example.com/p> "42"^^xsd:integer\n'
             )
+
             def normalizer(obj):
                 return obj.upper()
-            result = _read_and_group(path, normalizer)
-            assert result['http://example.com/s1'] == {('<http://example.com/p>', '"ABC"')}
-            assert result['http://example.com/s2'] == {('<http://example.com/p>', '"42"^^XSD:INTEGER')}
 
+            result = _read_and_group(path, normalizer)
+            assert result["http://example.com/s1"] == {
+                ("<http://example.com/p>", '"ABC"')
+            }
+            assert result["http://example.com/s2"] == {
+                ("<http://example.com/p>", '"42"^^XSD:INTEGER')
+            }
 
     def test_gzip(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir) / 'test.nt.gz'
-            with gzip.open(path, 'wt', encoding='utf-8') as f:
-                f.write('<http://example.com/s> <http://example.com/p> <http://example.com/o> .\n')
+            path = Path(tmpdir) / "test.nt.gz"
+            with gzip.open(path, "wt", encoding="utf-8") as f:
+                f.write(
+                    "<http://example.com/s> <http://example.com/p> "
+                    "<http://example.com/o> .\n"
+                )
             result = _read_and_group(path)
-            assert result['http://example.com/s'] == {('<http://example.com/p>', '<http://example.com/o>')}
+            assert result["http://example.com/s"] == {
+                ("<http://example.com/p>", "<http://example.com/o>")
+            }
 
     def test_fallback_no_normalizer(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir) / 'test.nt'
-            path.write_text('<http://example.com/s> <http://example.com/p> "42"^^xsd:integer\n')
+            path = Path(tmpdir) / "test.nt"
+            path.write_text(
+                '<http://example.com/s> <http://example.com/p> "42"^^xsd:integer\n'
+            )
             result = _read_and_group(path)
-            assert result['http://example.com/s'] == {('<http://example.com/p>', '"42"^^xsd:integer')}
+            assert result["http://example.com/s"] == {
+                ("<http://example.com/p>", '"42"^^xsd:integer')
+            }
 
 
 class TestBuildUpdateQuery:
     def test_delete_and_insert(self):
         result = _build_update_query(
-            'http://example.com/s',
-            'http://example.com/graph/',
-            {('<http://example.com/p>', '"old"')},
-            {('<http://example.com/p>', '"new"')},
+            "http://example.com/s",
+            "http://example.com/graph/",
+            {("<http://example.com/p>", '"old"')},
+            {("<http://example.com/p>", '"new"')},
         )
-        assert 'DELETE DATA' in result
-        assert 'INSERT DATA' in result
-        assert '; ' in result
+        assert "DELETE DATA" in result
+        assert "INSERT DATA" in result
+        assert "; " in result
 
     def test_delete_only(self):
         result = _build_update_query(
-            'http://example.com/s',
-            'http://example.com/graph/',
-            {('<http://example.com/p>', '"old"')},
+            "http://example.com/s",
+            "http://example.com/graph/",
+            {("<http://example.com/p>", '"old"')},
             set(),
         )
-        assert 'DELETE DATA' in result
-        assert 'INSERT DATA' not in result
+        assert "DELETE DATA" in result
+        assert "INSERT DATA" not in result
 
     def test_insert_only(self):
         result = _build_update_query(
-            'http://example.com/s',
-            'http://example.com/graph/',
+            "http://example.com/s",
+            "http://example.com/graph/",
             set(),
-            {('<http://example.com/p>', '"new"')},
+            {("<http://example.com/p>", '"new"')},
         )
-        assert 'DELETE DATA' not in result
-        assert 'INSERT DATA' in result
+        assert "DELETE DATA" not in result
+        assert "INSERT DATA" in result
 
 
 class TestEscapeSparql:
@@ -287,104 +324,117 @@ class TestEscapeSparql:
 
 class TestFormatTimestamp:
     def test_format(self):
-        dt = datetime(2021, 5, 7, 9, 59, 15)
-        assert _format_timestamp(dt) == '2021-05-07T09:59:15+00:00'
+        dt = datetime(2021, 5, 7, 9, 59, 15, tzinfo=timezone.utc)
+        assert _format_timestamp(dt) == "2021-05-07T09:59:15+00:00"
 
 
 class TestOCDMConverterIC:
     def test_convert_from_ic(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
-            v1 = tmp / 'v1.nt'
-            v2 = tmp / 'v2.nt'
-            v3 = tmp / 'v3.nt'
+            v1 = tmp / "v1.nt"
+            v2 = tmp / "v2.nt"
+            v3 = tmp / "v3.nt"
             v1.write_text(
                 '<http://example.com/e1> <http://example.com/p> "value1" .\n'
-                '<http://example.com/e1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.com/Type> .\n'
+                "<http://example.com/e1> "
+                "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
+                "<http://example.com/Type> .\n"
                 '<http://example.com/e2> <http://example.com/p> "value2" .\n'
             )
             v2.write_text(
                 '<http://example.com/e1> <http://example.com/p> "value1_updated" .\n'
-                '<http://example.com/e1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.com/Type> .\n'
+                "<http://example.com/e1> "
+                "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
+                "<http://example.com/Type> .\n"
                 '<http://example.com/e2> <http://example.com/p> "value2" .\n'
             )
             v3.write_text(
                 '<http://example.com/e1> <http://example.com/p> "value1_updated" .\n'
-                '<http://example.com/e1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.com/Type> .\n'
+                "<http://example.com/e1> "
+                "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
+                "<http://example.com/Type> .\n"
             )
 
             timestamps = [
-                datetime(2021, 5, 7, 9, 0, 0),
-                datetime(2021, 5, 8, 9, 0, 0),
-                datetime(2021, 5, 9, 9, 0, 0),
+                datetime(2021, 5, 7, 9, 0, 0, tzinfo=timezone.utc),
+                datetime(2021, 5, 8, 9, 0, 0, tzinfo=timezone.utc),
+                datetime(2021, 5, 9, 9, 0, 0, tzinfo=timezone.utc),
             ]
-            dataset_out = tmp / 'dataset.nq'
-            prov_out = tmp / 'provenance.nq'
+            dataset_out = tmp / "dataset.nq"
+            prov_out = tmp / "provenance.nq"
 
-            converter = OCDMConverter('http://example.com/graph/', 'http://example.com/agent')
+            converter = OCDMConverter(
+                "http://example.com/graph/", "http://example.com/agent"
+            )
             converter.convert_from_ic([v1, v2, v3], timestamps, dataset_out, prov_out)
 
             dataset_text = dataset_out.read_text()
-            assert '<http://example.com/e1>' in dataset_text
-            assert 'value1_updated' in dataset_text
-            assert '<http://example.com/e2>' not in dataset_text
+            assert "<http://example.com/e1>" in dataset_text
+            assert "value1_updated" in dataset_text
+            assert "<http://example.com/e2>" not in dataset_text
 
             prov_text = prov_out.read_text()
-            assert 'specializationOf' in prov_text
-            assert 'generatedAtTime' in prov_text
-            assert 'hasUpdateQuery' in prov_text
-            assert 'wasDerivedFrom' in prov_text
-            assert 'invalidatedAtTime' in prov_text
-            assert 'The entity has been created.' in prov_text
-            assert 'The entity has been modified.' in prov_text
+            assert "specializationOf" in prov_text
+            assert "generatedAtTime" in prov_text
+            assert "hasUpdateQuery" in prov_text
+            assert "wasDerivedFrom" in prov_text
+            assert "invalidatedAtTime" in prov_text
+            assert "The entity has been created." in prov_text
+            assert "The entity has been modified." in prov_text
 
-            entities_in_data = {'http://example.com/e1', 'http://example.com/e2'}
+            entities_in_data = {"http://example.com/e1", "http://example.com/e2"}
             for entity in entities_in_data:
-                assert f'<{entity}/prov/se/1>' in prov_text
+                assert f"<{entity}/prov/se/1>" in prov_text
 
 
 class TestOCDMConverterCB:
     def test_convert_from_cb(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
-            initial = tmp / 'initial.nt'
+            initial = tmp / "initial.nt"
             initial.write_text(
                 '<http://example.com/e1> <http://example.com/p> "value1" .\n'
                 '<http://example.com/e2> <http://example.com/p> "value2" .\n'
             )
-            added1 = tmp / 'added1.nt'
+            added1 = tmp / "added1.nt"
             added1.write_text(
                 '<http://example.com/e1> <http://example.com/p> "value1_new" .\n'
             )
-            deleted1 = tmp / 'deleted1.nt'
+            deleted1 = tmp / "deleted1.nt"
             deleted1.write_text(
                 '<http://example.com/e1> <http://example.com/p> "value1" .\n'
             )
-            added2 = tmp / 'added2.nt'
-            added2.write_text('')
-            deleted2 = tmp / 'deleted2.nt'
+            added2 = tmp / "added2.nt"
+            added2.write_text("")
+            deleted2 = tmp / "deleted2.nt"
             deleted2.write_text(
                 '<http://example.com/e2> <http://example.com/p> "value2" .\n'
             )
 
             timestamps = [
-                datetime(2021, 5, 7, 9, 0, 0),
-                datetime(2021, 5, 8, 9, 0, 0),
-                datetime(2021, 5, 9, 9, 0, 0),
+                datetime(2021, 5, 7, 9, 0, 0, tzinfo=timezone.utc),
+                datetime(2021, 5, 8, 9, 0, 0, tzinfo=timezone.utc),
+                datetime(2021, 5, 9, 9, 0, 0, tzinfo=timezone.utc),
             ]
-            dataset_out = tmp / 'dataset.nq'
-            prov_out = tmp / 'provenance.nq'
+            dataset_out = tmp / "dataset.nq"
+            prov_out = tmp / "provenance.nq"
 
-            converter = OCDMConverter('http://example.com/graph/', 'http://example.com/agent')
+            converter = OCDMConverter(
+                "http://example.com/graph/", "http://example.com/agent"
+            )
             converter.convert_from_cb(
-                initial, [(added1, deleted1), (added2, deleted2)],
-                timestamps, dataset_out, prov_out,
+                initial,
+                [(added1, deleted1), (added2, deleted2)],
+                timestamps,
+                dataset_out,
+                prov_out,
             )
 
             dataset_text = dataset_out.read_text()
-            assert 'value1_new' in dataset_text
-            assert 'value2' not in dataset_text
+            assert "value1_new" in dataset_text
+            assert "value2" not in dataset_text
 
             prov_text = prov_out.read_text()
-            assert 'specializationOf' in prov_text
-            assert 'invalidatedAtTime' in prov_text
+            assert "specializationOf" in prov_text
+            assert "invalidatedAtTime" in prov_text

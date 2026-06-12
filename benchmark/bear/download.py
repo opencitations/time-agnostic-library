@@ -122,7 +122,9 @@ def extract_zip(archive: Path, dest_dir: Path) -> None:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    parser.add_argument(
+        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+    )
     args = parser.parse_args()
 
     granularity = args.granularity

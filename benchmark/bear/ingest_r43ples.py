@@ -39,18 +39,18 @@ PROGRESS_COLUMNS = (
 def read_safe_triples(filepath: Path) -> list[str]:
     safe = []
     with gzip.open(filepath, "rt", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
+        for raw_line in f:
+            line = raw_line.strip()
             if not line:
                 continue
             parts = line.split('"')
             if len(parts) > 3:
                 continue
-            if '\\n' in line or '\\t' in line:
+            if "\\n" in line or "\\t" in line:
                 continue
             # R43ples' getStringEnclosedInBraces counts {/} without skipping
             # string literals, so braces inside literals corrupt query parsing
-            if len(parts) >= 2 and ('{' in parts[1] or '}' in parts[1]):
+            if len(parts) >= 2 and ("{" in parts[1] or "}" in parts[1]):
                 continue
             safe.append(line)
     return safe
@@ -76,7 +76,9 @@ def send_update(endpoint: str, action: str, triples: list[str]) -> bool:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--granularity", choices=["daily", "hourly", "instant"], default="daily")
+    parser.add_argument(
+        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+    )
     parser.add_argument("--port", type=int, default=9998)
     args = parser.parse_args()
 
@@ -86,7 +88,9 @@ def main():
     ic_dir = data_dir / args.granularity / "IC"
     cb_dir = data_dir / args.granularity / "CB"
 
-    console.print(f"[bold]R43ples ingestion ({args.granularity}, {num_versions} versions)")
+    console.print(
+        f"[bold]R43ples ingestion ({args.granularity}, {num_versions} versions)"
+    )
 
     requests.post(
         endpoint,
@@ -102,7 +106,7 @@ def main():
     num_batches = (len(triples) + BATCH_SIZE - 1) // BATCH_SIZE
     console.print(f"  Initial snapshot: {len(triples)} triples ({num_batches} batches)")
     for i in range(0, len(triples), BATCH_SIZE):
-        send_update(endpoint, "INSERT", triples[i:i + BATCH_SIZE])
+        send_update(endpoint, "INSERT", triples[i : i + BATCH_SIZE])
 
     revision_map: dict[int, int] = {1: num_batches}
     current_rev = num_batches
@@ -126,7 +130,7 @@ def main():
     console.print(f"  R43ples revisions: {current_rev}")
 
     map_file = data_dir / f"r43ples_revision_map_{args.granularity}.json"
-    with open(map_file, "w", encoding="utf-8") as f:
+    with map_file.open("w", encoding="utf-8") as f:
         json.dump(revision_map, f)
     console.print(f"  Revision map: {map_file}")
 
