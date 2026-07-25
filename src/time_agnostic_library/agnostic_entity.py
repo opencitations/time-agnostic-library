@@ -227,11 +227,15 @@ class AgnosticEntity:
         include_related_objects: bool = False,
         include_merged_entities: bool = False,
         include_reverse_relations: bool = False,
+        include_historical_reverse_relations: bool = False,
+        reverse_relations_depth: int | None = None,
     ):
         self.res = res
         self.include_related_objects = include_related_objects
         self.include_merged_entities = include_merged_entities
         self.include_reverse_relations = include_reverse_relations
+        self.include_historical_reverse_relations = include_historical_reverse_relations
+        self.reverse_relations_depth = reverse_relations_depth
         self.config = config
 
     def get_history(self, *, include_prov_metadata: bool = False) -> tuple:
@@ -316,6 +320,7 @@ class AgnosticEntity:
                 processed_entities,
                 histories,
                 include_prov_metadata=include_prov_metadata,
+                depth=self.reverse_relations_depth,
             )
 
     def _collect_related_objects_recursively(
@@ -603,6 +608,7 @@ class AgnosticEntity:
                 histories,
                 time,
                 include_prov_metadata=include_prov_metadata,
+                depth=self.reverse_relations_depth,
             )
 
     def _collect_related_objects_states_at_time(
@@ -1210,21 +1216,26 @@ class AgnosticEntity:
                 }}
             """
 
-        prov_query = f"""
-            SELECT DISTINCT ?subject
-            WHERE {{
-                ?snapshot <{ProvEntity.iri_specialization_of}> ?subject .
-                ?snapshot <{ProvEntity.iri_has_update_query}> ?update_query .
-                FILTER(CONTAINS(?update_query, "<{entity_uri}>"))
-            }}
-        """
-
         self._add_reverse_related_entities_from_query(
             query, entity_uri, reverse_related_entity_uris
         )
-        self._add_reverse_related_entities_from_query(
-            prov_query, entity_uri, reverse_related_entity_uris
-        )
+
+        # No index can serve CONTAINS on a literal, so this scans every update
+        # query in the provenance store. It is the only way to reach entities
+        # whose reference was deleted, but it costs a full scan per call and is
+        # therefore requested explicitly rather than by default.
+        if self.include_historical_reverse_relations:
+            prov_query = f"""
+                SELECT DISTINCT ?subject
+                WHERE {{
+                    ?snapshot <{ProvEntity.iri_specialization_of}> ?subject .
+                    ?snapshot <{ProvEntity.iri_has_update_query}> ?update_query .
+                    FILTER(CONTAINS(?update_query, "<{entity_uri}>"))
+                }}
+            """
+            self._add_reverse_related_entities_from_query(
+                prov_query, entity_uri, reverse_related_entity_uris
+            )
 
         return reverse_related_entity_uris
 

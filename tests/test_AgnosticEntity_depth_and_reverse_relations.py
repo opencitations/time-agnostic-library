@@ -167,7 +167,9 @@ class TestAgnosticEntityDepthAndReverseRelations:
     @patch("time_agnostic_library.agnostic_entity.Sparql")
     def test_find_reverse_related_entities_with_mocked_sparql(self, mock_sparql_class):
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
+        agnostic_entity = AgnosticEntity(
+            entity_uri, config=CONFIG, include_historical_reverse_relations=True
+        )
 
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance
@@ -197,6 +199,27 @@ class TestAgnosticEntityDepthAndReverseRelations:
         provenance_query = mock_sparql_class.call_args_list[1].args[0]
         assert f"?subject ?predicate <{entity_uri}>" in dataset_query
         assert f'CONTAINS(?update_query, "<{entity_uri}>")' in provenance_query
+
+    @patch("time_agnostic_library.agnostic_entity.Sparql")
+    def test_find_reverse_related_entities_skips_provenance_scan_by_default(
+        self, mock_sparql_class
+    ):
+        entity_uri = "https://github.com/arcangelo7/time_agnostic/ar/15519"
+        agnostic_entity = AgnosticEntity(entity_uri, config=CONFIG)
+
+        mock_sparql_instance = MagicMock()
+        mock_sparql_class.return_value = mock_sparql_instance
+        mock_sparql_instance.run_select_query.return_value = {
+            "results": {"bindings": [{"subject": {"value": "https://example.com/e1"}}]}
+        }
+
+        reverse_entities = agnostic_entity._find_reverse_related_entities(entity_uri)
+
+        assert reverse_entities == {"https://example.com/e1"}
+        assert mock_sparql_class.call_count == 1
+        assert (
+            "CONTAINS(?update_query" not in mock_sparql_class.call_args_list[0].args[0]
+        )
 
     def test_collect_merged_entities_recursively_with_positive_depth(self):
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ra/4"

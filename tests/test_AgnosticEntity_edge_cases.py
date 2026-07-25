@@ -174,7 +174,11 @@ class TestAgnosticEntityEdgeCases:
         }
 
         entity_uri = "https://github.com/arcangelo7/time_agnostic/test/entity"
-        agnostic_entity = AgnosticEntity(entity_uri, config=non_quadstore_config)
+        agnostic_entity = AgnosticEntity(
+            entity_uri,
+            config=non_quadstore_config,
+            include_historical_reverse_relations=True,
+        )
 
         mock_sparql_instance = MagicMock()
         mock_sparql_class.return_value = mock_sparql_instance

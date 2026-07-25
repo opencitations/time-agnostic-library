@@ -154,7 +154,15 @@ entity = AgnosticEntity(
     config=config,
     include_related_objects=True,
     include_merged_entities=True,
-    include_reverse_relations=False
+    include_reverse_relations=True,
+    include_historical_reverse_relations=True,
+    reverse_relations_depth=2
 )
 entity.get_history(include_prov_metadata=True)
 ```
+
+With `include_reverse_relations=True`, the library recursively includes entities that reference the requested entity in the current dataset. Historical references are excluded by default. Set `include_historical_reverse_relations=True` to also find references that occur only in stored SPARQL UPDATE queries. This option scans provenance update queries and therefore increases query cost.
+
+`reverse_relations_depth` limits reverse-relation recursion. A value of `1` includes direct reverse relations, `2` also includes their direct reverse relations, and `None` applies no depth limit. A value of `0` disables reverse-relation traversal even when `include_reverse_relations` is enabled.
+
+These options apply to both `get_history()` and `get_state_at_time()`.
