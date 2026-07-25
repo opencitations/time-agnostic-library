@@ -1,3 +1,10 @@
+# [7.2.0](https://github.com/opencitations/time-agnostic-library/compare/7.1.0...7.2.0) (2026-07-25)
+
+
+### Features
+
+* **entity:** make historical provenance scans opt-in [release] ([0efc873](https://github.com/opencitations/time-agnostic-library/commit/0efc873a3e2ce6f3cde296e1bdb4b8d604276c23))
+
 # [7.1.0](https://github.com/opencitations/time-agnostic-library/compare/7.0.0...7.1.0) (2026-06-12)
 
 
