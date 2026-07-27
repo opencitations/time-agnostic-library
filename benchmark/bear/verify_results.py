@@ -9,7 +9,7 @@ import statistics
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
@@ -25,7 +25,9 @@ from rich.table import Table
 from time_agnostic_library.agnostic_query import VersionQuery
 
 sys.path.insert(0, str(Path(__file__).parent))
-from parse_queries import build_config
+import corpora
+from corpora import Corpus, QuerySet
+from parse_queries import load_query_set, to_sparql
 
 sys.setrecursionlimit(5000)
 
@@ -33,26 +35,6 @@ console = Console()
 
 DATA_DIR = Path(__file__).parent / "data"
 QUERIES_DIR = DATA_DIR / "queries"
-
-GRANULARITY_CONFIG = {
-    "daily": {
-        "num_versions": 89,
-        "interval": timedelta(days=1),
-        "sample_versions": [0, 44, 88],
-    },
-    "hourly": {
-        "num_versions": 1299,
-        "interval": timedelta(hours=1),
-        "sample_versions": [0, 649, 1298],
-    },
-    "instant": {
-        "num_versions": 21046,
-        "interval": timedelta(minutes=1),
-        "sample_versions": [0, 10522, 21045],
-    },
-}
-
-BASE_TIMESTAMP = datetime.fromisoformat("2015-08-01T00:00:00+00:00")
 
 VERSION_LINE_RE = re.compile(r"^\[Solution in version (\d+)\]")
 
@@ -70,42 +52,24 @@ def parse_bear_result_file(filepath: Path) -> dict[int, int]:
     return dict(counts)
 
 
-def parse_bear_query_file(filepath: Path) -> list[tuple[str, str, str]]:
-    queries = []
-    with filepath.open(encoding="utf-8") as f:
-        for raw_line in f:
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split(" ", 2)
-            if len(parts) == 3:
-                s, p, o = parts
-                if o.endswith(" ."):
-                    o = o[:-2]
-                elif o.endswith("."):
-                    o = o[:-1].strip()
-                queries.append((s.strip(), p.strip(), o.strip()))
-    return queries
+def expected_counts(
+    corpus: Corpus, query_set: QuerySet, atom: str, index: int
+) -> dict[int, int] | None:
+    if not query_set.results:
+        console.print(
+            f"  [yellow]BEAR publishes no expected results for {corpus.name}, "
+            f"so {query_set.name} cannot be verified"
+        )
+        return None
+    path = corpus.expected_results(query_set, atom, index + 1)
+    if not path.exists():
+        console.print(f"  [yellow]Result file not found: {path}")
+        return None
+    return parse_bear_result_file(path)
 
 
-def bear_pattern_to_sparql(pattern: tuple[str, str, str], pattern_type: str) -> str:
-    _, p, o = pattern
-    if pattern_type == "p":
-        return f"SELECT ?s ?o WHERE {{ ?s {p} ?o . }}"
-    if pattern_type == "po":
-        return f"SELECT ?s WHERE {{ ?s {p} {o} . }}"
-    msg = f"Unknown pattern type: {pattern_type}"
-    raise ValueError(msg)
-
-
-def version_to_timestamp(version: int, interval: timedelta) -> str:
-    return (BASE_TIMESTAMP + interval * version).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-
-
-def run_vm_query(
-    sparql: str, version: int, interval: timedelta, config: dict
-) -> tuple[int, float]:
-    ts = version_to_timestamp(version, interval)
+def run_vm_query(sparql: str, timestamp: str, config: dict) -> tuple[int, float]:
+    ts = timestamp
     start = time.perf_counter()
     vq = VersionQuery(sparql, on_time=(ts, ts), config_dict=config)
     result, _ = vq.run_agnostic_query()
@@ -126,34 +90,26 @@ def run_vq_query(sparql: str, config: dict) -> tuple[dict[str, int], float]:
 
 def verify_pattern_vm(
     pattern_idx: int,
-    pattern: tuple[str, str, str],
-    pattern_type: str,
+    sparql: str,
+    query_set: QuerySet,
+    corpus: Corpus,
     config: dict,
-    results_dir: Path,
-    sample_versions: list[int],
-    interval: timedelta,
 ) -> list[dict]:
-    result_prefix = f"mat-{pattern_type}-queries"
-    result_dir = results_dir / pattern_type / "mat" / result_prefix
-    file_idx = pattern_idx + 1
-    result_file = result_dir / f"{result_prefix}-{file_idx}.txt"
-
-    if not result_file.exists():
-        console.print(f"  [yellow]Result file not found: {result_file}")
+    counts = expected_counts(corpus, query_set, "mat", pattern_idx)
+    if counts is None:
         return []
 
-    expected_counts = parse_bear_result_file(result_file)
-    sparql = bear_pattern_to_sparql(pattern, pattern_type)
+    timestamps = corpus.timestamps()
     results = []
 
-    for version in sample_versions:
-        expected = expected_counts.get(version, 0)
-        actual, elapsed = run_vm_query(sparql, version, interval, config)
+    for version in corpus.sample_versions():
+        expected = counts.get(version, 0)
+        actual, elapsed = run_vm_query(sparql, timestamps[version], config)
         match = expected == actual
         results.append(
             {
                 "query_type": "vm",
-                "pattern_type": pattern_type,
+                "pattern_type": query_set.name,
                 "pattern_index": pattern_idx,
                 "version": version,
                 "expected": expected,
@@ -164,7 +120,7 @@ def verify_pattern_vm(
         )
         if not match:
             console.print(
-                f"  [red]MISMATCH VM {pattern_type}[{pattern_idx}] v{version}: "
+                f"  [red]MISMATCH VM {query_set.name}[{pattern_idx}] v{version}: "
                 f"expected={expected} actual={actual}"
             )
 
@@ -173,45 +129,39 @@ def verify_pattern_vm(
 
 def verify_pattern_vq(
     pattern_idx: int,
-    pattern: tuple[str, str, str],
-    pattern_type: str,
+    sparql: str,
+    query_set: QuerySet,
+    corpus: Corpus,
     config: dict,
-    results_dir: Path,
-    num_versions: int,
-    interval: timedelta,
 ) -> list[dict]:
-    result_prefix = f"ver-{pattern_type}-queries"
-    result_dir = results_dir / pattern_type / "ver" / result_prefix
-    file_idx = pattern_idx + 1
-    result_file = result_dir / f"{result_prefix}-{file_idx}.txt"
-
-    if not result_file.exists():
-        console.print(f"  [yellow]Result file not found: {result_file}")
+    counts = expected_counts(corpus, query_set, "ver", pattern_idx)
+    if counts is None:
         return []
 
-    expected_counts = parse_bear_result_file(result_file)
-    sparql = bear_pattern_to_sparql(pattern, pattern_type)
     actual_by_ts, vq_elapsed = run_vq_query(sparql, config)
 
+    version_of = {ts: version for version, ts in enumerate(corpus.timestamps())}
     actual_by_version = {}
     for ts, count in actual_by_ts.items():
-        ts_dt = datetime.fromisoformat(ts)
-        version = int((ts_dt - BASE_TIMESTAMP) / interval)
-        actual_by_version[version] = count
+        version = version_of.get(
+            datetime.fromisoformat(ts).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        )
+        if version is not None:
+            actual_by_version[version] = count
 
     results = []
-    all_versions = set(expected_counts.keys()) | set(actual_by_version.keys())
+    all_versions = set(counts.keys()) | set(actual_by_version.keys())
     mismatches = 0
     for version in sorted(all_versions):
-        if version >= num_versions:
+        if version >= corpus.num_versions:
             continue
-        expected = expected_counts.get(version, 0)
+        expected = counts.get(version, 0)
         actual = actual_by_version.get(version, 0)
         match = expected == actual
         results.append(
             {
                 "query_type": "vq",
-                "pattern_type": pattern_type,
+                "pattern_type": query_set.name,
                 "pattern_index": pattern_idx,
                 "version": version,
                 "expected": expected,
@@ -225,7 +175,7 @@ def verify_pattern_vq(
 
     if mismatches > 0:
         console.print(
-            f"  [red]MISMATCH VQ {pattern_type}[{pattern_idx}]: "
+            f"  [red]MISMATCH VQ {query_set.name}[{pattern_idx}]: "
             f"{mismatches} versions differ"
         )
 
@@ -334,7 +284,7 @@ def save_timing(timing: dict[str, list[float]], path: Path) -> None:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+        "--corpus", choices=corpora.CORPUS_NAMES, default="bear-b-daily"
     )
     parser.add_argument(
         "--save-baseline",
@@ -346,24 +296,17 @@ def main():
     )
     args = parser.parse_args()
 
-    config_g = GRANULARITY_CONFIG[args.granularity]
-    num_versions = config_g["num_versions"]
-    interval = config_g["interval"]
-    sample_versions = config_g["sample_versions"]
-    results_dir = DATA_DIR / args.granularity / "results"
-    baseline_file = DATA_DIR / f"timing_baseline_{args.granularity}.json"
-
-    config = build_config(args.granularity)
+    corpus = corpora.get(args.corpus)
+    baseline_file = DATA_DIR / f"timing_baseline_{corpus.name}.json"
+    config = corpora.build_config(corpus)
 
     all_patterns = []
-    for pattern_type in ["p", "po"]:
-        query_file = QUERIES_DIR / f"{pattern_type}.txt"
-        if not query_file.exists():
-            console.print(f"[yellow]Query file not found: {query_file}")
+    for query_set in corpus.queries:
+        if not query_set.path.exists():
+            console.print(f"[yellow]Query file not found: {query_set.path}")
             continue
-        patterns = parse_bear_query_file(query_file)
-        for idx, pattern in enumerate(patterns):
-            all_patterns.append((idx, pattern, pattern_type))
+        for idx, query in enumerate(load_query_set(query_set)):
+            all_patterns.append((idx, to_sparql(query), query_set))
 
     all_results = []
     passed = 0
@@ -387,33 +330,21 @@ def main():
             status="",
         )
 
-        for pattern_idx, pattern, pattern_type in all_patterns:
+        for pattern_idx, sparql, query_set in all_patterns:
             status_text = f"[green]{passed}[/green] OK  [red]{failed}[/red] FAIL"
             progress.update(
-                task, label=f"{pattern_type}[{pattern_idx}] VM", status=status_text
+                task, label=f"{query_set.name}[{pattern_idx}] VM", status=status_text
             )
             vm_results = verify_pattern_vm(
-                pattern_idx,
-                pattern,
-                pattern_type,
-                config,
-                results_dir,
-                sample_versions,
-                interval,
+                pattern_idx, sparql, query_set, corpus, config
             )
             vm_ok = all(r["match"] for r in vm_results) if vm_results else True
             all_results.extend(vm_results)
             progress.advance(task)
 
-            progress.update(task, label=f"{pattern_type}[{pattern_idx}] VQ")
+            progress.update(task, label=f"{query_set.name}[{pattern_idx}] VQ")
             vq_results = verify_pattern_vq(
-                pattern_idx,
-                pattern,
-                pattern_type,
-                config,
-                results_dir,
-                num_versions,
-                interval,
+                pattern_idx, sparql, query_set, corpus, config
             )
             vq_ok = all(r["match"] for r in vq_results) if vq_results else True
             all_results.extend(vq_results)

@@ -14,6 +14,7 @@ from functools import partial
 from pathlib import Path
 from typing import TypeVar
 
+import corpora
 import requests
 from rich.console import Console
 from rich.progress import (
@@ -39,7 +40,6 @@ DEFAULT_REPLICATIONS = 1
 MAX_RETRIES = 5
 RETRY_BACKOFF_S = 5
 
-NUM_VERSIONS_MAP = {"daily": 89, "hourly": 1299, "instant": 21046}
 DM_STEPS = {"daily": 5, "hourly": 100, "instant": 1500}
 
 QUERY_FILES = ["p.txt", "po.txt"]
@@ -59,8 +59,8 @@ PROGRESS_COLUMNS = (
 T = TypeVar("T")
 
 
-def _restart_container(granularity: str) -> None:
-    container = f"r43ples-bear-{granularity}"
+def _restart_container(corpus_name: str) -> None:
+    container = f"r43ples-bear-{corpus_name}"
     console.print(f"[yellow]Restarting container {container}...")
     subprocess.run(["docker", "restart", container], check=True, capture_output=True)
     for i in range(1, 61):
@@ -79,7 +79,7 @@ def _restart_container(granularity: str) -> None:
     raise RuntimeError(msg)
 
 
-def _with_retry(fn: Callable[[], T], granularity: str) -> T:
+def _with_retry(fn: Callable[[], T], corpus_name: str) -> T:
     for attempt in range(MAX_RETRIES):
         try:
             return fn()
@@ -90,7 +90,7 @@ def _with_retry(fn: Callable[[], T], granularity: str) -> T:
                 f"[yellow]Connection failed (attempt {attempt + 1}/{MAX_RETRIES}), "
                 f"restarting container..."
             )
-            _restart_container(granularity)
+            _restart_container(corpus_name)
             time.sleep(RETRY_BACKOFF_S)
     msg = "unreachable"
     raise RuntimeError(msg)
@@ -114,8 +114,8 @@ def parse_bear_query_file(filepath: Path) -> list[tuple[str, str, str]]:
     return queries
 
 
-def load_revision_map(granularity: str) -> dict[int, int]:
-    map_file = DATA_DIR / f"r43ples_revision_map_{granularity}.json"
+def load_revision_map(corpus_name: str) -> dict[int, int]:
+    map_file = DATA_DIR / f"r43ples_revision_map_{corpus_name}.json"
     if not map_file.exists():
         console.print("[yellow]No revision map found, assuming 1:1 mapping")
         return {}
@@ -186,7 +186,7 @@ def global_warmup(
     num_versions: int,
     endpoint: str,
     revision_map: dict[int, int],
-    granularity: str,
+    corpus_name: str,
 ) -> None:
     sample_versions = [1, num_versions // 2, num_versions]
     sample_patterns = patterns[: min(3, len(patterns))]
@@ -197,7 +197,7 @@ def global_warmup(
         revision = revision_map[v] if revision_map else v
         for pat in sample_patterns:
             sparql = build_sparql(pat, pattern_type, revision)
-            _with_retry(partial(query_r43ples, session, sparql, endpoint), granularity)
+            _with_retry(partial(query_r43ples, session, sparql, endpoint), corpus_name)
 
 
 def run_vm_benchmark(
@@ -210,7 +210,7 @@ def run_vm_benchmark(
     num_replications: int,
     state: dict,
     state_file: Path,
-    granularity: str,
+    corpus_name: str,
     skip: int = 0,
 ) -> None:
     if skip == 0:
@@ -221,7 +221,7 @@ def run_vm_benchmark(
             num_versions,
             endpoint,
             revision_map,
-            granularity,
+            corpus_name,
         )
     total = num_versions * len(patterns)
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
@@ -238,7 +238,7 @@ def run_vm_benchmark(
                 count = 0
                 for _ in range(num_replications):
                     elapsed, count = _with_retry(
-                        partial(timed_query, session, sparql, endpoint), granularity
+                        partial(timed_query, session, sparql, endpoint), corpus_name
                     )
                     times.append(elapsed)
                 median_ms = statistics.median(times) * 1000
@@ -267,7 +267,7 @@ def run_dm_benchmark(
     num_replications: int,
     state: dict,
     state_file: Path,
-    granularity: str,
+    corpus_name: str,
     skip: int = 0,
 ) -> None:
     diff_versions = compute_dm_versions(num_versions, dm_step)
@@ -280,7 +280,7 @@ def run_dm_benchmark(
             num_versions,
             endpoint,
             revision_map,
-            granularity,
+            corpus_name,
         )
     total = len(diff_versions) * len(patterns)
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
@@ -300,11 +300,11 @@ def run_dm_benchmark(
                     start = time.perf_counter()
                     results_v0 = _with_retry(
                         partial(query_r43ples, session, sparql_v0, endpoint),
-                        granularity,
+                        corpus_name,
                     )
                     results_vn = _with_retry(
                         partial(query_r43ples, session, sparql_vn, endpoint),
-                        granularity,
+                        corpus_name,
                     )
                     elapsed = time.perf_counter() - start
                     count = abs(results_vn - results_v0)
@@ -335,7 +335,7 @@ def run_vq_benchmark(
     num_replications: int,
     state: dict,
     state_file: Path,
-    granularity: str,
+    corpus_name: str,
     skip: int = 0,
 ) -> None:
     if skip == 0:
@@ -346,7 +346,7 @@ def run_vq_benchmark(
             num_versions,
             endpoint,
             revision_map,
-            granularity,
+            corpus_name,
         )
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
         task = progress.add_task(
@@ -364,7 +364,7 @@ def run_vq_benchmark(
                     revision = revision_map[version] if revision_map else version
                     sparql = build_sparql(pattern, pattern_type, revision)
                     run_total += _with_retry(
-                        partial(query_r43ples, session, sparql, endpoint), granularity
+                        partial(query_r43ples, session, sparql, endpoint), corpus_name
                     )
                 elapsed = time.perf_counter() - start
                 total_count = run_total
@@ -383,7 +383,7 @@ def run_vq_benchmark(
 
 
 def build_final_output(state: dict) -> dict:
-    ingestion_file = DATA_DIR / f"r43ples_ingestion_time_{state['granularity']}.json"
+    ingestion_file = DATA_DIR / f"r43ples_ingestion_time_{state['corpus_name']}.json"
     ingestion_s = None
     if ingestion_file.exists():
         with ingestion_file.open(encoding="utf-8") as f:
@@ -482,61 +482,61 @@ def print_summary(results: dict) -> None:
     console.print(table)
 
 
-def find_latest_run(granularity: str) -> Path | None:
-    matches = sorted(DATA_DIR.glob(f"r43ples_runs_{granularity}_*.json"))
+def find_latest_run(corpus_name: str) -> Path | None:
+    matches = sorted(DATA_DIR.glob(f"r43ples_runs_{corpus_name}_*.json"))
     if matches:
         return matches[-1]
     return None
 
 
-def create_run_file(granularity: str) -> Path:
+def create_run_file(corpus_name: str) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return DATA_DIR / f"r43ples_runs_{granularity}_{timestamp}.json"
+    return DATA_DIR / f"r43ples_runs_{corpus_name}_{timestamp}.json"
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+        "--corpus", choices=corpora.CORPUS_NAMES, default="bear-b-daily"
     )
     parser.add_argument("--only", choices=["vm", "dm", "vq"], nargs="+")
     parser.add_argument("--replications", type=int, default=DEFAULT_REPLICATIONS)
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
 
-    num_versions = NUM_VERSIONS_MAP[args.granularity]
-    dm_step = DM_STEPS[args.granularity]
+    num_versions = corpora.get(args.corpus).num_versions
+    dm_step = DM_STEPS[args.corpus]
     endpoint = f"http://localhost:{R43PLES_PORT}/r43ples/sparql"
-    output_file = DATA_DIR / f"r43ples_benchmark_results_{args.granularity}.json"
+    output_file = DATA_DIR / f"r43ples_benchmark_results_{args.corpus}.json"
     query_types = args.only or ["vm", "dm", "vq"]
-    revision_map = load_revision_map(args.granularity)
+    revision_map = load_revision_map(args.corpus)
 
     if args.resume:
-        run_file = find_latest_run(args.granularity)
+        run_file = find_latest_run(args.corpus)
         if run_file:
             console.print(f"[bold]Resuming from {run_file}[/bold]")
             with run_file.open(encoding="utf-8") as f:
                 state = json.load(f)
         else:
             console.print("[yellow]No previous run file found, starting fresh")
-            run_file = create_run_file(args.granularity)
+            run_file = create_run_file(args.corpus)
             state = {
                 "replications": args.replications,
-                "granularity": args.granularity,
+                "corpus_name": args.corpus,
                 "num_versions": num_versions,
                 "detail": {"vm": [], "dm": [], "vq": []},
             }
     else:
-        run_file = create_run_file(args.granularity)
+        run_file = create_run_file(args.corpus)
         state = {
             "replications": args.replications,
-            "granularity": args.granularity,
+            "corpus_name": args.corpus,
             "num_versions": num_versions,
             "detail": {"vm": [], "dm": [], "vq": []},
         }
 
     console.print(
-        f"[bold]R43ples benchmark ({args.granularity}, {num_versions} versions)[/bold]"
+        f"[bold]R43ples benchmark ({args.corpus}, {num_versions} versions)[/bold]"
     )
     console.print(f"  Endpoint: {endpoint}")
     console.print(f"  Replications: {args.replications} (global warmup per query type)")
@@ -578,7 +578,7 @@ def main():
                     args.replications,
                     state,
                     run_file,
-                    args.granularity,
+                    args.corpus,
                     skip=completed,
                 )
 
@@ -604,7 +604,7 @@ def main():
                     args.replications,
                     state,
                     run_file,
-                    args.granularity,
+                    args.corpus,
                     skip=completed,
                 )
 
@@ -628,7 +628,7 @@ def main():
                     args.replications,
                     state,
                     run_file,
-                    args.granularity,
+                    args.corpus,
                     skip=completed,
                 )
 

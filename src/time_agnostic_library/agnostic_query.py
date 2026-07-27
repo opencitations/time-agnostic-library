@@ -8,7 +8,11 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import NoReturn
 
+from rdflib import URIRef
+from rdflib.paths import InvPath
+from rdflib.paths import Path as PropertyPath
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import prepareQuery
 
@@ -28,6 +32,69 @@ CONFIG_PATH = "./config.json"
 _OBJECT_POS = 2
 
 _PARALLEL_THRESHOLD = os.cpu_count() or 1
+
+# Algebra nodes the pattern collection below knows how to walk. Anything else
+# would be flattened into a conjunction of its operands, silently returning
+# wrong results, so it is rejected instead.
+_SUPPORTED_ALGEBRA_NODES = frozenset(
+    {"SelectQuery", "Project", "Distinct", "Join", "LeftJoin", "BGP"}
+)
+
+# rdflib maps BIND, the expressions of a SELECT clause and every form of
+# grouping onto Extend, which always wraps the aggregation nodes below it, so
+# the label has to hold for all of them.
+_SPARQL_CONSTRUCT_NAMES = {
+    "Union": "UNION",
+    "Filter": "FILTER",
+    "Minus": "MINUS",
+    "Graph": "GRAPH",
+    "OrderBy": "ORDER BY",
+    "Slice": "LIMIT or OFFSET",
+    "Extend": "BIND or an aggregate function",
+    "ToMultiSet": "VALUES or a subquery",
+}
+
+_COVERAGE_NOTE = (
+    "Time agnostic queries cover SELECT queries made of basic graph patterns "
+    "and OPTIONAL clauses."
+)
+
+
+def _reject(construct: str) -> NoReturn:
+    msg = f"The query uses {construct}, which is not supported. {_COVERAGE_NOTE}"
+    raise ValueError(msg)
+
+
+def _reject_unsupported(node_name: str) -> None:
+    if node_name in _SUPPORTED_ALGEBRA_NODES:
+        return
+    _reject(_SPARQL_CONSTRUCT_NAMES.get(node_name, node_name))
+
+
+def _is_unsupported_path(term: object) -> bool:
+    # An inverse path over a plain predicate is the one path form the library
+    # resolves: see the ^ branch of _get_present_entities. Every other form
+    # would reach the matcher as an opaque predicate string and match nothing.
+    if isinstance(term, InvPath):
+        return not isinstance(term.arg, URIRef)
+    return isinstance(term, PropertyPath)
+
+
+def _n3_triples(node: CompValue) -> list[tuple[str, ...]]:
+    triples = []
+    for triple in node["triples"]:
+        if any(_is_unsupported_path(el) for el in triple):
+            _reject("a property path")
+        triples.append(tuple(el.n3() for el in triple))
+    return triples
+
+
+def _reject_filter_in_optional(node: CompValue) -> None:
+    # rdflib keeps the condition of a FILTER inside an OPTIONAL in the expr slot
+    # of the left join, where TrueFilter stands for no condition at all.
+    if node["expr"].name != "TrueFilter":
+        _reject("a FILTER inside an OPTIONAL")
+
 
 _IO_EXECUTOR = ThreadPoolExecutor(max_workers=2)
 atexit.register(_IO_EXECUTOR.shutdown, wait=False)
@@ -433,6 +500,7 @@ class AgnosticQuery:
         if name == "LeftJoin":
             # OPTIONAL = left join: p1 (left, mandatory) must match, p2 (right,
             # optional) extends the binding if possible, otherwise it's ignored
+            _reject_filter_in_optional(node)
             self._collect_patterns(node["p1"], mandatory)
             opt_group: list[tuple[str, ...]] = []
             self._collect_triples_flat(node["p2"], opt_group)
@@ -444,8 +512,9 @@ class AgnosticQuery:
             self._collect_patterns(node["p2"], mandatory)
         elif "triples" in node:
             # BGP leaf node: convert rdflib terms to N3 strings
-            mandatory.extend(tuple(el.n3() for el in t) for t in node["triples"])
+            mandatory.extend(_n3_triples(node))
         else:
+            _reject_unsupported(name)
             for v in node.values():
                 if isinstance(v, CompValue):
                     self._collect_patterns(v, mandatory)
@@ -453,8 +522,17 @@ class AgnosticQuery:
     def _collect_triples_flat(
         self, node: CompValue, triples: list[tuple[str, ...]]
     ) -> None:
+        name = node.name
+        if name == "LeftJoin":
+            # A nested OPTIONAL: its patterns join the group being flattened.
+            _reject_filter_in_optional(node)
+            self._collect_triples_flat(node["p1"], triples)
+            self._collect_triples_flat(node["p2"], triples)
+            return
         if "triples" in node:
-            triples.extend(tuple(el.n3() for el in t) for t in node["triples"])
+            triples.extend(_n3_triples(node))
+            return
+        _reject_unsupported(name)
         for v in node.values():
             if isinstance(v, CompValue):
                 self._collect_triples_flat(v, triples)

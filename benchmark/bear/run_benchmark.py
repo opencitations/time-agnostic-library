@@ -6,7 +6,6 @@ import argparse
 import json
 import os
 import platform
-import shutil
 import statistics
 import subprocess
 import sys
@@ -31,7 +30,8 @@ from rich.table import Table
 from time_agnostic_library.agnostic_query import DeltaQuery, VersionQuery
 
 sys.path.insert(0, str(Path(__file__).parent))
-from parse_queries import DM_STEPS, GRANULARITY_CONFIG, build_config, parse_and_generate
+import corpora
+from parse_queries import generate
 
 sys.setrecursionlimit(5000)
 
@@ -39,6 +39,8 @@ console = Console()
 
 NUM_RUNS = 5
 ALL_QUERY_TYPES = ["vm", "dm", "vq"]
+
+SAVE_EVERY = 200
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -147,6 +149,23 @@ def _try_query(
         return None
 
 
+def query_key(spec: dict) -> tuple:
+    # Identifies a query across runs, so that resuming does not depend on the
+    # position a query happens to have in the list.
+    return (
+        spec["type"],
+        spec.get("pattern_type"),
+        spec.get("pattern_index"),
+        spec.get("version_index"),
+        spec.get("version_end"),
+    )
+
+
+def pending_queries(queries: list[dict], completed: list[dict]) -> list[dict]:
+    done = {query_key(entry) for entry in completed}
+    return [spec for spec in queries if query_key(spec) not in done]
+
+
 def benchmark_queries(
     queries: list[dict],
     config: dict,
@@ -154,14 +173,16 @@ def benchmark_queries(
     all_results: dict,
     query_type: str,
     output_file: Path,
-    skip: int = 0,
+    total: int | None = None,
 ) -> None:
-    if skip > 0:
-        console.print(f"[dim]Resuming from query {skip + 1}/{len(queries)}[/dim]")
+    total = total if total is not None else len(queries)
+    done = total - len(queries)
+    if done > 0:
+        console.print(f"[dim]Resuming: {len(queries)} queries left of {total}[/dim]")
 
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
-        task = progress.add_task("Running queries", total=len(queries), completed=skip)
-        for query_spec in queries[skip:]:
+        task = progress.add_task("Running queries", total=total, completed=done)
+        for position, query_spec in enumerate(queries, start=1):
             qt = query_spec["type"]
             sparql = query_spec["sparql"]
             on_time = query_spec["on_time"]
@@ -206,14 +227,31 @@ def benchmark_queries(
                     "num_results", last_result.get("num_entities", 0)
                 )
             all_results["results"][query_type].append(entry)
-            save_results(all_results, output_file)
+            if position % SAVE_EVERY == 0:
+                save_results(all_results, output_file)
             progress.advance(task)
+    save_results(all_results, output_file)
 
 
 def save_results(all_results: dict, output_file: Path) -> None:
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with output_file.open("w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2)
+
+
+def update_canonical(
+    all_results: dict, canonical_file: Path, query_types: list[str]
+) -> None:
+    canonical: dict = {"hardware": all_results["hardware"], "results": {}}
+    if canonical_file.exists():
+        with canonical_file.open(encoding="utf-8") as f:
+            canonical = json.load(f)
+        canonical["hardware"] = all_results["hardware"]
+    for query_type in query_types:
+        results = all_results["results"].get(query_type)
+        if results:
+            canonical["results"][query_type] = results
+    save_results(canonical, canonical_file)
 
 
 def print_summary_table(all_results: dict) -> None:
@@ -238,22 +276,22 @@ def print_summary_table(all_results: dict) -> None:
     console.print(table)
 
 
-def find_latest_run(granularity: str) -> Path | None:
-    matches = sorted(DATA_DIR.glob(f"benchmark_runs_{granularity}_*.json"))
+def find_latest_run(corpus_name: str) -> Path | None:
+    matches = sorted(DATA_DIR.glob(f"benchmark_runs_{corpus_name}_*.json"))
     if matches:
         return matches[-1]
     return None
 
 
-def create_run_file(granularity: str) -> Path:
+def create_run_file(corpus_name: str) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return DATA_DIR / f"benchmark_runs_{granularity}_{timestamp}.json"
+    return DATA_DIR / f"benchmark_runs_{corpus_name}_{timestamp}.json"
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+        "--corpus", choices=corpora.CORPUS_NAMES, default="bear-b-daily"
     )
     parser.add_argument(
         "--only",
@@ -274,17 +312,15 @@ def main():
     )
     args = parser.parse_args()
 
-    queries_file = DATA_DIR / f"parsed_queries_{args.granularity}.json"
-    canonical_file = DATA_DIR / f"benchmark_results_{args.granularity}.json"
+    corpus = corpora.get(args.corpus)
+    queries_file = DATA_DIR / f"parsed_queries_{corpus.name}.json"
+    canonical_file = DATA_DIR / f"benchmark_results_{corpus.name}.json"
 
     query_types = args.only or ALL_QUERY_TYPES
 
     if not queries_file.exists():
         console.print(f"[yellow]Parsed queries not found, generating {queries_file}...")
-        gc = GRANULARITY_CONFIG[args.granularity]
-        all_queries = parse_and_generate(
-            gc["num_versions"], gc["interval"], DM_STEPS[args.granularity]
-        )
+        all_queries = generate(corpus)
         queries_file.parent.mkdir(parents=True, exist_ok=True)
         with queries_file.open("w", encoding="utf-8") as f:
             json.dump(all_queries, f, indent=2)
@@ -293,57 +329,55 @@ def main():
         with queries_file.open(encoding="utf-8") as f:
             all_queries = json.load(f)
 
-    config = build_config(args.granularity)
+    config = corpora.build_config(corpus)
 
     hardware = get_hardware_info()
     console.print(f"[bold]Hardware:[/bold] {hardware}")
 
     if args.resume:
-        run_file = find_latest_run(args.granularity)
+        run_file = find_latest_run(corpus.name)
         if run_file:
             console.print(f"[bold]Resuming from {run_file}[/bold]")
             with run_file.open(encoding="utf-8") as f:
                 all_results = json.load(f)
         else:
             console.print("[yellow]No previous run file found, starting fresh[/yellow]")
-            run_file = create_run_file(args.granularity)
+            run_file = create_run_file(corpus.name)
             all_results = {"hardware": hardware, "results": {}}
     else:
-        run_file = create_run_file(args.granularity)
+        run_file = create_run_file(corpus.name)
         all_results = {"hardware": hardware, "results": {}}
 
     for query_type in query_types:
         queries = all_queries.get(query_type, [])
-        existing_count = len(all_results["results"].get(query_type, []))
+        completed = all_results["results"].setdefault(query_type, [])
+        pending = pending_queries(queries, completed)
 
-        if existing_count >= len(queries):
+        if not pending:
             console.print(
                 f"[dim]Skipping {query_type.upper()} "
-                f"({existing_count}/{len(queries)} already completed)[/dim]"
+                f"({len(completed)}/{len(queries)} already completed)[/dim]"
             )
             continue
-
-        if query_type not in all_results["results"]:
-            all_results["results"][query_type] = []
 
         console.rule(
             f"[bold]{query_type.upper()} queries[/bold] "
             f"({len(queries)} queries, {args.runs} runs each)"
         )
         benchmark_queries(
-            queries,
+            pending,
             config,
             num_runs=args.runs,
             all_results=all_results,
             query_type=query_type,
             output_file=run_file,
-            skip=existing_count,
+            total=len(queries),
         )
         console.print(
             f"[green]Saved {query_type.upper()} results to {run_file}[/green]"
         )
 
-    shutil.copy2(run_file, canonical_file)
+    update_canonical(all_results, canonical_file, query_types)
     console.print(f"\nAll results saved to {canonical_file}")
     print_summary_table(all_results)
 

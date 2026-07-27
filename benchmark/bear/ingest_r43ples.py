@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: ISC
 
 import argparse
-import gzip
 import json
 import time
 from pathlib import Path
 
+import corpora
 import requests
 from rich.console import Console
 from rich.progress import (
@@ -24,7 +24,6 @@ console = Console()
 
 GRAPH_URI = "http://bear.benchmark/dataset"
 BATCH_SIZE = 5000
-NUM_VERSIONS_MAP = {"daily": 89, "hourly": 1299, "instant": 21046}
 
 PROGRESS_COLUMNS = (
     SpinnerColumn(),
@@ -38,7 +37,7 @@ PROGRESS_COLUMNS = (
 
 def read_safe_triples(filepath: Path) -> list[str]:
     safe = []
-    with gzip.open(filepath, "rt", encoding="utf-8") as f:
+    with filepath.open(encoding="utf-8") as f:
         for raw_line in f:
             line = raw_line.strip()
             if not line:
@@ -77,20 +76,18 @@ def send_update(endpoint: str, action: str, triples: list[str]) -> bool:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+        "--corpus", choices=corpora.CORPUS_NAMES, default="bear-b-daily"
     )
     parser.add_argument("--port", type=int, default=9998)
     args = parser.parse_args()
 
-    num_versions = NUM_VERSIONS_MAP[args.granularity]
+    corpus = corpora.get(args.corpus)
+    num_versions = corpus.num_versions
     endpoint = f"http://localhost:{args.port}/r43ples/sparql"
-    data_dir = Path(__file__).parent / "data"
-    ic_dir = data_dir / args.granularity / "IC"
-    cb_dir = data_dir / args.granularity / "CB"
+    ic_dir = corpus.dir / "IC"
+    cb_dir = corpus.dir / "CB"
 
-    console.print(
-        f"[bold]R43ples ingestion ({args.granularity}, {num_versions} versions)"
-    )
+    console.print(f"[bold]R43ples ingestion ({corpus.name}, {num_versions} versions)")
 
     requests.post(
         endpoint,
@@ -102,7 +99,7 @@ def main():
     start_time = time.perf_counter()
 
     # Load initial snapshot
-    triples = read_safe_triples(ic_dir / "000001.nt.gz")
+    triples = read_safe_triples(ic_dir / "000001.nt")
     num_batches = (len(triples) + BATCH_SIZE - 1) // BATCH_SIZE
     console.print(f"  Initial snapshot: {len(triples)} triples ({num_batches} batches)")
     for i in range(0, len(triples), BATCH_SIZE):
@@ -117,7 +114,7 @@ def main():
         for v in range(2, num_versions + 1):
             prev = v - 1
             for action, name in [("DELETE", "deleted"), ("INSERT", "added")]:
-                f = cb_dir / f"data-{name}_{prev}-{v}.nt.gz"
+                f = cb_dir / f"data-{name}_{prev}-{v}.nt"
                 if f.exists():
                     safe = read_safe_triples(f)
                     if safe and send_update(endpoint, action, safe):
@@ -129,7 +126,7 @@ def main():
     console.print(f"\n[bold green]Ingestion complete in {elapsed:.2f}s")
     console.print(f"  R43ples revisions: {current_rev}")
 
-    map_file = data_dir / f"r43ples_revision_map_{args.granularity}.json"
+    map_file = corpora.DATA_DIR / f"r43ples_revision_map_{corpus.name}.json"
     with map_file.open("w", encoding="utf-8") as f:
         json.dump(revision_map, f)
     console.print(f"  Revision map: {map_file}")

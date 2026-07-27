@@ -438,3 +438,58 @@ class TestOCDMConverterCB:
             prov_text = prov_out.read_text()
             assert "specializationOf" in prov_text
             assert "invalidatedAtTime" in prov_text
+
+
+class TestCompressedOutput:
+    def _versions(self, tmp: Path) -> list[Path]:
+        files = []
+        for version in range(3):
+            path = tmp / f"v{version}.nt"
+            path.write_text(
+                "".join(
+                    f"<http://example.com/e{entity}> <http://example.com/p> "
+                    f'"value{entity}-{version}" .\n'
+                    for entity in range(20)
+                )
+            )
+            files.append(path)
+        return files
+
+    def test_a_gz_name_writes_the_same_content_compressed(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            versions = self._versions(tmp)
+            timestamps = [
+                datetime(2021, 5, 7 + i, 9, 0, 0, tzinfo=timezone.utc) for i in range(3)
+            ]
+            converter = OCDMConverter(
+                data_graph_uri="http://example.com/graph/",
+                agent_uri="http://example.com/agent",
+            )
+
+            converter.convert_from_ic(
+                versions, timestamps, tmp / "plain.d.nq", tmp / "plain.p.nq"
+            )
+            converter.convert_from_ic(
+                versions, timestamps, tmp / "gz.d.nq.gz", tmp / "gz.p.nq.gz"
+            )
+
+            for kind in ("d", "p"):
+                with gzip.open(tmp / f"gz.{kind}.nq.gz", "rt", encoding="utf-8") as f:
+                    assert f.read() == (tmp / f"plain.{kind}.nq").read_text()
+
+
+class TestReadAndGroupSkipsUnparsableLines:
+    def test_comments_and_blank_lines_are_ignored(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "v.nt"
+            path.write_text(
+                "# a comment\n"
+                "\n"
+                '<http://example.com/e> <http://example.com/p> "v" .\n'
+                "<http://example.com/e> .\n"
+            )
+            grouped = _read_and_group(path)
+            assert grouped == {
+                "http://example.com/e": {("<http://example.com/p>", '"v"')}
+            }

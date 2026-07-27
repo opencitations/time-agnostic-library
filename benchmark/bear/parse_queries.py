@@ -2,183 +2,109 @@
 #
 # SPDX-License-Identifier: ISC
 
-from datetime import datetime, timedelta
-from pathlib import Path
+import re
 
+from corpora import Corpus, QuerySet
 from rich.console import Console
 
 console = Console()
 
-GRANULARITY_CONFIG = {
-    "daily": {"num_versions": 89, "interval": timedelta(days=1)},
-    "hourly": {"num_versions": 1299, "interval": timedelta(hours=1)},
-    "instant": {"num_versions": 21046, "interval": timedelta(minutes=1)},
-}
+Query = tuple[str, str, str]
 
-GRANULARITY_PORTS = {"daily": 7001, "hourly": 7002, "instant": 7003}
+_TRAILING_DOT = re.compile(r"\s*\.\s*$")
 
 
-def build_config(granularity: str) -> dict:
-    port = GRANULARITY_PORTS[granularity]
-    url = f"http://localhost:{port}"
-    return {
-        "dataset": {
-            "triplestore_urls": [url],
-            "file_paths": [],
-            "is_quadstore": True,
-        },
-        "provenance": {
-            "triplestore_urls": [url],
-            "file_paths": [],
-            "is_quadstore": True,
-        },
-        "blazegraph_full_text_search": "no",
-        "fuseki_full_text_search": "no",
-        "virtuoso_full_text_search": "no",
-        "graphdb_connector_name": "",
-    }
+def parse_pattern(line: str) -> tuple[str, str, str] | None:
+    """Split a line of N-Triples into its three terms.
+
+    Terms are never split on `?`: BEAR-A has subjects whose URI carries a query
+    string, and reading variables out of them would corrupt the pattern.
+    """
+    parts = line.split(" ", 2)
+    if len(parts) != 3:
+        return None
+    subject, predicate, obj = parts
+    return subject.strip(), predicate.strip(), _TRAILING_DOT.sub("", obj).strip()
 
 
-BASE_TIMESTAMP = datetime.fromisoformat("2015-08-01T00:00:00+00:00")
-
-DATA_DIR = Path(__file__).parent / "data"
-QUERIES_DIR = DATA_DIR / "queries"
-
-
-def parse_bear_query_file(filepath: Path) -> list[tuple[str, str, str]]:
+def load_query_set(query_set: QuerySet) -> list[Query]:
     queries = []
-    with filepath.open(encoding="utf-8") as f:
+    with query_set.path.open(encoding="utf-8") as f:
         for raw_line in f:
             line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
-            parts = line.split(" ", 2)
-            if len(parts) == 3:
-                s, p, o = parts
-                if o.endswith(" ."):
-                    o = o[:-2]
-                elif o.endswith("."):
-                    o = o[:-1].strip()
-                queries.append((s.strip(), p.strip(), o.strip()))
+            pattern = parse_pattern(line)
+            if pattern:
+                queries.append(pattern)
     return queries
 
 
-def bear_pattern_to_sparql(pattern: tuple[str, str, str], pattern_type: str) -> str:
-    _, p, o = pattern
-    if pattern_type == "p":
-        return f"SELECT ?s ?o WHERE {{ ?s {p} ?o . }}"
-    if pattern_type == "po":
-        return f"SELECT ?s WHERE {{ ?s {p} {o} . }}"
-    msg = f"Unknown pattern type: {pattern_type}"
-    raise ValueError(msg)
+def to_sparql(query: Query) -> str:
+    variables: list[str] = []
+    for term in query:
+        if term.startswith("?") and term not in variables:
+            variables.append(term)
+    subject, predicate, obj = query
+    # A fully bound pattern, as in BEAR-A spo, projects no variable: the answer
+    # is whether the triple holds in that version.
+    projection = " ".join(variables) if variables else "*"
+    return f"SELECT {projection} WHERE {{ {subject} {predicate} {obj} . }}"
 
 
-def generate_timestamps(num_versions: int, interval: timedelta) -> list[str]:
-    return [
-        (BASE_TIMESTAMP + interval * i).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-        for i in range(num_versions)
-    ]
+def diff_versions(num_versions: int, dm_step: int) -> list[int]:
+    """Endpoints diffed against version 0, one every dm_step versions."""
+    versions = list(range(dm_step, num_versions, dm_step))
+    last = num_versions - 1
+    if last not in versions:
+        versions.append(last)
+    return versions
 
 
-def generate_vm_queries(
-    patterns: list[tuple[str, str, str]],
-    pattern_type: str,
-    timestamps: list[str],
-) -> list[dict]:
-    queries = []
-    for i, ts in enumerate(timestamps):
-        for j, pattern in enumerate(patterns):
-            sparql = bear_pattern_to_sparql(pattern, pattern_type)
-            queries.append(
-                {
-                    "type": "vm",
-                    "pattern_type": pattern_type,
-                    "pattern_index": j,
-                    "version_index": i,
-                    "timestamp": ts,
-                    "sparql": sparql,
-                    "on_time": (ts, ts),
-                }
-            )
-    return queries
+def generate(corpus: Corpus) -> dict[str, list[dict]]:
+    timestamps = corpus.timestamps()
+    all_queries: dict[str, list[dict]] = {"vm": [], "dm": [], "vq": []}
 
-
-def generate_dm_queries(
-    patterns: list[tuple[str, str, str]],
-    pattern_type: str,
-    timestamps: list[str],
-    dm_step: int,
-) -> list[dict]:
-    diff_versions = list(
-        range(dm_step, min(len(timestamps), dm_step * 11 + 1), dm_step)
-    )
-    if len(timestamps) - 1 not in diff_versions:
-        diff_versions.append(len(timestamps) - 1)
-
-    queries = []
-    t0 = timestamps[0]
-    for vi in diff_versions:
-        if vi >= len(timestamps):
+    for query_set in corpus.queries:
+        if not query_set.path.exists():
+            console.print(f"  [yellow]Query file not found: {query_set.path}")
             continue
-        ti = timestamps[vi]
-        for j, pattern in enumerate(patterns):
-            sparql = bear_pattern_to_sparql(pattern, pattern_type)
-            queries.append(
-                {
-                    "type": "dm",
-                    "pattern_type": pattern_type,
-                    "pattern_index": j,
-                    "version_start": 0,
-                    "version_end": vi,
-                    "timestamp_start": t0,
-                    "timestamp_end": ti,
-                    "sparql": sparql,
-                    "on_time": (t0, ti),
-                }
-            )
-    return queries
+        queries = load_query_set(query_set)
+        vm_versions = range(corpus.num_versions)
+        console.print(
+            f"  Parsed {len(queries)} {query_set.name} queries"
+            f" ({len(vm_versions)} versions each)"
+        )
 
-
-def generate_vq_queries(
-    patterns: list[tuple[str, str, str]],
-    pattern_type: str,
-) -> list[dict]:
-    queries = []
-    for j, pattern in enumerate(patterns):
-        sparql = bear_pattern_to_sparql(pattern, pattern_type)
-        queries.append(
-            {
-                "type": "vq",
-                "pattern_type": pattern_type,
-                "pattern_index": j,
+        for index, query in enumerate(queries):
+            sparql = to_sparql(query)
+            common = {
+                "pattern_type": query_set.name,
+                "pattern_index": index,
                 "sparql": sparql,
-                "on_time": None,
             }
-        )
-    return queries
-
-
-def parse_and_generate(num_versions: int, interval: timedelta, dm_step: int) -> dict:
-    timestamps = generate_timestamps(num_versions, interval)
-    all_queries: dict[str, list] = {"vm": [], "dm": [], "vq": []}
-
-    for pattern_type in ["p", "po"]:
-        query_file = QUERIES_DIR / f"{pattern_type}.txt"
-        if not query_file.exists():
-            console.print(f"  [yellow]Query file not found: {query_file}")
-            continue
-        patterns = parse_bear_query_file(query_file)
-        console.print(f"  Parsed {len(patterns)} {pattern_type} patterns")
-
-        all_queries["vm"].extend(
-            generate_vm_queries(patterns, pattern_type, timestamps)
-        )
-        all_queries["dm"].extend(
-            generate_dm_queries(patterns, pattern_type, timestamps, dm_step)
-        )
-        all_queries["vq"].extend(generate_vq_queries(patterns, pattern_type))
+            all_queries["vm"].extend(
+                {
+                    **common,
+                    "type": "vm",
+                    "version_index": version,
+                    "timestamp": timestamps[version],
+                    "on_time": (timestamps[version], timestamps[version]),
+                }
+                for version in vm_versions
+            )
+            all_queries["dm"].extend(
+                {
+                    **common,
+                    "type": "dm",
+                    "version_start": 0,
+                    "version_end": version,
+                    "timestamp_start": timestamps[0],
+                    "timestamp_end": timestamps[version],
+                    "on_time": (timestamps[0], timestamps[version]),
+                }
+                for version in diff_versions(corpus.num_versions, corpus.dm_step)
+            )
+            all_queries["vq"].append({**common, "type": "vq", "on_time": None})
 
     return all_queries
-
-
-DM_STEPS = {"daily": 5, "hourly": 100, "instant": 1500}

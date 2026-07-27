@@ -9,6 +9,7 @@ import statistics
 import subprocess
 from pathlib import Path
 
+import corpora
 from rich.console import Console
 from rich.table import Table
 
@@ -206,8 +207,8 @@ def aggregate_results(all_patterns: dict[str, list[dict]]) -> dict:
     return results
 
 
-def print_summary(results: dict) -> None:
-    table = Table(title="OSTRICH benchmark results (BEAR-B-daily)")
+def print_summary(results: dict, corpus_name: str) -> None:
+    table = Table(title=f"OSTRICH benchmark results ({corpus_name})")
     table.add_column("Query type", style="bold")
     table.add_column("Pattern", style="dim")
     table.add_column("Count", justify="right")
@@ -253,13 +254,14 @@ def parse_ingestion_time(ingestion_log: Path) -> float | None:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+        "--corpus", choices=corpora.CORPUS_NAMES, default="bear-b-daily"
     )
     args = parser.parse_args()
 
-    evalrun_dir = OSTRICH_DIR / f"evalrun_{args.granularity}"
-    ingestion_log = OSTRICH_DIR / f"ingestion_output_{args.granularity}.txt"
-    output_file = DATA_DIR / f"ostrich_benchmark_results_{args.granularity}.json"
+    corpus = corpora.get(args.corpus)
+    evalrun_dir = OSTRICH_DIR / f"evalrun_{corpus.name}"
+    ingestion_log = OSTRICH_DIR / f"ingestion_output_{corpus.name}.txt"
+    output_file = DATA_DIR / f"ostrich_benchmark_results_{corpus.name}.json"
 
     all_patterns: dict[str, list[dict]] = {}
 
@@ -267,7 +269,7 @@ def main():
         pattern_type = query_file.replace(".txt", "")
         raw_output = run_ostrich_queries(query_file, evalrun_dir)
 
-        raw_path = DATA_DIR / f"ostrich_raw_{pattern_type}_{args.granularity}.txt"
+        raw_path = DATA_DIR / f"ostrich_raw_{pattern_type}_{corpus.name}.txt"
         with raw_path.open("w", encoding="utf-8") as f:
             f.write(raw_output)
         console.print(f"  Raw output saved to {raw_path}")
@@ -298,7 +300,7 @@ def main():
         json.dump(output, f, indent=2)
     console.print(f"\nResults saved to {output_file}")
 
-    print_summary(results)
+    print_summary(results, corpus.name)
 
 
 if __name__ == "__main__":

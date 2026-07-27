@@ -214,6 +214,83 @@ class TestAgnosticQueryEdgeCases:
         vq = VersionQuery(query, config_dict=CONFIG)
         assert vq.triples is not None
 
+    def test_distinct_is_supported(self):
+        query = "SELECT DISTINCT ?s WHERE { ?s <http://ex.com/p> <http://ex.com/o> }"
+        vq = VersionQuery(query, config_dict=CONFIG)
+        assert vq.triples == [("?s", "<http://ex.com/p>", "<http://ex.com/o>")]
+
+    @pytest.mark.parametrize(
+        ("query", "construct"),
+        [
+            (
+                "SELECT ?s WHERE { { ?s <http://ex.com/p> <http://ex.com/o1> } "
+                "UNION { ?s <http://ex.com/p> <http://ex.com/o2> } }",
+                "UNION",
+            ),
+            (
+                "SELECT ?s ?t WHERE { ?s <http://ex.com/p> ?t FILTER regex(?t, 'x') }",
+                "FILTER",
+            ),
+            (
+                "SELECT ?s WHERE { ?s <http://ex.com/p> <http://ex.com/o> "
+                "MINUS { ?s <http://ex.com/q> ?o } }",
+                "MINUS",
+            ),
+            (
+                "SELECT ?s WHERE { GRAPH ?g "
+                "{ ?s <http://ex.com/p> <http://ex.com/o> } }",
+                "GRAPH",
+            ),
+            (
+                "SELECT ?s ?o WHERE { ?s <http://ex.com/p> ?o } ORDER BY ?o",
+                "ORDER BY",
+            ),
+            (
+                "SELECT ?s ?o WHERE { ?s <http://ex.com/p> ?o } LIMIT 10",
+                "LIMIT or OFFSET",
+            ),
+            (
+                "SELECT ?s ?x WHERE { ?s <http://ex.com/p> <http://ex.com/o> "
+                "BIND(?s AS ?x) }",
+                "BIND or an aggregate function",
+            ),
+            (
+                "SELECT (COUNT(?o) AS ?c) WHERE { ?s <http://ex.com/p> ?o }",
+                "BIND or an aggregate function",
+            ),
+            (
+                "SELECT ?s WHERE { ?s <http://ex.com/p> ?o "
+                "VALUES ?o { <http://ex.com/o> } }",
+                "VALUES or a subquery",
+            ),
+            (
+                "SELECT ?s WHERE { { SELECT ?s WHERE "
+                "{ ?s <http://ex.com/p> <http://ex.com/o> } } }",
+                "VALUES or a subquery",
+            ),
+            (
+                "SELECT ?s ?y WHERE { ?s <http://ex.com/p>/<http://ex.com/q> ?y }",
+                "a property path",
+            ),
+            (
+                "SELECT ?s ?y WHERE { ?s <http://ex.com/p> <http://ex.com/o> "
+                "OPTIONAL { ?s <http://ex.com/q> ?y FILTER(?y > 3) } }",
+                "a FILTER inside an OPTIONAL",
+            ),
+            (
+                "SELECT ?s ?b WHERE { ?s <http://ex.com/p> <http://ex.com/o> "
+                "OPTIONAL { ?s <http://ex.com/q> ?b . "
+                "{ SELECT ?c WHERE { ?c <http://ex.com/r> <http://ex.com/x> } } } }",
+                "VALUES or a subquery",
+            ),
+        ],
+    )
+    def test_unsupported_constructs_are_rejected(self, query, construct):
+        # Without this check the algebra walk flattens the operands into a
+        # conjunction and the query silently returns wrong results.
+        with pytest.raises(ValueError, match=f"uses {construct}, which is not"):
+            VersionQuery(query, config_dict=CONFIG)
+
     @patch("time_agnostic_library.agnostic_query.Sparql")
     def test_get_present_entities_reverse_with_var_object(self, mock_sparql_class):
         query = "SELECT ?s WHERE { ?s <http://ex.com/p> <http://ex.com/o> }"

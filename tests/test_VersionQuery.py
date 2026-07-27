@@ -1242,7 +1242,6 @@ class TestVersionQuery:
             where {
                 ?elt_1 datacite:hasIdentifier ?id_1;
                         datacite:hasIdentifier ?id_2.
-                FILTER (?id_1 != ?id_2)
             }
         """
         agnostic_query = VersionQuery(query, config_dict=CONFIG)

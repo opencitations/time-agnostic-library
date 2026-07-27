@@ -63,13 +63,13 @@ STYLES = {
 }
 
 
-def _load_granularity_data(granularity: str) -> tuple[dict, list[Path], Path]:
-    results_file = DATA_DIR / f"benchmark_results_{granularity}.json"
-    ostrich_results_file = DATA_DIR / f"ostrich_benchmark_results_{granularity}.json"
+def _load_corpus_data(corpus_name: str) -> tuple[dict, list[Path], Path]:
+    results_file = DATA_DIR / f"benchmark_results_{corpus_name}.json"
+    ostrich_results_file = DATA_DIR / f"ostrich_benchmark_results_{corpus_name}.json"
     ostrich_raw_files = [
-        DATA_DIR / f"ostrich_raw_{pt}_{granularity}.txt" for pt in ["p", "po"]
+        DATA_DIR / f"ostrich_raw_{pt}_{corpus_name}.txt" for pt in ["p", "po"]
     ]
-    r43ples_file = DATA_DIR / f"r43ples_benchmark_results_{granularity}.json"
+    r43ples_file = DATA_DIR / f"r43ples_benchmark_results_{corpus_name}.json"
     data = load_results(results_file)
     load_measured_ostrich_results(ostrich_results_file)
     return data, ostrich_raw_files, r43ples_file
@@ -331,8 +331,8 @@ def main() -> None:
     plot_dir = DATA_DIR / "analysis" / "combined" / "plots"
     console.rule("[bold]Loading data")
 
-    daily_data, daily_ost, daily_r43 = _load_granularity_data("daily")
-    hourly_data, hourly_ost, hourly_r43 = _load_granularity_data("hourly")
+    daily_data, daily_ost, daily_r43 = _load_corpus_data("bear-b-daily")
+    hourly_data, hourly_ost, hourly_r43 = _load_corpus_data("bear-b-hourly")
 
     daily_r43_path = daily_r43 if daily_r43.exists() else None
     hourly_r43_path = hourly_r43 if hourly_r43.exists() else None

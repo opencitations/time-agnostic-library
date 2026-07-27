@@ -6,9 +6,9 @@ import argparse
 import json
 import re
 import time
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import corpora
 from rich.console import Console
 
 from time_agnostic_library.ocdm_converter import OCDMConverter
@@ -24,16 +24,6 @@ _INT_SUFFIX = f"^^<{XSD_NS}int>"
 _INTEGER_SUFFIX_LEN = len(_INTEGER_SUFFIX)
 _STRING_SUFFIX = f"^^<{XSD_NS}string>"
 
-BASE_TIMESTAMP = datetime(2015, 8, 1, 0, 0, 0, tzinfo=timezone.utc)
-
-GRANULARITY_INTERVALS = {
-    "daily": timedelta(days=1),
-    "hourly": timedelta(hours=1),
-    "instant": timedelta(minutes=1),
-}
-
-SCRIPT_DIR = Path(__file__).parent
-
 
 def normalize_object(obj: str) -> str:
     if obj.endswith(_STRING_SUFFIX):
@@ -44,13 +34,10 @@ def normalize_object(obj: str) -> str:
 
 
 def find_ic_files(ic_dir: Path) -> list[Path]:
-    files = sorted(ic_dir.rglob(pattern="*.nt")) + sorted(ic_dir.rglob("*.nt.gz"))
-    if not files:
-        files = sorted(ic_dir.rglob("*.ntriples"))
+    files = sorted(ic_dir.rglob("*.nt"))
     version_files = []
     for f in files:
-        stem: str = f.stem.replace(".nt", "") if f.suffix == ".gz" else f.stem
-        match = re.search(r"(\d+)", stem)
+        match = re.search(r"(\d+)", f.stem)
         if match:
             version_files.append((int(match.group(1)), f))
     version_files.sort(key=lambda x: x[0])
@@ -61,7 +48,7 @@ def find_cb_files(cb_dir: Path) -> list[tuple[Path, Path]]:
     added_files: dict[int, Path] = {}
     deleted_files: dict[int, Path] = {}
     for f in cb_dir.iterdir():
-        match = re.match(r"data-(added|deleted)_(\d+)-(\d+)\.nt(?:\.gz)?$", f.name)
+        match = re.match(r"data-(added|deleted)_(\d+)-(\d+)\.nt$", f.name)
         if not match:
             continue
         change_type = match.group(1)
@@ -77,13 +64,23 @@ def find_cb_files(cb_dir: Path) -> list[tuple[Path, Path]]:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+        "--corpus", choices=corpora.CORPUS_NAMES, default="bear-b-daily"
     )
     parser.add_argument("--strategy", choices=["ic", "cb"], default="ic")
+    parser.add_argument(
+        "--versions",
+        type=int,
+        default=None,
+        help=(
+            "Convert only the first N versions, for sizing a corpus before "
+            "committing to it. The outputs carry the count in their name, so a "
+            "partial conversion cannot be mistaken for a complete one."
+        ),
+    )
     args = parser.parse_args()
 
-    interval = GRANULARITY_INTERVALS[args.granularity]
-    data_dir = SCRIPT_DIR / "data" / args.granularity
+    corpus = corpora.get(args.corpus)
+    data_dir = corpus.dir
 
     converter = OCDMConverter(
         data_graph_uri=DATA_GRAPH,
@@ -91,8 +88,11 @@ def main():
         object_normalizer=normalize_object,
     )
 
-    dataset_output = data_dir / "dataset.nq"
-    provenance_output = data_dir / "provenance.nq"
+    infix = f".{args.versions}v" if args.versions else ""
+    # Compressed: the provenance of a large corpus is hundreds of gigabytes of
+    # repetitive N-Quads, and both bulk loaders read gzip directly.
+    dataset_output = data_dir / f"dataset{infix}.nq.gz"
+    provenance_output = data_dir / f"provenance{infix}.nq.gz"
 
     start = time.perf_counter()
 
@@ -101,13 +101,12 @@ def main():
         if not ic_dir.exists():
             msg = f"IC directory not found: {ic_dir}. Run download.py first."
             raise FileNotFoundError(msg)
-        ic_files = find_ic_files(ic_dir)
+        ic_files = find_ic_files(ic_dir)[: args.versions]
         num_versions = len(ic_files)
         console.print(f"Found {num_versions} IC versions")
-        timestamps = [BASE_TIMESTAMP + interval * i for i in range(num_versions)]
         converter.convert_from_ic(
             ic_files=ic_files,
-            timestamps=timestamps,
+            timestamps=corpus.datetimes(num_versions),
             dataset_output=dataset_output,
             provenance_output=provenance_output,
         )
@@ -128,11 +127,10 @@ def main():
             f"Found initial snapshot + {len(changesets)} CB changesets "
             f"({num_versions} versions)"
         )
-        timestamps = [BASE_TIMESTAMP + interval * i for i in range(num_versions)]
         converter.convert_from_cb(
             initial_snapshot=initial_snapshot,
             changesets=changesets,
-            timestamps=timestamps,
+            timestamps=corpus.datetimes(num_versions),
             dataset_output=dataset_output,
             provenance_output=provenance_output,
         )
@@ -148,11 +146,12 @@ def main():
         f"({provenance_output.stat().st_size / 1024:.1f} KB)"
     )
 
-    timing_file = SCRIPT_DIR / "data" / f"ocdm_conversion_time_{args.granularity}.json"
+    timing_file = corpora.DATA_DIR / f"ocdm_conversion_time_{corpus.name}{infix}.json"
     timing_file.parent.mkdir(parents=True, exist_ok=True)
     timing_data = {
         "ocdm_conversion_s": round(elapsed_s, 2),
         "strategy": args.strategy,
+        "versions": num_versions,
         "dataset_bytes": dataset_output.stat().st_size,
         "provenance_bytes": provenance_output.stat().st_size,
     }

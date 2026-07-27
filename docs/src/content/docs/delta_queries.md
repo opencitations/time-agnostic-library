@@ -9,7 +9,7 @@ description: Compute net deltas between versions with single-delta and cross-del
 
 Delta queries compute the net difference between entity versions, returning added and removed triples along with creation and deletion timestamps.
 
-Only SELECT queries are allowed.
+Only SELECT queries are allowed, and their graph pattern must be made of basic graph patterns and OPTIONAL clauses. DISTINCT is accepted. Any other construct raises an error: FILTER, UNION, MINUS, GRAPH, BIND, aggregate functions, subqueries, VALUES, ORDER BY, LIMIT, OFFSET, and property paths other than the inverse of a single predicate.
 
 ## Single-delta structured query
 

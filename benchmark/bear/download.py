@@ -3,11 +3,15 @@
 # SPDX-License-Identifier: ISC
 
 import argparse
+import gzip
+import shutil
 import tarfile
 import zipfile
 from pathlib import Path
 from urllib.request import Request, urlopen, urlretrieve
 
+import corpora
+from corpora import Corpus
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -21,52 +25,11 @@ from rich.progress import (
 
 console = Console()
 
-BASE_URL = "https://aic.ai.wu.ac.at/qadlod/bear/BEAR_B"
-
-GRANULARITY_CONFIG = {
-    "daily": {"url_path": "day", "has_results": True},
-    "hourly": {"url_path": "hour", "has_results": True},
-    "instant": {"url_path": "instant", "has_results": False},
-}
-
-
-def build_urls(url_path: str) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
-    datasets = {
-        "ic": f"{BASE_URL}/datasets/{url_path}/IC/alldata.IC.nt.tar.gz",
-        "cb": f"{BASE_URL}/datasets/{url_path}/CB/alldata.CB.nt.tar.gz",
-    }
-    results = {
-        "p": {
-            "mat": f"{BASE_URL}/results/{url_path}/p/mat-p-queries.zip",
-            "ver": f"{BASE_URL}/results/{url_path}/p/ver-p-queries.zip",
-            "diff": f"{BASE_URL}/results/{url_path}/p/diff-p-queries.zip",
-        },
-        "po": {
-            "mat": f"{BASE_URL}/results/{url_path}/po/mat-po-queries.zip",
-            "ver": f"{BASE_URL}/results/{url_path}/po/ver-po-queries.zip",
-            "diff": f"{BASE_URL}/results/{url_path}/po/diff-po-queries.zip",
-        },
-    }
-    return datasets, results
-
-
-QUERIES = {
-    "p": f"{BASE_URL}/Queries/p/p.txt",
-    "po": f"{BASE_URL}/Queries/po/po.txt",
-}
-
 
 def get_remote_size(url: str) -> int:
     req = Request(url, method="HEAD")
     with urlopen(req) as resp:
         return int(resp.headers.get("Content-Length", 0))
-
-
-def get_total_download_size(urls: list[str]) -> int:
-    total = 0
-    for url in urls:
-        total += get_remote_size(url)
-    return total
 
 
 def download_file(url: str, dest: Path) -> None:
@@ -120,53 +83,90 @@ def extract_zip(archive: Path, dest_dir: Path) -> None:
     console.print(f"  Extracted to {dest_dir}")
 
 
+def decompress_ntriples(directory: Path) -> None:
+    """Leave every version as plain N-Triples.
+
+    BEAR ships some corpora gzipped inside the archive and others not. Every
+    system under benchmark has to read the same bytes, and OSTRICH reads plain
+    N-Triples only, so plain is the format the whole pipeline uses. The
+    downloaded archive stays on disk, so this is reversible without downloading
+    anything again.
+    """
+    compressed = sorted(directory.rglob("*.nt.gz"))
+    if not compressed:
+        return
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold cyan]Decompressing {task.fields[name]}..."),
+        console=console,
+    ) as progress:
+        progress.add_task("gunzip", name=directory.name, total=None)
+        for archive in compressed:
+            plain = archive.with_suffix("")
+            if not plain.exists():
+                with gzip.open(archive, "rb") as src, plain.open("wb") as dst:
+                    shutil.copyfileobj(src, dst)
+            archive.unlink()
+    console.print(f"  Decompressed {len(compressed)} files in {directory}")
+
+
+def dataset_urls(corpus: Corpus) -> dict[str, str]:
+    urls = {"IC": corpus.ic_url}
+    if corpus.cb_url:
+        urls["CB"] = corpus.cb_url
+    return urls
+
+
+def all_urls(corpus: Corpus) -> list[str]:
+    urls = list(dataset_urls(corpus).values())
+    for query_set in corpus.queries:
+        urls.append(query_set.url)
+        urls.extend(query_set.results.values())
+    return urls
+
+
+def download_datasets(corpus: Corpus) -> None:
+    for policy, url in dataset_urls(corpus).items():
+        console.rule(f"[bold]{corpus.name} {policy} dataset")
+        archive = corpus.dir / f"alldata.{policy}.nt.tar.gz"
+        download_file(url, archive)
+        extract_tar_gz(archive, corpus.dir / policy)
+        decompress_ntriples(corpus.dir / policy)
+
+
+def download_queries(corpus: Corpus) -> None:
+    console.rule("[bold]Query files")
+    for query_set in corpus.queries:
+        download_file(query_set.url, query_set.path)
+
+
+def download_expected_results(corpus: Corpus) -> None:
+    published = [qs for qs in corpus.queries if qs.results]
+    if not published:
+        console.print("No expected results are published for this corpus")
+        return
+    console.rule(f"[bold]{corpus.name} expected results")
+    for query_set in published:
+        for atom, url in query_set.results.items():
+            archive = corpus.dir / "results" / query_set.name / f"{atom}.zip"
+            download_file(url, archive)
+            extract_zip(archive, corpus.dir / "results" / query_set.name / atom)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--granularity", choices=["daily", "hourly", "instant"], default="daily"
+        "--corpus", choices=corpora.CORPUS_NAMES, default="bear-b-daily"
     )
     args = parser.parse_args()
 
-    granularity = args.granularity
-    config = GRANULARITY_CONFIG[granularity]
-    url_path = config["url_path"]
-    has_results = config["has_results"]
-    data_dir = Path(__file__).parent / "data" / granularity
-    datasets, results = build_urls(url_path)
+    corpus = corpora.get(args.corpus)
+    total_bytes = sum(get_remote_size(url) for url in all_urls(corpus))
+    console.print(f"Total download size: {total_bytes / 1024**3:.1f} GB")
 
-    all_urls = list(datasets.values())
-    if has_results:
-        for urls in results.values():
-            all_urls.extend(urls.values())
-    all_urls.extend(QUERIES.values())
-    total_bytes = get_total_download_size(all_urls)
-    console.print(f"Total download size: {total_bytes / 1024 / 1024:.1f} MB")
-
-    console.rule(f"[bold]BEAR-B-{granularity} dataset")
-    ic_archive = data_dir / "alldata.IC.nt.tar.gz"
-    download_file(datasets["ic"], ic_archive)
-    extract_tar_gz(ic_archive, data_dir / "IC")
-
-    cb_archive = data_dir / "alldata.CB.nt.tar.gz"
-    download_file(datasets["cb"], cb_archive)
-    extract_tar_gz(cb_archive, data_dir / "CB")
-
-    console.rule("[bold]Query files")
-    queries_dir = data_dir.parent / "queries"
-    queries_dir.mkdir(parents=True, exist_ok=True)
-    for pattern_type, url in QUERIES.items():
-        download_file(url, queries_dir / f"{pattern_type}.txt")
-
-    if has_results:
-        console.rule(f"[bold]BEAR-B-{granularity} results")
-        results_dir = data_dir / "results"
-        for pattern_type, urls in results.items():
-            for query_type, url in urls.items():
-                archive = results_dir / pattern_type / f"{query_type}.zip"
-                download_file(url, archive)
-                extract_zip(archive, results_dir / pattern_type / query_type)
-    else:
-        console.print("No pre-computed result files available for this granularity")
+    download_datasets(corpus)
+    download_queries(corpus)
+    download_expected_results(corpus)
 
     console.print("\n[bold green]Done.")
 
