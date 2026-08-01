@@ -101,22 +101,10 @@ fi
 if [ "$TRIPLESTORE" = "qlever" ]; then
     QLEVER_DIR="$SCRIPT_DIR/qlever_data"
     DATA_FILE="$SCRIPT_DIR/kb/data.nq"
-    PROV_FILE="$SCRIPT_DIR/prov.json"
     mkdir -p "$QLEVER_DIR"
 
-    echo "Converting provenance JSON-LD to N-Quads..."
-    cd "$PROJECT_DIR"
-    uv run python -c "
-from rdflib import Dataset
-g = Dataset(default_union=True)
-g.parse('$PROV_FILE', format='json-ld')
-g.serialize('$QLEVER_DIR/prov.nq', format='nquads')
-print(f'  Provenance: {sum(1 for _ in g.quads())} quads')
-"
-
-    echo "Merging dataset and provenance into single N-Quads file..."
-    cat "$DATA_FILE" "$QLEVER_DIR/prov.nq" > "$QLEVER_DIR/tal.nq"
-    echo "  Merged file: $(wc -l < "$QLEVER_DIR/tal.nq") lines"
+    cp "$DATA_FILE" "$QLEVER_DIR/tal.nq"
+    echo "Dataset to index: $(wc -l < "$QLEVER_DIR/tal.nq") quads"
 
     cd "$QLEVER_DIR"
 
