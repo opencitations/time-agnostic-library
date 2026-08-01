@@ -18,7 +18,7 @@ from rdflib.plugins.sparql.processor import prepareQuery
 
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity,
-    _compose_update_queries,
+    _apply_update_ops,
     _fast_parse_update,
     _filter_timestamps_by_interval,
     _parse_datetime,
@@ -337,6 +337,14 @@ def _batch_query_dm_provenance(
     return output
 
 
+def _keep_changed_properties(
+    quads: set[tuple[str, ...]], properties_n3: set[str]
+) -> set[tuple[str, ...]]:
+    if not properties_n3:
+        return quads
+    return {q for q in quads if q[1] in properties_n3}
+
+
 def _build_delta_result(
     entity_str: str,
     snapshots: list[dict],
@@ -349,7 +357,12 @@ def _build_delta_result(
     after_dt = _parse_datetime(on_time[0]) if on_time and on_time[0] else None
     before_dt = _parse_datetime(on_time[1]) if on_time and on_time[1] else None
     creation_dt = parsed_snaps[0][1]
-    update_queries: list[str] = []
+    properties_n3 = {f"<{p}>" for p in changed_properties}
+    # The net delta and the per-snapshot sequence fold the same operations, so
+    # each update query is parsed once and replayed twice.
+    additions: set[tuple[str, ...]] = set()
+    deletions: set[tuple[str, ...]] = set()
+    changes: list[dict] = []
     created = None
     has_relevant = False
     for snap, snap_dt in parsed_snaps:
@@ -360,15 +373,23 @@ def _build_delta_result(
         has_relevant = True
         if snap_dt == creation_dt:
             created = creation_dt.isoformat()
-        elif snap["updateQuery"]:
-            update_queries.append(snap["updateQuery"])
+            continue
+        if not snap["updateQuery"]:
+            continue
+        operations = _fast_parse_update(snap["updateQuery"])
+        snap_additions: set[tuple[str, ...]] = set()
+        snap_deletions: set[tuple[str, ...]] = set()
+        _apply_update_ops(operations, snap_additions, snap_deletions)
+        _apply_update_ops(operations, additions, deletions)
+        changes.append(
+            {
+                "time": snap_dt.isoformat(),
+                "additions": _keep_changed_properties(snap_additions, properties_n3),
+                "deletions": _keep_changed_properties(snap_deletions, properties_n3),
+            }
+        )
     if not has_relevant:
         return output
-    additions, deletions = _compose_update_queries(update_queries)
-    if changed_properties:
-        prop_n3_set = {f"<{p}>" for p in changed_properties}
-        additions = {q for q in additions if q[1] in prop_n3_set}
-        deletions = {q for q in deletions if q[1] in prop_n3_set}
     last_snap = parsed_snaps[-1][0]
     deleted = (
         parsed_snaps[-1][1].isoformat() if last_snap["invalidatedAtTime"] else None
@@ -376,8 +397,9 @@ def _build_delta_result(
     output[entity_str] = {
         "created": created,
         "deleted": deleted,
-        "additions": additions,
-        "deletions": deletions,
+        "changes": changes,
+        "additions": _keep_changed_properties(additions, properties_n3),
+        "deletions": _keep_changed_properties(deletions, properties_n3),
     }
     return output
 
@@ -1208,14 +1230,19 @@ class VersionQuery(AgnosticQuery):
 
 
 class DeltaQuery(AgnosticQuery):
-    """Single time and cross-time delta structured queries.
+    """Delta structured query over a temporal interval.
+
+    The result contains the chronological sequence of snapshot changes in the
+    interval and their composed net delta. If ``on_time`` is ``None``, the
+    interval spans the entire dataset history.
 
     :param query: A SPARQL query string. It is useful to identify the entities
         whose change you want to investigate.
     :type query: str
-    :param on_time: If you want to query specific snapshots, specify the time
-        interval here. The format is (START, END). If one of the two values is None,
-        only the other is considered. Dates must be in ISO 8601 format.
+    :param on_time: The time interval in the format (START, END). If one of the
+        two values is None, only the other is considered. If the interval is
+        None, the entire dataset history is considered. Dates must be in ISO
+        8601 format.
     :type on_time: Tuple[Union[str, None]], optional
     :param changed_properties: A set of properties. It narrows the field to those
         entities where the properties specified in the set have changed.

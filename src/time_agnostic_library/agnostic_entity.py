@@ -154,25 +154,33 @@ def _fast_parse_update(
     return operations
 
 
+def _apply_update_ops(
+    operations: list[tuple[str, list[tuple[str, str, str, str]]]],
+    additions: set[tuple[str, ...]],
+    deletions: set[tuple[str, ...]],
+) -> None:
+    for op_type, quads in operations:
+        if op_type == "DeleteData":
+            for quad in quads:
+                if quad in additions:
+                    additions.discard(quad)
+                else:
+                    deletions.add(quad)
+        elif op_type == "InsertData":
+            for quad in quads:
+                if quad in deletions:
+                    deletions.discard(quad)
+                else:
+                    additions.add(quad)
+
+
 def _compose_update_queries(
     update_queries: list[str],
 ) -> tuple[set[tuple[str, ...]], set[tuple[str, ...]]]:
     additions: set[tuple[str, ...]] = set()
     deletions: set[tuple[str, ...]] = set()
     for uq in update_queries:
-        for op_type, quads in _fast_parse_update(uq):
-            if op_type == "DeleteData":
-                for quad in quads:
-                    if quad in additions:
-                        additions.discard(quad)
-                    else:
-                        deletions.add(quad)
-            elif op_type == "InsertData":
-                for quad in quads:
-                    if quad in deletions:
-                        deletions.discard(quad)
-                    else:
-                        additions.add(quad)
+        _apply_update_ops(_fast_parse_update(uq), additions, deletions)
     return additions, deletions
 
 
