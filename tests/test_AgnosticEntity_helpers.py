@@ -5,7 +5,10 @@
 
 from triplestore_config import CONFIG
 
-from time_agnostic_library.agnostic_entity import AgnosticEntity
+from time_agnostic_library.agnostic_entity import (
+    AgnosticEntity,
+    _apply_inverse_update,
+)
 from time_agnostic_library.support import (
     _nt_list_to_quad_set,
     _to_dict_of_nt_sorted_lists,
@@ -293,7 +296,7 @@ class TestAgnosticEntityHelpers:
         expected_output = {}
         assert output == expected_output
 
-    def test__manage_long_update_queries_insert_data_only(self):
+    def test_apply_inverse_update_insert_data_only(self):
         input_1 = set()
         input_2 = """
             DELETE DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/br/> {
@@ -928,7 +931,7 @@ class TestAgnosticEntityHelpers:
                 <http://purl.org/spar/cito/cites>
                 <https://github.com/arcangelo7/time_agnostic/br/15741> .} }
             """  # noqa: E501
-        AgnosticEntity._manage_update_queries(input_1, input_2)
+        _apply_inverse_update(input_1, input_2)
         output = _to_nt_sorted_list(input_1)
         expected_output = [
             "<https://github.com/arcangelo7/time_agnostic/br/15655> "
@@ -1564,7 +1567,7 @@ class TestAgnosticEntityHelpers:
         ]
         assert output == expected_output
 
-    def test__manage_update_queries_if_short_query(self):
+    def test_apply_inverse_update(self):
         input_1 = {
             (
                 "<https://github.com/arcangelo7/time_agnostic/id/1>",
@@ -1590,7 +1593,7 @@ class TestAgnosticEntityHelpers:
                 }
             }
         """
-        AgnosticEntity._manage_update_queries(input_1, input_2)
+        _apply_inverse_update(input_1, input_2)
         output = _to_nt_sorted_list(input_1)
         expected_output = [
             "<https://github.com/arcangelo7/time_agnostic/id/1> "
@@ -1599,7 +1602,7 @@ class TestAgnosticEntityHelpers:
         ]
         assert output == expected_output
 
-    def test_manage_update_queries_if_multiple_delete_update(self):
+    def test_apply_inverse_update_with_multiple_operations(self):
         input_1 = set()
         input_2 = """
             INSERT DATA { GRAPH <https://github.com/arcangelo7/time_agnostic/br/> {
@@ -1924,7 +1927,7 @@ class TestAgnosticEntityHelpers:
                 <http://purl.org/spar/cito/cites>
                 <https://github.com/arcangelo7/time_agnostic/br/120456> .} };
         """  # noqa: E501
-        AgnosticEntity._manage_update_queries(input_1, input_2)
+        _apply_inverse_update(input_1, input_2)
         output = _to_nt_sorted_list(input_1)
         expected_output = [
             "<https://github.com/arcangelo7/time_agnostic/br/87430> "

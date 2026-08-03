@@ -2,13 +2,14 @@
 #
 # SPDX-License-Identifier: ISC
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from triplestore_config import CONFIG
 
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity,
+    _apply_inverse_update,
     _compose_update_queries,
     _fast_parse_update,
     _filter_timestamps_by_interval,
@@ -109,6 +110,69 @@ class TestAgnosticEntityEdgeCases:
 
         assert entity_graphs == {}
         assert entity_snapshots == {}
+
+    @patch("time_agnostic_library.agnostic_entity.Sparql")
+    def test_get_state_at_time_applies_each_update_once(self, mock_sparql_class):
+        entity_uri = "https://example.org/entity/1"
+        subject = f"<{entity_uri}>"
+        predicate = "<https://example.org/value>"
+        graph = "<https://example.org/graph>"
+        timestamps = [
+            "2021-01-01T00:00:00+00:00",
+            "2021-01-02T00:00:00+00:00",
+            "2021-01-03T00:00:00+00:00",
+            "2021-01-04T00:00:00+00:00",
+        ]
+
+        def make_update(previous_value: int, current_value: int) -> str:
+            return (
+                f"DELETE DATA {{ GRAPH {graph} {{ {subject} {predicate} "
+                f'"{previous_value}" . }} }}; '
+                f"INSERT DATA {{ GRAPH {graph} {{ {subject} {predicate} "
+                f'"{current_value}" . }} }}'
+            )
+
+        updates = {
+            2: make_update(0, 1),
+            3: make_update(1, 2),
+            4: make_update(2, 3),
+        }
+        bindings = [
+            {
+                "snapshot": {"value": f"{entity_uri}/prov/se/{index}"},
+                "time": {"value": timestamp},
+                **(
+                    {"updateQuery": {"value": updates[index]}}
+                    if index in updates
+                    else {}
+                ),
+            }
+            for index, timestamp in enumerate(timestamps, start=1)
+        ]
+        mock_sparql_class.return_value.run_select_query.return_value = {
+            "results": {"bindings": bindings}
+        }
+        current_state = {(subject, predicate, '"3"', graph)}
+        entity = AgnosticEntity(entity_uri, config=CONFIG)
+
+        with (
+            patch.object(entity, "_query_dataset", return_value=current_state),
+            patch(
+                "time_agnostic_library.agnostic_entity._fast_parse_update",
+                wraps=_fast_parse_update,
+            ) as parse_update,
+        ):
+            result = entity.get_state_at_time((timestamps[1], timestamps[2]))
+
+        assert result == (
+            {
+                timestamps[2]: {(subject, predicate, '"2"', graph)},
+                timestamps[1]: {(subject, predicate, '"1"', graph)},
+            },
+            {},
+            {},
+        )
+        assert parse_update.call_args_list == [call(updates[4]), call(updates[3])]
 
     @patch("time_agnostic_library.agnostic_entity.Sparql")
     def test_find_merged_entities_with_sparql_error(self, mock_sparql_class):
@@ -250,12 +314,12 @@ class TestAgnosticEntityEdgeCases:
         assert result[0]["time"]["value"] == "2021-06-01T18:46:41.000Z"
         assert result[1]["time"]["value"] == "2021-07-15T12:00:00.000Z"
 
-    def test_manage_update_queries_with_malformed_query(self):
+    def test_apply_inverse_update_with_malformed_query(self):
         graph = set()
 
         malformed_query = "THIS IS NOT VALID SPARQL { DELETE SOMETHING }"
 
-        AgnosticEntity._manage_update_queries(graph, malformed_query)
+        _apply_inverse_update(graph, malformed_query)
 
         assert len(graph) == 0
 

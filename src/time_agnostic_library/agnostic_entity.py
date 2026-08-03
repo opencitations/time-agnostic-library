@@ -154,6 +154,18 @@ def _fast_parse_update(
     return operations
 
 
+def _apply_inverse_update(
+    current_state: set[tuple[str, ...]], update_query: str
+) -> None:
+    for operation_type, quads in _fast_parse_update(update_query):
+        if operation_type == "DeleteData":
+            for quad in quads:
+                current_state.add(quad)
+        elif operation_type == "InsertData":
+            for quad in quads:
+                current_state.discard(quad)
+
+
 def _apply_update_ops(
     operations: list[tuple[str, list[tuple[str, str, str, str]]]],
     additions: set[tuple[str, ...]],
@@ -182,6 +194,27 @@ def _compose_update_queries(
     for uq in update_queries:
         _apply_update_ops(_fast_parse_update(uq), additions, deletions)
     return additions, deletions
+
+
+def _materialize_versions(
+    sorted_versions: list[tuple[str, str | None]],
+    current_state: set[tuple[str, ...]],
+    target_times: set[str] | None = None,
+) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:
+    target_count = len(target_times) if target_times is not None else None
+    working_state = set(current_state)
+    materialized_versions = []
+    for index, (timestamp, _update_query) in enumerate(sorted_versions):
+        if index > 0:
+            previous_update = sorted_versions[index - 1][1]
+            if previous_update is not None:
+                _apply_inverse_update(working_state, previous_update)
+        if target_times is None or timestamp in target_times:
+            normalized_timestamp = str(convert_to_datetime(timestamp, stringify=True))
+            materialized_versions.append((normalized_timestamp, tuple(working_state)))
+            if target_count is not None and len(materialized_versions) == target_count:
+                break
+    return materialized_versions
 
 
 CONFIG_PATH = "./config.json"
@@ -921,33 +954,30 @@ class AgnosticEntity:
             else:
                 return {}, {}, other_snapshots_metadata
         entity_snapshots = {}
-        entity_graphs: dict[str, set[tuple[str, ...]]] = {}
         entity_quads = self._query_dataset(self.res)
-        sorted_parsed = [
-            (r, _parse_datetime(r["time"]["value"])) for r in sorted_results
+        sorted_versions = [
+            (
+                result["time"]["value"],
+                result["updateQuery"]["value"]
+                if "updateQuery" in result and "value" in result["updateQuery"]
+                else None,
+            )
+            for result in sorted_results
         ]
-        last_idx = len(relevant_results) - 1
-        for i, relevant_result in enumerate(relevant_results):
-            relevant_result_time = relevant_result["time"]["value"]
-            relevant_result_dt = _parse_datetime(relevant_result_time)
-            update_parts = [
-                r["updateQuery"]["value"]
-                for r, r_dt in sorted_parsed
-                if "updateQuery" in r
-                and "value" in r["updateQuery"]
-                and r_dt > relevant_result_dt
-            ]
-            entity_present_graph = entity_quads if i == last_idx else set(entity_quads)
-            if update_parts:
-                self._manage_update_queries(
-                    entity_present_graph, ";".join(update_parts)
-                )
-            timestamp_key = convert_to_datetime(relevant_result_time, stringify=True)
-            entity_graphs[timestamp_key] = entity_present_graph  # type: ignore[index]
+        target_times = {
+            relevant_result["time"]["value"] for relevant_result in relevant_results
+        }
+        entity_graphs = {
+            timestamp: set(quad_set)
+            for timestamp, quad_set in _materialize_versions(
+                sorted_versions, entity_quads, target_times
+            )
+        }
+        for relevant_result in relevant_results:
             if include_prov_metadata:
                 snapshot_uri = relevant_result["snapshot"]["value"]
                 entity_snapshots[snapshot_uri] = {
-                    "generatedAtTime": relevant_result_time,
+                    "generatedAtTime": relevant_result["time"]["value"],
                     "invalidatedAtTime": relevant_result.get(
                         "invalidatedAtTime", {}
                     ).get("value"),
@@ -1073,7 +1103,7 @@ class AgnosticEntity:
                 if update_query is None:
                     entity_current_state[0][self.res][date_graph[0]] = previous_graph
                 else:
-                    self._manage_update_queries(previous_graph, update_query)
+                    _apply_inverse_update(previous_graph, update_query)
                     entity_current_state[0][self.res][date_graph[0]] = previous_graph
         for time in list(entity_current_state[0][self.res]):
             quad_set = entity_current_state[0][self.res].pop(time)
@@ -1095,20 +1125,9 @@ class AgnosticEntity:
             if i > 0:
                 prev_update = ordered[i - 1][1]
                 if prev_update is not None:
-                    self._manage_update_queries(working, prev_update)
+                    _apply_inverse_update(working, prev_update)
             normalized = str(convert_to_datetime(time_str, stringify=True))
             yield normalized, set(working)
-
-    @classmethod
-    def _manage_update_queries(cls, graph: set, update_query: str) -> None:
-        operations = _fast_parse_update(update_query)
-        for operation_type, quads in operations:
-            if operation_type == "DeleteData":
-                for quad in quads:
-                    graph.add(quad)
-            elif operation_type == "InsertData":
-                for quad in quads:
-                    graph.discard(quad)
 
     def _query_dataset(self, entity_uri: str | None = None) -> set[tuple[str, ...]]:
         entity_uri = self.res if entity_uri is None else entity_uri

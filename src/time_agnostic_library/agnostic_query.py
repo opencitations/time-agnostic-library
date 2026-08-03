@@ -21,6 +21,7 @@ from time_agnostic_library.agnostic_entity import (
     _apply_update_ops,
     _fast_parse_update,
     _filter_timestamps_by_interval,
+    _materialize_versions,
     _parse_datetime,
 )
 from time_agnostic_library.prov_entity import ProvEntity
@@ -193,38 +194,6 @@ def _batch_query_dataset_triples(
     return output
 
 
-def _iter_versions_as_sets(
-    prov_snapshots: list[dict],
-    dataset_quads: set[tuple],
-    relevant_times: set[str] | None = None,
-) -> list[tuple[str, tuple]]:
-    sorted_snaps = sorted(
-        prov_snapshots, key=lambda x: _parse_datetime(x["time"]), reverse=True
-    )
-    target_count = len(relevant_times) if relevant_times else None
-    working = set(dataset_quads)
-    results = []
-    found = 0
-    for i, snap in enumerate(sorted_snaps):
-        if i > 0:
-            prev_uq = sorted_snaps[i - 1]["updateQuery"]
-            if prev_uq is not None:
-                for op_type, quads in _fast_parse_update(prev_uq):
-                    if op_type == "DeleteData":
-                        for quad in quads:
-                            working.add(quad)
-                    elif op_type == "InsertData":
-                        for quad in quads:
-                            working.discard(quad)
-        if relevant_times is None or snap["time"] in relevant_times:
-            normalized = str(convert_to_datetime(snap["time"], stringify=True))
-            results.append((normalized, tuple(working)))
-            found += 1
-            if target_count is not None and found == target_count:
-                break
-    return results
-
-
 def _reconstruct_at_time_as_sets(
     prov_snapshots: list[dict],
     dataset_quads: set[tuple],
@@ -254,7 +223,10 @@ def _reconstruct_at_time_as_sets(
         else:
             return []
     relevant_times = {r["time"]["value"] for r in relevant}
-    return _iter_versions_as_sets(prov_snapshots, dataset_quads, relevant_times)
+    sorted_versions = [
+        (snapshot["time"], snapshot["updateQuery"]) for snapshot in sorted_snaps
+    ]
+    return _materialize_versions(sorted_versions, dataset_quads, relevant_times)
 
 
 def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
@@ -1162,8 +1134,16 @@ class VersionQuery(AgnosticQuery):
             entity_bindings: dict[str, dict[str, list[dict]]] = {}
             for entity_str in all_entity_strs:
                 per_ts: dict[str, list[dict]] = {}
-                for ts, quad_set in _iter_versions_as_sets(
-                    prov_data[entity_str], dataset_data[entity_str]
+                sorted_versions = sorted(
+                    (
+                        (snapshot["time"], snapshot["updateQuery"])
+                        for snapshot in prov_data[entity_str]
+                    ),
+                    key=lambda version: _parse_datetime(version[0]),
+                    reverse=True,
+                )
+                for ts, quad_set in _materialize_versions(
+                    sorted_versions, dataset_data[entity_str]
                 ):
                     per_ts[ts] = _match_single_pattern(triple, quad_set)
                 entity_bindings[entity_str] = per_ts
