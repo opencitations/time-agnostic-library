@@ -362,10 +362,8 @@ def _build_delta_result(
         )
     if not has_relevant:
         return output
-    last_snap = parsed_snaps[-1][0]
-    deleted = (
-        parsed_snaps[-1][1].isoformat() if last_snap["invalidatedAtTime"] else None
-    )
+    invalidated = parsed_snaps[-1][0]["invalidatedAtTime"]
+    deleted = _parse_datetime(invalidated).isoformat() if invalidated else None
     output[entity_str] = {
         "created": created,
         "deleted": deleted,
