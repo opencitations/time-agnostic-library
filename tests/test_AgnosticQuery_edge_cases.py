@@ -11,7 +11,10 @@ from time_agnostic_library.agnostic_query import (
     DeltaQuery,
     VersionQuery,
     _build_delta_result,
+    _escape_search_term,
     _match_single_pattern,
+    _pattern_constants,
+    _pattern_search_terms,
     _reconstruct_at_time_as_sets,
     get_insert_query,
 )
@@ -377,3 +380,125 @@ class TestAgnosticQueryEdgeCases:
         mock_sparql.run_select_query.return_value = {"results": {"bindings": []}}
         triple = ("?s", "<http://ex.com/p>", "<http://ex.com/o>")
         vq._find_entities_in_update_queries(triple)
+
+
+_LITERAL_QUERY = "SELECT ?s WHERE { ?s <http://ex.com/p> ?o }"
+
+
+class TestEntityDiscoverySearchTerms:
+    def test_pattern_terms_normalize_language_tags(self):
+        triple = ("?s", "<http://ex.com/p>", '"foo"@EN')
+        assert _pattern_constants(triple) == {"<http://ex.com/p>", '"foo"@en'}
+        assert _pattern_search_terms(triple) == {"http://ex.com/p"}
+
+    def test_escape_search_term(self):
+        assert _escape_search_term(r"it's", "'") == r"it\'s"
+        assert _escape_search_term(r"say \"hi\"", '"') == r"say \\\"hi\\\""
+        assert _escape_search_term("a'b\"c", '"', "'") == "a\\'b\\\"c"
+
+    @patch("time_agnostic_library.agnostic_query.Sparql", new=MagicMock())
+    def test_query_to_update_queries_uses_iri_prefilter(self):
+        vq = VersionQuery(_LITERAL_QUERY, config_dict=CONFIG)
+        triple = ("?s", "<http://ex.com/p>", '"it\'s"@en')
+        query_to_identify = (
+            vq._get_query_to_update_queries(triple).replace(" ", "").replace("\n", "")
+        )
+        expected = """
+            SELECT ?updateQuery
+            WHERE {
+                ?snapshot <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
+                FILTER CONTAINS (?updateQuery, 'http://ex.com/p').
+            }
+        """.replace(" ", "").replace("\n", "")
+        assert query_to_identify == expected
+
+    @pytest.mark.parametrize(
+        ("pattern_predicate", "pattern_literal", "update_literal"),
+        [
+            ("<http://ex.com/p>", '"foo"', '"foo"'),
+            ("<http://ex.com/p>", r'"say \"hi\""', "'say \"hi\"'"),
+            ("<http://ex.com/p>", '"foo"@EN', '"foo"@en'),
+            ("?p", '"foo"', '"foo"'),
+        ],
+    )
+    @patch("time_agnostic_library.agnostic_query.Sparql")
+    def test_find_entity_uris_matches_literal_quad(
+        self,
+        mock_sparql_class,
+        pattern_predicate,
+        pattern_literal,
+        update_literal,
+    ):
+        config_fts = CONFIG.copy()
+        config_fts["blazegraph_full_text_search"] = "yes"
+        vq = VersionQuery(_LITERAL_QUERY, config_dict=config_fts)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        mock_sparql.run_select_query.return_value = {
+            "results": {
+                "bindings": [
+                    {
+                        "updateQuery": {
+                            "value": "DELETE DATA { GRAPH <http://g/> { "
+                            f"<http://ex.com/e1> <http://ex.com/p> {update_literal} . "
+                            '<http://ex.com/e2> <http://ex.com/p> "bar" . } }'
+                        },
+                    },
+                ]
+            }
+        }
+        entities = set()
+        vq._find_entity_uris_in_update_queries(
+            ("?s", pattern_predicate, pattern_literal), entities
+        )
+        assert entities == {"http://ex.com/e1"}
+
+    @patch("time_agnostic_library.agnostic_query.Sparql")
+    def test_find_entity_uris_filters_default_candidates(self, mock_sparql_class):
+        vq = VersionQuery(_LITERAL_QUERY, config_dict=CONFIG)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        mock_sparql.run_select_query.return_value = {
+            "results": {
+                "bindings": [
+                    {
+                        "entity": {"value": "http://ex.com/e1"},
+                        "updateQuery": {
+                            "value": "DELETE DATA { GRAPH <http://g/> { "
+                            '<http://ex.com/e1> <http://ex.com/p> "foo" . } }'
+                        },
+                    },
+                    {
+                        "entity": {"value": "http://ex.com/e2"},
+                        "updateQuery": {
+                            "value": "DELETE DATA { GRAPH <http://g/> { "
+                            '<http://ex.com/e2> <http://ex.com/p> "bar" . } }'
+                        },
+                    },
+                ]
+            }
+        }
+        entities = set()
+        vq._find_entity_uris_in_update_queries(
+            ("?s", "<http://ex.com/p>", '"foo"'), entities
+        )
+        query_to_identify = (
+            mock_sparql_class.call_args.args[0].replace(" ", "").replace("\n", "")
+        )
+        expected = """
+            SELECT ?entity ?updateQuery
+            WHERE {
+                ?snapshot <http://www.w3.org/ns/prov#specializationOf> ?entity;
+                    <https://w3id.org/oc/ontology/hasUpdateQuery> ?updateQuery.
+                FILTER CONTAINS (?updateQuery, 'http://ex.com/p').
+            }
+        """.replace(" ", "").replace("\n", "")
+        assert entities == {"http://ex.com/e1"}
+        assert query_to_identify == expected
+
+    @patch("time_agnostic_library.agnostic_query.Sparql", new=MagicMock())
+    def test_is_a_new_triple_distinguishes_literals(self):
+        vq = VersionQuery(_LITERAL_QUERY, config_dict=CONFIG)
+        checked = {("?s", "<http://ex.com/p>", '"foo"')}
+        assert not vq._is_a_new_triple(("?s", "<http://ex.com/p>", '"foo"'), checked)
+        assert vq._is_a_new_triple(("?s", "<http://ex.com/p>", '"bar"'), checked)

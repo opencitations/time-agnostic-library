@@ -6,6 +6,7 @@
 import atexit
 import json
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import NoReturn
@@ -130,6 +131,55 @@ def _reconstruct_entity_worker(entity, config, on_time, other_snapshots_flag):
         return entity, entity_graphs, other_snapshots
     entity_history = agnostic_entity.get_history(include_prov_metadata=True)
     return entity, entity_history[0], {}
+
+
+_LITERAL_N3_RE = re.compile(
+    r"""
+    ^ " (?P<lexical>.*) "  # Greedy matching retains escaped quotes.
+    (?: @(?P<language>[\w-]+) | \^\^<[^>]*> )?
+    \Z
+    """,
+    re.VERBOSE,
+)
+
+
+def _normalize_constant(term_n3: str) -> str | None:
+    if term_n3.startswith("<") and term_n3.endswith(">"):
+        return term_n3
+    match = _LITERAL_N3_RE.match(term_n3)
+    if match is None:
+        return None
+    language = match["language"]
+    if language is None:
+        return term_n3
+    return f'"{match["lexical"]}"@{language.lower()}'
+
+
+def _pattern_constants(triple: tuple) -> set[str]:
+    constants = (_normalize_constant(el) for el in triple[:3])
+    return {constant for constant in constants if constant is not None}
+
+
+def _pattern_search_terms(triple: tuple) -> set[str]:
+    return {el[1:-1] for el in triple[:3] if el.startswith("<") and el.endswith(">")}
+
+
+def _escape_search_term(text: str, *quotes: str) -> str:
+    escaped = text.replace("\\", "\\\\")
+    for quote in quotes:
+        escaped = escaped.replace(quote, "\\" + quote)
+    return escaped
+
+
+def _matching_update_quads(
+    update_query: str, constants: set[str]
+) -> list[tuple[str, str, str, str]]:
+    return [
+        quad
+        for _, quads in _fast_parse_update(update_query)
+        for quad in quads
+        if constants.issubset(_pattern_constants(quad))
+    ]
 
 
 def _sparql_values(uris: set[str]) -> str:
@@ -642,38 +692,38 @@ class AgnosticQuery:
         }
 
     def _is_a_new_triple(self, triple: tuple, triples_checked: set) -> bool:
-        uris_in_triple = {
-            el for el in triple if el.startswith("<") and el.endswith(">")
-        }
+        constants = _pattern_constants(triple)
         for triple_checked in triples_checked:
-            uris_in_triple_checked = {
-                el for el in triple_checked if el.startswith("<") and el.endswith(">")
-            }
-            if not uris_in_triple.difference(uris_in_triple_checked):
+            if not constants.difference(_pattern_constants(triple_checked)):
                 return False
         return True
 
     def _get_query_to_update_queries(self, triple: tuple) -> str:
-        uris_n3 = {el for el in triple if el.startswith("<") and el.endswith(">")}
-        return self.get_full_text_search(uris_n3)
+        return self.get_full_text_search(_pattern_search_terms(triple))
 
-    def get_full_text_search(self, uris_in_triple: set) -> str:
-        uris_in_triple = {
-            el[1:-1] if el.startswith("<") and el.endswith(">") else el
-            for el in uris_in_triple
-        }
-        if self.blazegraph_full_text_search:
+    def get_full_text_search(self, terms: set) -> str:
+        if not terms:
+            query_to_identify = f"""
+            SELECT ?updateQuery
+            WHERE {{
+                ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+            }}
+            """
+        elif self.blazegraph_full_text_search:
+            query_obj = " ".join(_escape_search_term(term, '"') for term in terms)
             query_to_identify = f"""
             PREFIX bds: <http://www.bigdata.com/rdf/search#>
             SELECT ?updateQuery
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                ?updateQuery bds:search "{" ".join(uris_in_triple)}";
+                ?updateQuery bds:search "{query_obj}";
                     bds:matchAllTerms 'true'.
             }}
             """
         elif self.fuseki_full_text_search:
-            query_obj = '\\" AND \\"'.join(uris_in_triple)
+            query_obj = '\\" AND \\"'.join(
+                _escape_search_term(term, '"') for term in terms
+            )
             query_to_identify = f"""
                 PREFIX text: <http://jena.apache.org/text#>
                 SELECT ?updateQuery WHERE {{
@@ -682,7 +732,9 @@ class AgnosticQuery:
                 }}
             """
         elif self.virtuoso_full_text_search:
-            query_obj = "' AND '".join(uris_in_triple)
+            query_obj = "' AND '".join(
+                _escape_search_term(term, '"', "'") for term in terms
+            )
             query_to_identify = f"""
             PREFIX bif: <bif:>
             SELECT ?updateQuery
@@ -695,7 +747,9 @@ class AgnosticQuery:
             quote = '"'
             con_queries = (
                 f"con:query '{quote}"
-                + f"{quote}'; con:query '{quote}".join(uris_in_triple)
+                + f"{quote}'; con:query '{quote}".join(
+                    _escape_search_term(term, "'", '"') for term in terms
+                )
                 + f"{quote}'"
             )
             query_to_identify = f"""
@@ -710,8 +764,9 @@ class AgnosticQuery:
             }}
             """
         else:
+            escaped = [_escape_search_term(term, "'") for term in terms]
             filters = ").".join(
-                f"FILTER CONTAINS (?updateQuery, '{uri}'" for uri in uris_in_triple
+                f"FILTER CONTAINS (?updateQuery, '{term}'" for term in escaped
             )
             query_to_identify = f"""
             SELECT ?updateQuery
@@ -723,8 +778,7 @@ class AgnosticQuery:
         return query_to_identify
 
     def _find_entity_uris_in_update_queries(self, triple: tuple, entities: set) -> None:
-        uris_n3 = {el for el in triple if el.startswith("<") and el.endswith(">")}
-        uris_str = {el[1:-1] for el in uris_n3}
+        constants_n3 = _pattern_constants(triple)
         if not any(
             [
                 self.blazegraph_full_text_search,
@@ -733,34 +787,33 @@ class AgnosticQuery:
                 self.graphdb_connector_name,
             ]
         ):
-            filter_clauses = ".".join(
-                f"FILTER CONTAINS (?uq, '{uri}')" for uri in uris_str
+            terms = _pattern_search_terms(triple)
+            escaped = [_escape_search_term(term, "'") for term in terms]
+            filter_clauses = "\n".join(
+                f"FILTER CONTAINS (?updateQuery, '{term}')." for term in escaped
             )
             query = f"""
-                SELECT ?entity WHERE {{
+                SELECT ?entity ?updateQuery WHERE {{
                     ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
-                        <{ProvEntity.iri_has_update_query}> ?uq.
-                    {filter_clauses}.
+                        <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                    {filter_clauses}
                 }}
             """
             results = Sparql(query, self.config).run_select_query()
             for binding in results["results"]["bindings"]:
-                entities.add(binding["entity"]["value"])
+                matching_quads = _matching_update_quads(
+                    binding["updateQuery"]["value"], constants_n3
+                )
+                if matching_quads:
+                    entities.add(binding["entity"]["value"])
             return
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config).run_select_query()
         for binding in results["results"]["bindings"]:
-            uq = binding.get("updateQuery")
-            if uq and uq.get("value"):
-                for _, quads in _fast_parse_update(uq["value"]):
-                    for quad in quads:
-                        quad_uris = {
-                            el
-                            for el in quad[:3]
-                            if el.startswith("<") and el.endswith(">")
-                        }
-                        if uris_n3.issubset(quad_uris):
-                            entities.add(quad[0][1:-1])
+            for quad in _matching_update_quads(
+                binding["updateQuery"]["value"], constants_n3
+            ):
+                entities.add(quad[0][1:-1])
 
     def _find_entities_in_update_queries(
         self, triple: tuple, present_entities: set | None = None
