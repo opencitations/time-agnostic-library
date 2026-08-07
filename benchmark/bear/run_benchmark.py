@@ -92,8 +92,14 @@ def _measure_query(fn: Callable[[], dict]) -> dict:
 
 def run_vm_query(sparql: str, on_time: tuple, config: dict) -> dict:
     def fn() -> dict:
-        vq = VersionQuery(sparql, on_time=on_time, config_dict=config)
-        result, _ = vq.run_agnostic_query()
+        vq = VersionQuery(
+            sparql,
+            on_time=on_time,
+            merge_aware=False,
+            include_prov_metadata=False,
+            config_dict=config,
+        )
+        result, _, _ = vq.run_agnostic_query()
         return {"num_results": sum(len(v) for v in result.values())}
 
     return _measure_query(fn)
@@ -101,8 +107,14 @@ def run_vm_query(sparql: str, on_time: tuple, config: dict) -> dict:
 
 def run_dm_query(sparql: str, on_time: tuple, config: dict) -> dict:
     def fn() -> dict:
-        dq = DeltaQuery(sparql, on_time=on_time, config_dict=config)
-        result = dq.run_agnostic_query()
+        dq = DeltaQuery(
+            sparql,
+            on_time=on_time,
+            merge_aware=False,
+            include_prov_metadata=False,
+            config_dict=config,
+        )
+        result, _, _ = dq.run_agnostic_query()
         total_additions = sum(len(v["additions"]) for v in result.values())
         total_deletions = sum(len(v["deletions"]) for v in result.values())
         return {
@@ -116,8 +128,13 @@ def run_dm_query(sparql: str, on_time: tuple, config: dict) -> dict:
 
 def run_vq_query(sparql: str, config: dict) -> dict:
     def fn() -> dict:
-        vq = VersionQuery(sparql, config_dict=config)
-        result, _ = vq.run_agnostic_query()
+        vq = VersionQuery(
+            sparql,
+            merge_aware=False,
+            include_prov_metadata=False,
+            config_dict=config,
+        )
+        result, _, _ = vq.run_agnostic_query()
         return {
             "num_results": sum(len(v) for v in result.values()),
             "num_versions": len(result),

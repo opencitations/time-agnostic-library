@@ -365,3 +365,60 @@
 <https://github.com/arcangelo7/time_agnostic/id/282404> <http://purl.org/spar/datacite/usesIdentifierScheme> <http://purl.org/spar/datacite/doi> <https://github.com/arcangelo7/time_agnostic/id/> .
 <https://github.com/arcangelo7/time_agnostic/id/282404> <http://www.essepuntato.it/2010/06/literalreification/hasLiteralValue> "10.1111/j.1365-2702.2010.03679.x" <https://github.com/arcangelo7/time_agnostic/id/> .
 <https://github.com/arcangelo7/time_agnostic/id/282404> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://purl.org/spar/datacite/Identifier> <https://github.com/arcangelo7/time_agnostic/id/> .
+<https://example.org/merge/d> <https://example.org/merge/label> "D" <https://example.org/merge/> .
+<https://example.org/merge/d> <https://example.org/merge/relatedTo> <https://example.org/merge/d> <https://example.org/merge/> .
+<https://example.org/merge/a/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-01-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/1> <http://www.w3.org/ns/prov#invalidatedAtTime> "2021-02-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/1> <http://www.w3.org/ns/prov#specializationOf> <https://example.org/merge/a> <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/1> <http://www.w3.org/ns/prov#wasAttributedTo> <https://example.org/agent> <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/1> <http://purl.org/dc/terms/description> "Entity a was created." <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-02-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/2> <http://www.w3.org/ns/prov#invalidatedAtTime> "2021-02-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/2> <http://www.w3.org/ns/prov#specializationOf> <https://example.org/merge/a> <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/2> <http://www.w3.org/ns/prov#wasAttributedTo> <https://example.org/agent> <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://example.org/merge/a/prov/se/1> <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://example.org/merge/> { <https://example.org/merge/a> <https://example.org/merge/label> \"A\" . <https://example.org/merge/a> <https://example.org/merge/relatedTo> <https://example.org/merge/a> . } }" <https://example.org/merge/a/prov/> .
+<https://example.org/merge/a/prov/se/2> <http://purl.org/dc/terms/description> "Entity a was deleted." <https://example.org/merge/a/prov/> .
+<https://example.org/merge/b/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-01-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/1> <http://www.w3.org/ns/prov#invalidatedAtTime> "2021-02-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/1> <http://www.w3.org/ns/prov#specializationOf> <https://example.org/merge/b> <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/1> <http://www.w3.org/ns/prov#wasAttributedTo> <https://example.org/agent> <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/1> <http://purl.org/dc/terms/description> "Entity b was created." <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-02-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/2> <http://www.w3.org/ns/prov#invalidatedAtTime> "2021-02-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/2> <http://www.w3.org/ns/prov#specializationOf> <https://example.org/merge/b> <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/2> <http://www.w3.org/ns/prov#wasAttributedTo> <https://example.org/agent> <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://example.org/merge/b/prov/se/1> <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/2> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://example.org/merge/> { <https://example.org/merge/b> <https://example.org/merge/label> \"B\" . <https://example.org/merge/b> <https://example.org/merge/relatedTo> <https://example.org/merge/b> . } }" <https://example.org/merge/b/prov/> .
+<https://example.org/merge/b/prov/se/2> <http://purl.org/dc/terms/description> "Entity b was deleted." <https://example.org/merge/b/prov/> .
+<https://example.org/merge/c/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-01-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/1> <http://www.w3.org/ns/prov#invalidatedAtTime> "2021-02-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/1> <http://www.w3.org/ns/prov#specializationOf> <https://example.org/merge/c> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/1> <http://www.w3.org/ns/prov#wasAttributedTo> <https://example.org/agent> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/1> <http://purl.org/dc/terms/description> "Entity c was created." <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-02-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/2> <http://www.w3.org/ns/prov#invalidatedAtTime> "2021-03-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/2> <http://www.w3.org/ns/prov#specializationOf> <https://example.org/merge/c> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/2> <http://www.w3.org/ns/prov#wasAttributedTo> <https://example.org/agent> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://example.org/merge/a/prov/se/1> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://example.org/merge/b/prov/se/1> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://example.org/merge/c/prov/se/1> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/2> <http://purl.org/dc/terms/description> "Entities a and b were merged into c." <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/3> <http://www.w3.org/ns/prov#generatedAtTime> "2021-03-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/3> <http://www.w3.org/ns/prov#invalidatedAtTime> "2021-03-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/3> <http://www.w3.org/ns/prov#specializationOf> <https://example.org/merge/c> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/3> <http://www.w3.org/ns/prov#wasAttributedTo> <https://example.org/agent> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/3> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://example.org/merge/c/prov/se/2> <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/3> <https://w3id.org/oc/ontology/hasUpdateQuery> "DELETE DATA { GRAPH <https://example.org/merge/> { <https://example.org/merge/c> <https://example.org/merge/label> \"C\" . <https://example.org/merge/c> <https://example.org/merge/relatedTo> <https://example.org/merge/c> . } }" <https://example.org/merge/c/prov/> .
+<https://example.org/merge/c/prov/se/3> <http://purl.org/dc/terms/description> "Entity c was deleted." <https://example.org/merge/c/prov/> .
+<https://example.org/merge/d/prov/se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2021-01-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/1> <http://www.w3.org/ns/prov#invalidatedAtTime> "2021-03-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/1> <http://www.w3.org/ns/prov#specializationOf> <https://example.org/merge/d> <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/1> <http://www.w3.org/ns/prov#wasAttributedTo> <https://example.org/agent> <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/1> <http://purl.org/dc/terms/description> "Entity d was created." <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/2> <http://www.w3.org/ns/prov#generatedAtTime> "2021-03-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/2> <http://www.w3.org/ns/prov#specializationOf> <https://example.org/merge/d> <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/2> <http://www.w3.org/ns/prov#wasAttributedTo> <https://example.org/agent> <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://example.org/merge/c/prov/se/2> <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/2> <http://www.w3.org/ns/prov#wasDerivedFrom> <https://example.org/merge/d/prov/se/1> <https://example.org/merge/d/prov/> .
+<https://example.org/merge/d/prov/se/2> <http://purl.org/dc/terms/description> "Entity c was merged into d." <https://example.org/merge/d/prov/> .

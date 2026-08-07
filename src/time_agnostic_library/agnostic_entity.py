@@ -861,7 +861,7 @@ class AgnosticEntity:
         if include_prov_metadata:
             query_snapshots = f"""
                 SELECT ?snapshot ?time ?responsibleAgent ?updateQuery
-                    ?primarySource ?description ?invalidatedAtTime
+                    ?primarySource ?description ?invalidatedAtTime ?derivedFrom
                 WHERE {{
                     {graph_statement}
                     {{
@@ -881,6 +881,9 @@ class AgnosticEntity:
                         OPTIONAL {{
                             ?snapshot <{ProvEntity.iri_had_primary_source}>
                                 ?primarySource.
+                        }}
+                        OPTIONAL {{
+                            ?snapshot <{ProvEntity.iri_was_derived_from}> ?derivedFrom.
                         }}
                     }}
                 }}
@@ -903,38 +906,17 @@ class AgnosticEntity:
         bindings = results["results"]["bindings"]
         if not bindings:
             return {}, {}, other_snapshots_metadata
+        snapshots_by_uri = {}
+        for binding in bindings:
+            snapshots_by_uri.setdefault(binding["snapshot"]["value"], binding)
         sorted_results = sorted(
-            bindings, key=lambda x: _parse_datetime(x["time"]["value"]), reverse=True
+            snapshots_by_uri.values(),
+            key=lambda x: _parse_datetime(x["time"]["value"]),
+            reverse=True,
         )
         relevant_results = _filter_timestamps_by_interval(
             time, sorted_results, time_index="time"
         )
-        if include_prov_metadata:
-            relevant_snapshot_uris = {
-                relevant_result["snapshot"]["value"]
-                for relevant_result in relevant_results
-            }
-            other_snapshots = [
-                snapshot
-                for snapshot in bindings
-                if snapshot["snapshot"]["value"] not in relevant_snapshot_uris
-            ]
-            for other_snapshot in other_snapshots:
-                snapshot_uri = other_snapshot["snapshot"]["value"]
-                other_snapshots_metadata[snapshot_uri] = {
-                    "generatedAtTime": other_snapshot["time"]["value"],
-                    "invalidatedAtTime": other_snapshot.get(
-                        "invalidatedAtTime", {}
-                    ).get("value"),
-                    "wasAttributedTo": other_snapshot["responsibleAgent"]["value"],
-                    "hasUpdateQuery": other_snapshot.get("updateQuery", {}).get(
-                        "value"
-                    ),
-                    "hadPrimarySource": other_snapshot.get("primarySource", {}).get(
-                        "value"
-                    ),
-                    "description": other_snapshot.get("description", {}).get("value"),
-                }
         if not relevant_results:
             interval_start = _parse_datetime(time[0]) if time[0] else None
             if interval_start:
@@ -949,11 +931,48 @@ class AgnosticEntity:
                         key=lambda x: _parse_datetime(x["time"]["value"]),
                     )
                     relevant_results = [latest_snapshot]
-                else:
-                    return {}, {}, other_snapshots_metadata
-            else:
-                return {}, {}, other_snapshots_metadata
+        relevant_snapshot_uris = {
+            result["snapshot"]["value"] for result in relevant_results
+        }
         entity_snapshots = {}
+        if include_prov_metadata:
+            metadata_by_snapshot = {}
+            for result in bindings:
+                snapshot_uri = result["snapshot"]["value"]
+                snapshot_metadata = metadata_by_snapshot.setdefault(
+                    snapshot_uri,
+                    {
+                        "generatedAtTime": result["time"]["value"],
+                        "invalidatedAtTime": result.get("invalidatedAtTime", {}).get(
+                            "value"
+                        ),
+                        "wasAttributedTo": result["responsibleAgent"]["value"],
+                        "hasUpdateQuery": result.get("updateQuery", {}).get("value"),
+                        "hadPrimarySource": result.get("primarySource", {}).get(
+                            "value"
+                        ),
+                        "description": result.get("description", {}).get("value"),
+                        "wasDerivedFrom": [],
+                    },
+                )
+                if "derivedFrom" in result:
+                    snapshot_metadata["wasDerivedFrom"].append(
+                        result["derivedFrom"]["value"]
+                    )
+            for snapshot_metadata in metadata_by_snapshot.values():
+                snapshot_metadata["wasDerivedFrom"] = sorted(
+                    set(snapshot_metadata["wasDerivedFrom"])
+                )
+            entity_snapshots = {
+                snapshot_uri: metadata
+                for snapshot_uri, metadata in metadata_by_snapshot.items()
+                if snapshot_uri in relevant_snapshot_uris
+            }
+            other_snapshots_metadata = {
+                snapshot_uri: metadata
+                for snapshot_uri, metadata in metadata_by_snapshot.items()
+                if snapshot_uri not in relevant_snapshot_uris
+            }
         entity_quads = self._query_dataset(self.res)
         sorted_versions = [
             (
@@ -973,23 +992,6 @@ class AgnosticEntity:
                 sorted_versions, entity_quads, target_times
             )
         }
-        for relevant_result in relevant_results:
-            if include_prov_metadata:
-                snapshot_uri = relevant_result["snapshot"]["value"]
-                entity_snapshots[snapshot_uri] = {
-                    "generatedAtTime": relevant_result["time"]["value"],
-                    "invalidatedAtTime": relevant_result.get(
-                        "invalidatedAtTime", {}
-                    ).get("value"),
-                    "wasAttributedTo": relevant_result["responsibleAgent"]["value"],
-                    "hasUpdateQuery": relevant_result.get("updateQuery", {}).get(
-                        "value"
-                    ),
-                    "hadPrimarySource": relevant_result.get("primarySource", {}).get(
-                        "value"
-                    ),
-                    "description": relevant_result.get("description", {}).get("value"),
-                }
         return entity_graphs, entity_snapshots, other_snapshots_metadata
 
     def _include_prov_metadata(

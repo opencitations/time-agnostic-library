@@ -19,6 +19,21 @@ def _sort_bindings(bindings):
     return sorted(bindings, key=lambda b: json.dumps(b, sort_keys=True))
 
 
+def _run_query(query, **kwargs):
+    results, provenance, other_provenance = query.run_agnostic_query(**kwargs)
+    if query.include_prov_metadata:
+        other_timestamps = {
+            snapshot["generatedAtTime"]
+            for entity_metadata in other_provenance.values()
+            for snapshot in entity_metadata.values()
+        }
+    else:
+        assert provenance is None
+        assert other_provenance is None
+        other_timestamps = set()
+    return results, other_timestamps
+
+
 class TestVersionQuery:
     def test__collect_patterns_no_optional(self):
         query = """
@@ -1712,8 +1727,8 @@ class TestVersionQuery:
                     rdf:type pro:RoleInTime.
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG)
-        output = agnostic_query.run_agnostic_query()
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-07T09:59:15+00:00": [],
@@ -1755,8 +1770,10 @@ class TestVersionQuery:
                     pro:RoleInTime.}
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=True, config_dict=CONFIG)
-        output = agnostic_query.run_agnostic_query()
+        agnostic_query = VersionQuery(
+            query, include_prov_metadata=True, config_dict=CONFIG
+        )
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-06-01T18:46:41+00:00": [
@@ -1810,8 +1827,8 @@ class TestVersionQuery:
                 OPTIONAL {?id literal:hasLiteralValue ?value.}
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG)
-        output = agnostic_query.run_agnostic_query()
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-31T18:19:47+00:00": [
@@ -1893,10 +1910,8 @@ class TestVersionQuery:
                   <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(
-            query, other_snapshots=False, config_dict=CONFIG_PROV_IN_TRIPLESTORE
-        )
-        output = agnostic_query.run_agnostic_query()
+        agnostic_query = VersionQuery(query, config_dict=CONFIG_PROV_IN_TRIPLESTORE)
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-07T09:59:15+00:00": [
@@ -1961,10 +1976,8 @@ class TestVersionQuery:
               OPTIONAL {?s ?p <https://github.com/arcangelo7/time_agnostic/ra/15519>.}
             }
         """
-        agnostic_query = VersionQuery(
-            query, other_snapshots=False, config_dict=CONFIG_PROV_IN_TRIPLESTORE
-        )
-        output = agnostic_query.run_agnostic_query()
+        agnostic_query = VersionQuery(query, config_dict=CONFIG_PROV_IN_TRIPLESTORE)
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-07T09:59:15+00:00": [
@@ -2012,8 +2025,8 @@ class TestVersionQuery:
                 ?s pro:isHeldBy ?o.
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG)
-        output = agnostic_query.run_agnostic_query()
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-07T09:59:15+00:00": [
@@ -2079,8 +2092,8 @@ class TestVersionQuery:
                 ?id literal:hasLiteralValue ?value.
             }
         """
-        agnostic_query = VersionQuery(query, other_snapshots=False, config_dict=CONFIG)
-        output = agnostic_query.run_agnostic_query()
+        agnostic_query = VersionQuery(query, config_dict=CONFIG)
+        output = _run_query(agnostic_query)
         br31830 = {
             "br": {
                 "type": "uri",
@@ -2139,10 +2152,10 @@ class TestVersionQuery:
         agnostic_query = VersionQuery(
             query,
             on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
-            other_snapshots=True,
+            include_prov_metadata=True,
             config_dict=CONFIG,
         )
-        output = agnostic_query.run_agnostic_query()
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-31T18:19:47+00:00": [
@@ -2177,10 +2190,10 @@ class TestVersionQuery:
         agnostic_query = VersionQuery(
             query,
             on_time=("2021-05-06T00:00:00+00:00", "2021-05-06T00:00:00+00:00"),
-            other_snapshots=True,
+            include_prov_metadata=True,
             config_dict=CONFIG,
         )
-        output = agnostic_query.run_agnostic_query()
+        output = _run_query(agnostic_query)
         expected_output = (
             {},
             {
@@ -2205,10 +2218,10 @@ class TestVersionQuery:
         agnostic_query = VersionQuery(
             query,
             on_time=("2021-06-01T18:46:41+00:00", "2021-06-01T18:46:41+00:00"),
-            other_snapshots=True,
+            include_prov_metadata=True,
             config_dict=CONFIG,
         )
-        output = agnostic_query.run_agnostic_query()
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-06-01T18:46:41+00:00": [
@@ -2247,10 +2260,10 @@ class TestVersionQuery:
         agnostic_query = VersionQuery(
             query,
             on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"),
-            other_snapshots=True,
+            include_prov_metadata=True,
             config_dict=CONFIG,
         )
-        output = agnostic_query.run_agnostic_query()
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-07T09:59:15+00:00": [
@@ -2301,10 +2314,10 @@ class TestVersionQuery:
         agnostic_query = VersionQuery(
             query,
             on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"),
-            other_snapshots=True,
+            include_prov_metadata=True,
             config_dict=CONFIG,
         )
-        output = agnostic_query.run_agnostic_query()
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-07T09:59:15+00:00": [
@@ -2349,10 +2362,9 @@ class TestVersionQuery:
         agnostic_query = VersionQuery(
             query,
             on_time=("2021-05-07T09:59:15+00:00", "2021-05-07T09:59:15+00:00"),
-            other_snapshots=False,
             config_dict=CONFIG,
         )
-        output = agnostic_query.run_agnostic_query()
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-07T09:59:15+00:00": [
@@ -2389,10 +2401,10 @@ class TestVersionQuery:
         agnostic_query = VersionQuery(
             query,
             on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
-            other_snapshots=True,
+            include_prov_metadata=True,
             config_dict=CONFIG,
         )
-        output = agnostic_query.run_agnostic_query()
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-31T18:19:47+00:00": [
@@ -2434,10 +2446,9 @@ class TestVersionQuery:
         agnostic_query = VersionQuery(
             query,
             on_time=("2021-05-30T19:41:57+00:00", "2021-05-30T19:41:57+00:00"),
-            other_snapshots=False,
             config_dict=CONFIG,
         )
-        output = agnostic_query.run_agnostic_query()
+        output = _run_query(agnostic_query)
         expected_output = (
             {
                 "2021-05-30T19:41:57+00:00": [
@@ -2478,10 +2489,9 @@ class TestVersionQuery:
         vq = VersionQuery(
             query,
             on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
-            other_snapshots=False,
             config_dict=CONFIG,
         )
-        result, other = vq.run_agnostic_query()
+        result, other = _run_query(vq)
         assert other == set()
         assert "2021-05-31T18:19:47+00:00" in result
         bindings = result["2021-05-31T18:19:47+00:00"]
@@ -2498,10 +2508,9 @@ class TestVersionQuery:
         vq = VersionQuery(
             query,
             on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
-            other_snapshots=False,
             config_dict=CONFIG,
         )
-        result, other = vq.run_agnostic_query()
+        result, other = _run_query(vq)
         assert result == {}
         assert other == set()
 
@@ -2520,10 +2529,9 @@ class TestVersionQuery:
         vq = VersionQuery(
             query,
             on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
-            other_snapshots=False,
             config_dict=config_no_quad,
         )
-        result, _other = vq.run_agnostic_query()
+        result, _other = _run_query(vq)
         assert "2021-05-31T18:19:47+00:00" in result
         values = {b["o"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
         assert "https://github.com/arcangelo7/time_agnostic/ar/15519" in values
@@ -2536,7 +2544,7 @@ class TestVersionQuery:
             }
         """
         vq = VersionQuery(query, config_dict=CONFIG)
-        result, other = vq.run_agnostic_query(include_all_timestamps=True)
+        result, other = _run_query(vq, include_all_timestamps=True)
         assert result == {}
         assert other == set()
 
@@ -2549,7 +2557,7 @@ class TestVersionQuery:
             }
         """
         vq = VersionQuery(query, config_dict=CONFIG)
-        result, _other = vq.run_agnostic_query(include_all_timestamps=True)
+        result, _other = _run_query(vq, include_all_timestamps=True)
         assert isinstance(result, dict)
         assert len(result) > 0
 
@@ -2561,7 +2569,7 @@ class TestVersionQuery:
             }
         """
         vq = VersionQuery(query, config_dict=CONFIG)
-        result, _other = vq.run_agnostic_query()
+        result, _other = _run_query(vq)
         assert isinstance(result, dict)
         found_match = False
         for bindings in result.values():
@@ -2584,7 +2592,7 @@ class TestVersionQuery:
             }
         """
         vq = VersionQuery(query, config_dict=CONFIG)
-        result, _other = vq.run_agnostic_query()
+        result, _other = _run_query(vq)
         assert isinstance(result, dict)
         assert len(result) > 0
         for bindings in result.values():
@@ -2607,7 +2615,7 @@ class TestVersionQuery:
             on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
             config_dict=CONFIG,
         )
-        result, _ = vq.run_agnostic_query()
+        result, _ = _run_query(vq)
         assert "2021-05-31T18:19:47+00:00" in result
         values = {b["ar"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
         assert "https://github.com/arcangelo7/time_agnostic/ar/15519" in values
@@ -2627,7 +2635,7 @@ class TestVersionQuery:
             on_time=("2021-05-31T18:19:47+00:00", "2021-05-31T18:19:47+00:00"),
             config_dict=CONFIG,
         )
-        result, _ = vq.run_agnostic_query()
+        result, _ = _run_query(vq)
         assert "2021-05-31T18:19:47+00:00" in result
         values = {b["ar"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
         assert "https://github.com/arcangelo7/time_agnostic/ar/15519" in values

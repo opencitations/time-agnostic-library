@@ -11,6 +11,16 @@ from time_agnostic_library.support import (
 )
 
 
+def _without_was_derived_from(value):
+    if not isinstance(value, dict):
+        return value
+    return {
+        key: _without_was_derived_from(nested)
+        for key, nested in value.items()
+        if key != "wasDerivedFrom"
+    }
+
+
 class TestAgnosticEntityStateAtTime:
     def test_get_state_at_time_and_related_entities_with_metadata(self):
         entity_uri = "https://github.com/arcangelo7/time_agnostic/ra/4"
@@ -166,8 +176,8 @@ class TestAgnosticEntityStateAtTime:
         }
 
         assert output_0 == expected_output_0
-        assert output_1 == expected_output_1
-        assert output_2 == expected_output_2
+        assert _without_was_derived_from(output_1) == expected_output_1
+        assert _without_was_derived_from(output_2) == expected_output_2
 
     def test_get_state_at_time_no_hooks(self):
         input_1 = "https://github.com/arcangelo7/time_agnostic/ar/15519"
@@ -178,7 +188,11 @@ class TestAgnosticEntityStateAtTime:
         output_0 = {}
         for timestamp, cg in output[0].items():
             output_0[timestamp] = _to_nt_sorted_list(cg)
-        output = (output_0, output[1], output[2])
+        output = (
+            output_0,
+            _without_was_derived_from(output[1]),
+            _without_was_derived_from(output[2]),
+        )
         expected_output = (
             {
                 "2021-05-31T18:19:47+00:00": [
@@ -267,7 +281,11 @@ class TestAgnosticEntityStateAtTime:
         output_0 = {}
         for timestamp, cg in output[0].items():
             output_0[timestamp] = _to_nt_sorted_list(cg)
-        output = (output_0, output[1], output[2])
+        output = (
+            output_0,
+            _without_was_derived_from(output[1]),
+            _without_was_derived_from(output[2]),
+        )
         expected_output = (
             {
                 "2021-05-31T18:19:47+00:00": [

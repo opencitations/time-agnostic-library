@@ -71,8 +71,14 @@ def expected_counts(
 def run_vm_query(sparql: str, timestamp: str, config: dict) -> tuple[int, float]:
     ts = timestamp
     start = time.perf_counter()
-    vq = VersionQuery(sparql, on_time=(ts, ts), config_dict=config)
-    result, _ = vq.run_agnostic_query()
+    vq = VersionQuery(
+        sparql,
+        on_time=(ts, ts),
+        merge_aware=False,
+        include_prov_metadata=False,
+        config_dict=config,
+    )
+    result, _, _ = vq.run_agnostic_query()
     elapsed = time.perf_counter() - start
     if not result:
         return 0, elapsed
@@ -82,8 +88,13 @@ def run_vm_query(sparql: str, timestamp: str, config: dict) -> tuple[int, float]
 
 def run_vq_query(sparql: str, config: dict) -> tuple[dict[str, int], float]:
     start = time.perf_counter()
-    vq = VersionQuery(sparql, config_dict=config)
-    result, _ = vq.run_agnostic_query(include_all_timestamps=True)
+    vq = VersionQuery(
+        sparql,
+        merge_aware=False,
+        include_prov_metadata=False,
+        config_dict=config,
+    )
+    result, _, _ = vq.run_agnostic_query(include_all_timestamps=True)
     elapsed = time.perf_counter() - start
     return {ts: len(bindings) for ts, bindings in result.items()}, elapsed
 

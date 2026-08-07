@@ -75,6 +75,18 @@ _UNRELATED_CHANGE = {
 }
 
 
+def _run_query(query):
+    results, provenance, other_provenance = query.run_agnostic_query()
+    assert provenance is None
+    assert other_provenance is None
+    for record in results.values():
+        assert record["merges"] is None
+    return {
+        entity: {key: value for key, value in record.items() if key != "merges"}
+        for entity, record in results.items()
+    }
+
+
 class TestDeltaQuery:
     def test_run_agnostic_query_full_history(self):
         query = """
@@ -88,7 +100,7 @@ class TestDeltaQuery:
         delta_query = DeltaQuery(
             query=query, changed_properties=changed_properties, config_dict=CONFIG
         )
-        agnostic_results = delta_query.run_agnostic_query()
+        agnostic_results = _run_query(delta_query)
         expected_output = {
             f"{_AR}/15519": {
                 "created": "2021-05-07T09:59:15+00:00",
@@ -116,7 +128,7 @@ class TestDeltaQuery:
             changed_properties=changed_properties,
             config_dict=CONFIG,
         )
-        agnostic_results = delta_query.run_agnostic_query()
+        agnostic_results = _run_query(delta_query)
         expected_output = {
             f"{_AR}/15519": {
                 "created": "2021-05-07T09:59:15+00:00",
@@ -144,7 +156,7 @@ class TestDeltaQuery:
             changed_properties=changed_properties,
             config_dict=CONFIG,
         )
-        agnostic_results = delta_query.run_agnostic_query()
+        agnostic_results = _run_query(delta_query)
         expected_output = {
             f"{_AR}/15519": {
                 "created": None,
@@ -172,7 +184,7 @@ class TestDeltaQuery:
             changed_properties=changed_properties,
             config_dict=CONFIG,
         )
-        agnostic_results = delta_query.run_agnostic_query()
+        agnostic_results = _run_query(delta_query)
         expected_output = {}
         assert agnostic_results == expected_output
 
@@ -185,7 +197,7 @@ class TestDeltaQuery:
             }
         """
         delta_query = DeltaQuery(query=query, config_dict=CONFIG_PROV_IN_TRIPLESTORE)
-        agnostic_results = delta_query.run_agnostic_query()
+        agnostic_results = _run_query(delta_query)
         expected_output = {
             f"{_RA}/15519": {
                 "created": "2021-05-07T09:59:15+00:00",
@@ -219,7 +231,7 @@ class TestDeltaQuery:
             }
         """
         delta_query = DeltaQuery(query=query, config_dict=CONFIG)
-        result = delta_query.run_agnostic_query()
+        result = _run_query(delta_query)
         entity_key = f"{_AR}/15519"
         assert entity_key in result
         assert "created" in result[entity_key]
@@ -236,7 +248,7 @@ class TestDeltaQuery:
             }
         """
         delta_query = DeltaQuery(query=query, config_dict=CONFIG)
-        result = delta_query.run_agnostic_query()
+        result = _run_query(delta_query)
         assert isinstance(result, dict)
         assert len(result) > 0
         for entity_data in result.values():
@@ -293,6 +305,7 @@ class TestDeltaQuery:
                 ],
                 "additions": set(),
                 "deletions": set(),
+                "merges": None,
             }
         }
 
@@ -306,7 +319,7 @@ class TestDeltaQuery:
         """
         on_time = (_ISHELDBY_CHANGE_TIME, _ISHELDBY_CHANGE_TIME)
         delta_query = DeltaQuery(query=query, on_time=on_time, config_dict=CONFIG)
-        result = delta_query.run_agnostic_query()
+        result = _run_query(delta_query)
         record = result[f"{_AR}/15519"]
         assert len(record["changes"]) == 1
         change = record["changes"][0]
@@ -323,7 +336,7 @@ class TestDeltaQuery:
             }
         """
         delta_query = DeltaQuery(query=query, config_dict=CONFIG)
-        result = delta_query.run_agnostic_query()
+        result = _run_query(delta_query)
         assert result == {}
 
     def test_run_agnostic_query_nonexistent_type(self):
@@ -333,5 +346,5 @@ class TestDeltaQuery:
             }
         """
         delta_query = DeltaQuery(query=query, config_dict=CONFIG)
-        result = delta_query.run_agnostic_query()
+        result = _run_query(delta_query)
         assert result == {}

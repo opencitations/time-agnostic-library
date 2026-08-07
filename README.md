@@ -48,12 +48,18 @@ entity.get_state_at_time(time=("2023-01-01", "2023-12-31"))
 from time_agnostic_library.agnostic_query import VersionQuery, DeltaQuery
 
 # Run a SPARQL query on a specific version
-query = VersionQuery(query="SELECT ...", on_time=("2023-01-01", None), config_path="./config.json")
-query.run_agnostic_query()
+query = VersionQuery(
+    query="SELECT ...",
+    on_time=("2023-01-01", None),
+    merge_aware=True,
+    include_prov_metadata=True,
+    config_path="./config.json",
+)
+results, provenance, other_provenance = query.run_agnostic_query()
 
 # Track changes across the entire history
 delta = DeltaQuery(query="SELECT ...", config_path="./config.json")
-delta.run_agnostic_query()
+results, provenance, other_provenance = delta.run_agnostic_query()
 ```
 
 All date/time values must be in ISO 8601 format (e.g., `2023-01-01`, `2023-01-01T00:00:00+00:00`).

@@ -8,6 +8,7 @@ import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import product
 from pathlib import Path
 from typing import NoReturn
 
@@ -115,7 +116,7 @@ def _run_in_parallel(worker_fn, args_list):
             yield future.result()
 
 
-def _reconstruct_entity_worker(entity, config, on_time, other_snapshots_flag):
+def _reconstruct_entity_worker(entity, config, on_time):
     agnostic_entity = AgnosticEntity(
         entity,
         config=config,
@@ -124,13 +125,13 @@ def _reconstruct_entity_worker(entity, config, on_time, other_snapshots_flag):
         include_reverse_relations=False,
     )
     if on_time:
-        entity_graphs, _, other_snapshots = agnostic_entity.get_state_at_time(
+        entity_graphs, _, _ = agnostic_entity.get_state_at_time(
             time=on_time,
-            include_prov_metadata=other_snapshots_flag,
+            include_prov_metadata=False,
         )
-        return entity, entity_graphs, other_snapshots
-    entity_history = agnostic_entity.get_history(include_prov_metadata=True)
-    return entity, entity_history[0], {}
+        return entity, entity_graphs
+    entity_history = agnostic_entity.get_history(include_prov_metadata=False)
+    return entity, entity_history[0]
 
 
 _LITERAL_N3_RE = re.compile(
@@ -367,11 +368,25 @@ def _keep_changed_properties(
     return {q for q in quads if q[1] in properties_n3}
 
 
+def _is_in_interval(
+    timestamp,
+    on_time: tuple[str | None, str | None] | None,
+) -> bool:
+    if on_time is None:
+        return True
+    after_dt = _parse_datetime(on_time[0]) if on_time[0] else None
+    before_dt = _parse_datetime(on_time[1]) if on_time[1] else None
+    return (after_dt is None or timestamp >= after_dt) and (
+        before_dt is None or timestamp <= before_dt
+    )
+
+
 def _build_delta_result(
     entity_str: str,
     snapshots: list[dict],
     on_time: tuple[str | None, str | None] | None,
     changed_properties: set[str],
+    merge_events: list[dict] | None = None,
 ) -> dict:
     output: dict[str, dict] = {}
     parsed_snaps = [(snap, _parse_datetime(snap["time"])) for snap in snapshots]
@@ -410,16 +425,26 @@ def _build_delta_result(
                 "deletions": _keep_changed_properties(snap_deletions, properties_n3),
             }
         )
+    invalidated = parsed_snaps[-1][0]["invalidatedAtTime"]
+    invalidated_dt = _parse_datetime(invalidated) if invalidated else None
+    deleted = (
+        invalidated_dt.isoformat()
+        if invalidated_dt is not None and _is_in_interval(invalidated_dt, on_time)
+        else None
+    )
+    if merge_events:
+        has_relevant = True
+    if deleted is not None:
+        has_relevant = True
     if not has_relevant:
         return output
-    invalidated = parsed_snaps[-1][0]["invalidatedAtTime"]
-    deleted = _parse_datetime(invalidated).isoformat() if invalidated else None
     output[entity_str] = {
         "created": created,
         "deleted": deleted,
         "changes": changes,
         "additions": _keep_changed_properties(additions, properties_n3),
         "deletions": _keep_changed_properties(deletions, properties_n3),
+        "merges": merge_events,
     }
     return output
 
@@ -435,14 +460,18 @@ class AgnosticQuery:
         query: str,
         on_time: tuple[str | None, str | None] | None = (None, None),
         *,
-        other_snapshots: bool = False,
+        merge_aware: bool = False,
+        include_prov_metadata: bool = False,
         config_path: str = CONFIG_PATH,
         config_dict: dict | None = None,
     ):
         self.query = query
-        self.other_snapshots = other_snapshots
+        self.merge_aware = merge_aware
+        self.include_prov_metadata = include_prov_metadata
         self.config_path = config_path
-        self.other_snapshots_metadata: dict = {}
+        self._merge_adjacency: dict[str, set[str]] = {}
+        self._merge_events: dict[str, dict] = {}
+        self._merge_scanned_entities: set[str] = set()
         if config_dict is not None:
             self.config = config_dict
         else:
@@ -463,6 +492,130 @@ class AgnosticQuery:
         self.relevant_entities_graphs: dict[str, dict[str, set]] = {}
         self.relevant_graphs: dict[str, set[tuple[str, ...]]] = {}
         self._rebuild_relevant_graphs()
+
+    def _query_adjacent_merge_events(self, entity_uris: set[str]) -> list[dict]:
+        values = _sparql_values(entity_uris)
+        merge_pattern = f"""
+            ?snapshot <{ProvEntity.iri_specialization_of}> ?survivor;
+                <{ProvEntity.iri_generated_at_time}> ?time;
+                <{ProvEntity.iri_was_derived_from}> ?sourceSnapshot.
+        """
+        source_pattern = (
+            f"?sourceSnapshot <{ProvEntity.iri_specialization_of}> ?absorbed."
+        )
+        if self.config["provenance"]["is_quadstore"]:
+            merge_pattern = f"GRAPH ?mergeGraph {{ {merge_pattern} }}"
+            source_pattern = f"GRAPH ?sourceGraph {{ {source_pattern} }}"
+        query = f"""
+            SELECT DISTINCT ?snapshot ?time ?survivor ?absorbed
+            WHERE {{
+                VALUES ?participant {{ {values} }}
+                {merge_pattern}
+                {source_pattern}
+                FILTER (?survivor != ?absorbed)
+                FILTER (?survivor = ?participant || ?absorbed = ?participant)
+            }}
+        """
+        results = Sparql(query, self.config).run_select_query()
+        return results["results"]["bindings"]
+
+    def _expand_entities_with_merges(self, entity_uris: set[str]) -> set[str]:
+        if not self.merge_aware or not entity_uris:
+            return set(entity_uris)
+        component = set(entity_uris)
+        frontier = component.difference(self._merge_scanned_entities)
+        while frontier:
+            self._merge_scanned_entities.update(frontier)
+            discovered = set()
+            for binding in self._query_adjacent_merge_events(frontier):
+                survivor = binding["survivor"]["value"]
+                absorbed = binding["absorbed"]["value"]
+                snapshot = binding["snapshot"]["value"]
+                event = self._merge_events.setdefault(
+                    snapshot,
+                    {
+                        "time": str(
+                            convert_to_datetime(
+                                binding["time"]["value"], stringify=True
+                            )
+                        ),
+                        "snapshot": snapshot,
+                        "survivor": survivor,
+                        "absorbed": set(),
+                    },
+                )
+                event["absorbed"].add(absorbed)
+                self._merge_adjacency.setdefault(survivor, set()).add(absorbed)
+                self._merge_adjacency.setdefault(absorbed, set()).add(survivor)
+                discovered.update((survivor, absorbed))
+            component.update(discovered)
+            frontier = discovered.difference(self._merge_scanned_entities)
+        queue = list(component)
+        while queue:
+            entity_uri = queue.pop()
+            adjacent_entities = (
+                self._merge_adjacency[entity_uri]
+                if entity_uri in self._merge_adjacency
+                else set()
+            )
+            for adjacent in adjacent_entities:
+                if adjacent not in component:
+                    component.add(adjacent)
+                    queue.append(adjacent)
+        return component
+
+    def _entity_aliases(self, entity_uri: str) -> set[str]:
+        return self._expand_entities_with_merges({entity_uri})
+
+    def _expand_triple_aliases(self, triple: tuple[str, ...]) -> list[tuple[str, ...]]:
+        term_options = []
+        for index, term in enumerate(triple):
+            if (
+                index in (0, _OBJECT_POS)
+                and term.startswith("<")
+                and term.endswith(">")
+            ):
+                term_options.append(
+                    [f"<{uri}>" for uri in sorted(self._entity_aliases(term[1:-1]))]
+                )
+            else:
+                term_options.append([term])
+        return [tuple(terms) for terms in product(*term_options)]
+
+    def _load_provenance(
+        self, entity_uris: set[str]
+    ) -> tuple[dict | None, dict | None]:
+        if not self.include_prov_metadata:
+            return None, None
+        provenance = {}
+        other_provenance = {}
+        for entity_uri in sorted(entity_uris):
+            agnostic_entity = AgnosticEntity(
+                entity_uri,
+                config=self.config,
+                include_related_objects=False,
+                include_merged_entities=False,
+                include_reverse_relations=False,
+            )
+            if self.on_time is None:
+                _, entity_metadata = agnostic_entity.get_history(
+                    include_prov_metadata=True
+                )
+                snapshots = (
+                    entity_metadata[entity_uri] if entity_uri in entity_metadata else {}
+                )
+                if snapshots:
+                    provenance[entity_uri] = snapshots
+                continue
+            _, relevant_snapshots, other_snapshots = agnostic_entity.get_state_at_time(
+                self.on_time,
+                include_prov_metadata=True,
+            )
+            if relevant_snapshots:
+                provenance[entity_uri] = relevant_snapshots
+            if other_snapshots:
+                other_provenance[entity_uri] = other_snapshots
+        return provenance, other_provenance
 
     def __init_text_index(self, config: dict):
         for full_text_search in (
@@ -623,14 +776,15 @@ class AgnosticQuery:
 
     def _rebuild_relevant_entity(self, entity_n3: str) -> None:
         if entity_n3.startswith("<") and entity_n3.endswith(">"):
-            entity_uri = entity_n3[1:-1]
-            if entity_uri not in self.reconstructed_entities:
-                self.reconstructed_entities.add(entity_uri)
-                result = self._reconstruct_entity_state(entity_uri)
-                if result is not None:
-                    self._merge_entity_result(entity_uri, *result)
+            entity_uris = self._expand_entities_with_merges({entity_n3[1:-1]})
+            for entity_uri in entity_uris:
+                if entity_uri not in self.reconstructed_entities:
+                    self.reconstructed_entities.add(entity_uri)
+                    result = self._reconstruct_entity_state(entity_uri)
+                    if result is not None:
+                        self._merge_entity_result(entity_uri, result)
 
-    def _reconstruct_entity_state(self, entity_uri: str) -> tuple[dict, dict] | None:
+    def _reconstruct_entity_state(self, entity_uri: str) -> dict | None:
         agnostic_entity = AgnosticEntity(
             entity_uri,
             config=self.config,
@@ -639,18 +793,14 @@ class AgnosticQuery:
             include_reverse_relations=False,
         )
         if self.on_time:
-            entity_graphs, _, other_snapshots = agnostic_entity.get_state_at_time(
-                time=self.on_time, include_prov_metadata=self.other_snapshots
+            entity_graphs, _, _ = agnostic_entity.get_state_at_time(
+                time=self.on_time, include_prov_metadata=False
             )
-            return entity_graphs, other_snapshots
-        entity_history = agnostic_entity.get_history(include_prov_metadata=True)
-        return entity_history[0], {}
+            return entity_graphs
+        entity_history = agnostic_entity.get_history(include_prov_metadata=False)
+        return entity_history[0]
 
-    def _merge_entity_result(
-        self, entity_uri: str, entity_graphs: dict, other_snapshots: dict
-    ) -> None:
-        if other_snapshots:
-            self.other_snapshots_metadata.update(other_snapshots)
+    def _merge_entity_result(self, entity_uri: str, entity_graphs: dict) -> None:
         if self.on_time:
             if entity_graphs:
                 for relevant_timestamp, quad_set in entity_graphs.items():
@@ -661,6 +811,12 @@ class AgnosticQuery:
             self.relevant_entities_graphs.update(entity_graphs)
 
     def _get_present_entities(self, triple: tuple) -> set[str]:
+        entities = set()
+        for expanded_triple in self._expand_triple_aliases(triple):
+            entities.update(self._get_present_entities_exact(expanded_triple))
+        return entities
+
+    def _get_present_entities_exact(self, triple: tuple) -> set[str]:
         variables = [el for el in triple if el.startswith("?")]
         if self.config["dataset"]["is_quadstore"]:
             query = (
@@ -778,6 +934,12 @@ class AgnosticQuery:
         return query_to_identify
 
     def _find_entity_uris_in_update_queries(self, triple: tuple, entities: set) -> None:
+        for expanded_triple in self._expand_triple_aliases(triple):
+            self._find_entity_uris_in_update_queries_exact(expanded_triple, entities)
+
+    def _find_entity_uris_in_update_queries_exact(
+        self, triple: tuple, entities: set
+    ) -> None:
         constants_n3 = _pattern_constants(triple)
         if not any(
             [
@@ -823,15 +985,32 @@ class AgnosticQuery:
         relevant_entities_found = present_entities
         self._find_entity_uris_in_update_queries(triple, relevant_entities_found)
         if relevant_entities_found:
+            relevant_entities_found = self._expand_entities_with_merges(
+                relevant_entities_found
+            )
             args_list = [
-                (entity_uri, self.config, self.on_time, self.other_snapshots)
+                (entity_uri, self.config, self.on_time)
                 for entity_uri in relevant_entities_found
             ]
             for result in _run_in_parallel(_reconstruct_entity_worker, args_list):
                 if result is not None:
-                    entity, entity_graphs, other_snapshots = result
+                    entity, entity_graphs = result
                     self.reconstructed_entities.add(entity)
-                    self._merge_entity_result(entity, entity_graphs, other_snapshots)
+                    self._merge_entity_result(entity, entity_graphs)
+
+    def _term_matches(self, expected: str, actual: str, index: int) -> bool:
+        if expected == actual:
+            return True
+        if (
+            not self.merge_aware
+            or index not in (0, _OBJECT_POS)
+            or not expected.startswith("<")
+            or not expected.endswith(">")
+            or not actual.startswith("<")
+            or not actual.endswith(">")
+        ):
+            return False
+        return actual[1:-1] in self._entity_aliases(expected[1:-1])
 
     def _solve_variables(self) -> None:
         self.vars_to_explicit_by_time = {}
@@ -863,34 +1042,33 @@ class AgnosticQuery:
                         matching = [
                             q
                             for q in self.relevant_graphs[se]
-                            if q[0] == triple[0] and q[1] == triple[1]
+                            if self._term_matches(triple[0], q[0], 0)
+                            and q[1] == triple[1]
                         ]
                         query_results = [(triple[0], triple[1], q[2]) for q in matching]
                         for row in query_results:
                             explicit_triples.setdefault(se, {})
                             explicit_triples[se].setdefault(variable, set())
                             explicit_triples[se][variable].add(row)
-                        args_list = [
-                            (
-                                row[2][1:-1],
-                                self.config,
-                                self.on_time,
-                                self.other_snapshots,
-                            )
+                        discovered_entities = {
+                            row[2][1:-1]
                             for row in query_results
-                            if row[2].startswith("<")
-                            and row[2].endswith(">")
-                            and row[2][1:-1] not in self.reconstructed_entities
+                            if row[2].startswith("<") and row[2].endswith(">")
+                        }
+                        discovered_entities = self._expand_entities_with_merges(
+                            discovered_entities
+                        ).difference(self.reconstructed_entities)
+                        args_list = [
+                            (entity_uri, self.config, self.on_time)
+                            for entity_uri in discovered_entities
                         ]
                         for result_data in _run_in_parallel(
                             _reconstruct_entity_worker, args_list
                         ):
                             if result_data is not None:
-                                entity, entity_graphs, other_snapshots = result_data
+                                entity, entity_graphs = result_data
                                 self.reconstructed_entities.add(entity)
-                                self._merge_entity_result(
-                                    entity, entity_graphs, other_snapshots
-                                )
+                                self._merge_entity_result(entity, entity_graphs)
         return explicit_triples
 
     def _align_snapshots(self) -> None:
@@ -992,6 +1170,10 @@ class VersionQuery(AgnosticQuery):
         interval here. The format is (START, END). If one of the two values is None,
         only the other is considered. Dates must be in ISO 8601 format.
     :type on_time: Tuple[Union[str, None]], optional
+    :param merge_aware: Follow entity histories connected by merges.
+    :type merge_aware: bool, optional
+    :param include_prov_metadata: Return snapshot metadata with the query results.
+    :type include_prov_metadata: bool, optional
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
@@ -1001,7 +1183,8 @@ class VersionQuery(AgnosticQuery):
         query: str,
         on_time: tuple[str | None, str | None] | None = None,
         *,
-        other_snapshots: bool = False,
+        merge_aware: bool = False,
+        include_prov_metadata: bool = False,
         config_path: str = CONFIG_PATH,
         config_dict: dict | None = None,
     ):
@@ -1009,7 +1192,8 @@ class VersionQuery(AgnosticQuery):
         super().__init__(
             query,
             on_time,
-            other_snapshots=other_snapshots,
+            merge_aware=merge_aware,
+            include_prov_metadata=include_prov_metadata,
             config_path=config_path,
             config_dict=config_dict,
         )
@@ -1021,7 +1205,7 @@ class VersionQuery(AgnosticQuery):
                 len(self.triples) == 1
                 and self._is_isolated(self.triples[0])
                 and not self.triples[0][1].startswith("^")
-                and not self.other_snapshots
+                and not self.merge_aware
             ):
                 self._rebuild_vm_batch(self.on_time)
                 return
@@ -1051,8 +1235,10 @@ class VersionQuery(AgnosticQuery):
     def _rebuild_vm_batch(self, on_time: tuple[str | None, str | None]) -> None:
         triple = self.triples[0]
         all_entity_strs = self._discover_entities_parallel(triple)
+        all_entity_strs = self._expand_entities_with_merges(all_entity_strs)
         if not all_entity_strs:
             return
+        self.reconstructed_entities.update(all_entity_strs)
         fut_prov = _IO_EXECUTOR.submit(
             _batch_query_provenance_snapshots, all_entity_strs, self.config
         )
@@ -1135,11 +1321,12 @@ class VersionQuery(AgnosticQuery):
             result.extend(extended)
         return result
 
-    @staticmethod
-    def _try_match(pattern: tuple, quad: tuple, binding: dict) -> dict | None:
+    def _try_match(self, pattern: tuple, quad: tuple, binding: dict) -> dict | None:
         # Check if a triple pattern (s, p, o) matches a quad.
         new_binding = dict(binding)
-        for expected, actual in zip(pattern[:3], quad[:3], strict=True):
+        for index, (expected, actual) in enumerate(
+            zip(pattern[:3], quad[:3], strict=True)
+        ):
             is_variable = expected.startswith("?")
             if is_variable and expected in new_binding:
                 # Variable already bound: check consistency
@@ -1148,8 +1335,7 @@ class VersionQuery(AgnosticQuery):
             elif is_variable:
                 # New variable: bind it
                 new_binding[expected] = actual
-            elif expected != actual:
-                # Fixed term: must match exactly
+            elif not self._term_matches(expected, actual, index):
                 return None
         return new_binding
 
@@ -1160,6 +1346,7 @@ class VersionQuery(AgnosticQuery):
             len(self.triples) == 1
             and self._is_isolated(self.triples[0])
             and not self.triples[0][1].startswith("^")
+            and not self.merge_aware
         )
         for triple in self.triples:
             if self._is_a_new_triple(triple, triples_checked):
@@ -1172,6 +1359,8 @@ class VersionQuery(AgnosticQuery):
         if not all_entity_strs:
             self._streaming_results = {}
             return
+        all_entity_strs = self._expand_entities_with_merges(all_entity_strs)
+        self.reconstructed_entities.update(all_entity_strs)
         if use_fast_path:
             fut_prov = _IO_EXECUTOR.submit(
                 _batch_query_provenance_snapshots, all_entity_strs, self.config
@@ -1216,19 +1405,20 @@ class VersionQuery(AgnosticQuery):
 
     def run_agnostic_query(
         self, *, include_all_timestamps: bool = False
-    ) -> tuple[dict[str, list[dict]], set]:
+    ) -> tuple[dict[str, list[dict]], dict | None, dict | None]:
         if self.on_time is None or self._streaming_results:
             agnostic_result = self._streaming_results
             if include_all_timestamps:
                 agnostic_result = self._fill_timestamp_gaps(agnostic_result)
-            return agnostic_result, set()
-        agnostic_result: dict[str, list[dict]] = {}
-        for timestamp, graph in self.relevant_graphs.items():
-            normalized = str(convert_to_datetime(timestamp, stringify=True))
-            agnostic_result[normalized] = self._extract_bindings(graph)
-        return agnostic_result, {
-            data["generatedAtTime"] for _, data in self.other_snapshots_metadata.items()
-        }
+        else:
+            agnostic_result = {}
+            for timestamp, graph in self.relevant_graphs.items():
+                normalized = str(convert_to_datetime(timestamp, stringify=True))
+                agnostic_result[normalized] = self._extract_bindings(graph)
+        provenance, other_provenance = self._load_provenance(
+            self.reconstructed_entities
+        )
+        return agnostic_result, provenance, other_provenance
 
     def _get_all_provenance_timestamps(self) -> set:
         query = f"""
@@ -1278,6 +1468,10 @@ class DeltaQuery(AgnosticQuery):
     :param changed_properties: A set of properties. It narrows the field to those
         entities where the properties specified in the set have changed.
     :type changed_properties: Set[str], optional
+    :param merge_aware: Follow entity histories connected by merges.
+    :type merge_aware: bool, optional
+    :param include_prov_metadata: Return snapshot metadata with the query results.
+    :type include_prov_metadata: bool, optional
     :param config_path: The path to the configuration file.
     :type config_path: str, optional
     """
@@ -1287,6 +1481,9 @@ class DeltaQuery(AgnosticQuery):
         query: str,
         on_time: tuple[str | None, str | None] | None = None,
         changed_properties: set[str] | None = None,
+        *,
+        merge_aware: bool = False,
+        include_prov_metadata: bool = False,
         config_path: str = CONFIG_PATH,
         config_dict: dict | None = None,
     ):
@@ -1295,6 +1492,8 @@ class DeltaQuery(AgnosticQuery):
         super().__init__(
             query=query,
             on_time=on_time,
+            merge_aware=merge_aware,
+            include_prov_metadata=include_prov_metadata,
             config_path=config_path,
             config_dict=config_dict,
         )
@@ -1309,10 +1508,14 @@ class DeltaQuery(AgnosticQuery):
                 triple, triples_checked
             ):
                 present_entities = self._get_present_entities(triple)
-                self.reconstructed_entities.update(present_entities)
+                self.reconstructed_entities.update(
+                    self._expand_entities_with_merges(present_entities)
+                )
                 prov_entities: set = set()
                 self._find_entity_uris_in_update_queries(triple, prov_entities)
-                self.reconstructed_entities.update(prov_entities)
+                self.reconstructed_entities.update(
+                    self._expand_entities_with_merges(prov_entities)
+                )
             else:
                 needs_graph_alignment = True
                 self._rebuild_relevant_entity(triple[0])
@@ -1320,11 +1523,38 @@ class DeltaQuery(AgnosticQuery):
         if needs_graph_alignment:
             self._align_snapshots()
             self._solve_variables()
+        self.reconstructed_entities = self._expand_entities_with_merges(
+            self.reconstructed_entities
+        )
 
-    def run_agnostic_query(self) -> dict:
+    def _merge_events_for_entity(self, entity_uri: str) -> list[dict] | None:
+        if not self.merge_aware:
+            return None
+        events = []
+        for event in self._merge_events.values():
+            if entity_uri != event["survivor"] and entity_uri not in event["absorbed"]:
+                continue
+            event_dt = _parse_datetime(event["time"])
+            if not _is_in_interval(event_dt, self.on_time):
+                continue
+            events.append(
+                {
+                    "time": event["time"],
+                    "snapshot": event["snapshot"],
+                    "survivor": event["survivor"],
+                    "absorbed": sorted(event["absorbed"]),
+                }
+            )
+        return sorted(
+            events,
+            key=lambda event: (_parse_datetime(event["time"]), event["snapshot"]),
+        )
+
+    def run_agnostic_query(self) -> tuple[dict, dict | None, dict | None]:
         entity_uris = set(self.reconstructed_entities)
         if not entity_uris:
-            return {}
+            provenance, other_provenance = self._load_provenance(set())
+            return {}, provenance, other_provenance
         prov_data = _batch_query_dm_provenance(entity_uris, self.config)
         output = {}
         for entity_str in entity_uris:
@@ -1336,9 +1566,11 @@ class DeltaQuery(AgnosticQuery):
                 snapshots,
                 self.on_time,
                 self.changed_properties,
+                self._merge_events_for_entity(entity_str),
             )
             output.update(result)
-        return output
+        provenance, other_provenance = self._load_provenance(set(output))
+        return output, provenance, other_provenance
 
 
 def get_insert_query(graph_iri: str, data: set[tuple[str, ...]]) -> tuple[str, int]:
