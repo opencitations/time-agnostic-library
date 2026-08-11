@@ -106,6 +106,6 @@ from time_agnostic_library.support import generate_config_file
 generate_config_file(
     config_path="./config.json",
     dataset_urls=["http://127.0.0.1:9999/blazegraph/sparql"],
-    provenance_urls=["http://127.0.0.1:19999/blazegraph/sparql"]
+    provenance_urls=["http://127.0.0.1:19999/blazegraph/sparql"],
 )
 ```

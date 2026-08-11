@@ -29,8 +29,7 @@ converter = OCDMConverter(
 
 ic_files = [Path(f"snapshots/v{i}.nt") for i in range(10)]
 timestamps = [
-    datetime(2024, 1, 1, tzinfo=timezone.utc) + timedelta(days=i)
-    for i in range(10)
+    datetime(2024, 1, 1, tzinfo=timezone.utc) + timedelta(days=i) for i in range(10)
 ]
 
 converter.convert_from_ic(
@@ -67,8 +66,7 @@ changesets = [
     (Path("deltas/added_1-2.nt"), Path("deltas/deleted_1-2.nt")),
 ]
 timestamps = [
-    datetime(2024, 1, 1, tzinfo=timezone.utc) + timedelta(days=i)
-    for i in range(3)
+    datetime(2024, 1, 1, tzinfo=timezone.utc) + timedelta(days=i) for i in range(3)
 ]
 
 converter.convert_from_cb(
@@ -94,10 +92,12 @@ Some SPARQL backends require specific datatype representations. The `object_norm
 ```python
 XSD = "http://www.w3.org/2001/XMLSchema#"
 
+
 def normalize_for_qlever(obj: str) -> str:
     if obj.endswith(f"^^<{XSD}integer>"):
         return obj.replace(f"^^<{XSD}integer>", f"^^<{XSD}int>")
     return obj
+
 
 converter = OCDMConverter(
     data_graph_uri="http://example.org/data/",

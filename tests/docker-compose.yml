@@ -4,7 +4,7 @@
 
 services:
   virtuoso:
-    image: openlink/virtuoso-opensource-7:7.2.16
+    image: openlink/virtuoso-opensource-7:7.2.17
     profiles: [virtuoso]
     ports:
       - "41720:8890"

@@ -70,7 +70,7 @@ TRIPLESTORE=virtuoso ./tests/teardown-triplestore.sh
 
 ### CI matrix
 
-GitHub Actions runs a matrix of 4 Python versions (3.10, 3.11, 3.12, 3.13) x 5 triplestores = 20 parallel jobs.
+GitHub Actions runs a matrix of 5 Python versions (3.10, 3.11, 3.12, 3.13, 3.14) x 5 triplestores = 25 parallel jobs.
 
 ## Building the documentation
 

@@ -67,7 +67,7 @@ docker run -d --name "${CONTAINER_NAME}" \
     -e VIRT_Parameters_DirsAllowed="., /database, /staging" \
     -e VIRT_SPARQL_ResultSetMaxRows=10000000 \
     -e VIRT_SPARQL_MaxQueryExecutionTime=3600 \
-    openlink/virtuoso-opensource-7:7.2.16 > /dev/null
+    openlink/virtuoso-opensource-7:7.2.17 > /dev/null
 
 echo "Waiting for Virtuoso to accept connections..."
 until isql "status();" > /dev/null 2>&1; do sleep 2; done

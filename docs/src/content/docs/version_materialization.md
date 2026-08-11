@@ -30,30 +30,27 @@ The output is a tuple of three elements:
 
 ```python
 (
-    {
-        TIME_1: ENTITY_QUAD_SET_AT_TIME_1,
-        TIME_2: ENTITY_QUAD_SET_AT_TIME_2
-    },
+    {TIME_1: ENTITY_QUAD_SET_AT_TIME_1, TIME_2: ENTITY_QUAD_SET_AT_TIME_2},
     {
         SNAPSHOT_URI_AT_TIME_1: {
-            'generatedAtTime': TIME_1,
-            'invalidatedAtTime': INVALIDATION_TIME,
-            'wasAttributedTo': ATTRIBUTION,
-            'hasUpdateQuery': UPDATE_QUERY,
-            'hadPrimarySource': PRIMARY_SOURCE,
-            'description': DESCRIPTION
+            "generatedAtTime": TIME_1,
+            "invalidatedAtTime": INVALIDATION_TIME,
+            "wasAttributedTo": ATTRIBUTION,
+            "hasUpdateQuery": UPDATE_QUERY,
+            "hadPrimarySource": PRIMARY_SOURCE,
+            "description": DESCRIPTION,
         }
     },
     {
         OTHER_SNAPSHOT_URI_1: {
-            'generatedAtTime': GENERATION_TIME,
-            'invalidatedAtTime': INVALIDATION_TIME,
-            'wasAttributedTo': ATTRIBUTION,
-            'hasUpdateQuery': UPDATE_QUERY,
-            'hadPrimarySource': PRIMARY_SOURCE,
-            'description': DESCRIPTION
+            "generatedAtTime": GENERATION_TIME,
+            "invalidatedAtTime": INVALIDATION_TIME,
+            "wasAttributedTo": ATTRIBUTION,
+            "hasUpdateQuery": UPDATE_QUERY,
+            "hadPrimarySource": PRIMARY_SOURCE,
+            "description": DESCRIPTION,
         }
-    }
+    },
 )
 ```
 
@@ -68,22 +65,12 @@ When `include_related_objects`, `include_merged_entities`, or `include_reverse_r
     {
         RES_URI_1: {
             TIME_1: ENTITY_QUAD_SET_AT_TIME_1,
-            TIME_2: ENTITY_QUAD_SET_AT_TIME_2
+            TIME_2: ENTITY_QUAD_SET_AT_TIME_2,
         },
-        RES_URI_2: {
-            TIME_1: ENTITY_QUAD_SET_AT_TIME_1
-        }
+        RES_URI_2: {TIME_1: ENTITY_QUAD_SET_AT_TIME_1},
     },
-    {
-        RES_URI_1: {
-            SNAPSHOT_URI: { ... }
-        }
-    },
-    {
-        RES_URI_1: {
-            OTHER_SNAPSHOT_URI: { ... }
-        }
-    }
+    {RES_URI_1: {SNAPSHOT_URI: {...}}},
+    {RES_URI_1: {OTHER_SNAPSHOT_URI: {...}}},
 )
 ```
 
@@ -100,25 +87,20 @@ The output is a two-element tuple:
 
 ```python
 (
-    {
-        RES_URI: {
-            TIME_1: ENTITY_QUAD_SET_AT_TIME_1,
-            TIME_2: ENTITY_QUAD_SET_AT_TIME_2
-        }
-    },
+    {RES_URI: {TIME_1: ENTITY_QUAD_SET_AT_TIME_1, TIME_2: ENTITY_QUAD_SET_AT_TIME_2}},
     {
         RES_URI: {
             SNAPSHOT_URI_AT_TIME_1: {
-                'generatedAtTime': GENERATION_TIME,
-                'invalidatedAtTime': INVALIDATION_TIME,
-                'wasAttributedTo': ATTRIBUTION,
-                'hadPrimarySource': PRIMARY_SOURCE,
-                'description': DESCRIPTION,
-                'hasUpdateQuery': UPDATE_QUERY,
-                'wasDerivedFrom': [DERIVED_SNAPSHOT_URI_1, ...]
+                "generatedAtTime": GENERATION_TIME,
+                "invalidatedAtTime": INVALIDATION_TIME,
+                "wasAttributedTo": ATTRIBUTION,
+                "hadPrimarySource": PRIMARY_SOURCE,
+                "description": DESCRIPTION,
+                "hasUpdateQuery": UPDATE_QUERY,
+                "wasDerivedFrom": [DERIVED_SNAPSHOT_URI_1, ...],
             }
         }
-    }
+    },
 )
 ```
 
@@ -132,8 +114,7 @@ To compute the net difference between two versions of an entity without material
 ```python
 entity = AgnosticEntity(res=RES_URI, config=config)
 additions, deletions = entity.get_delta(
-    time_start="2023-01-01T00:00:00+00:00",
-    time_end="2023-06-01T00:00:00+00:00"
+    time_start="2023-01-01T00:00:00+00:00", time_end="2023-06-01T00:00:00+00:00"
 )
 ```
 
@@ -156,7 +137,7 @@ entity = AgnosticEntity(
     include_merged_entities=True,
     include_reverse_relations=True,
     include_historical_reverse_relations=True,
-    reverse_relations_depth=2
+    reverse_relations_depth=2,
 )
 entity.get_history(include_prov_metadata=True)
 ```

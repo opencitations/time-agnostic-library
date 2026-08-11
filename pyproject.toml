@@ -7,36 +7,47 @@ license = "ISC"
 authors = [{name = "Arcangelo Massari", email = "arcangelo.massari@unibo.it"}]
 keywords = ["rdf", "provenance", "opencitations", "change-tracking", "time-traversal query"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: ISC License (ISCL)",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.10, <3.14"
+requires-python = ">=3.10, <3.15"
 dependencies = [
     "rdflib>=7.5.0",
     "sparqlite>=1.1.0",
 ]
 
 [dependency-groups]
-dev = [
-    "chardet>=5.2.0",
+test = [
     "coverage>=7.13.3",
     "genbadge[coverage]>=1.1.3",
-    "matplotlib>=3.10.8",
-    "pebble>=5.2.0",
-    "psutil>=7.2.2",
-    "pyright>=1.1.410",
     "pytest>=9.0.2",
     "qlever>=0.5.45",
-    "requests>=2.32.5",
+]
+lint = [
+    "pyright>=1.1.410",
     "reuse>=6.2.0",
-    "rich>=14.3.2",
     "ruff>=0.15.0",
-    "wget>=3.2",
+]
+benchmark = [
+    "matplotlib>=3.10.8",
+    "qlever>=0.5.45",
+    "requests>=2.32.5",
+    "rich>=14.3.2",
+]
+dev = [
+    {include-group = "test"},
+    {include-group = "lint"},
+    {include-group = "benchmark"},
 ]
 
 [project.urls]
@@ -60,6 +71,8 @@ ignore = [
     "COM812",  # Conflicts with ruff format
     "ISC001",  # Conflicts with ruff format
     "ISC002",  # Multi-line implicit concatenation is how long strings are split
+    "ISC004",  # Same, inside collection literals
+    "CPY001",  # REUSE headers are checked by `reuse lint`
     "D203",    # Incompatible with D211
     "D213",    # Incompatible with D212
     "D1",      # No mandatory docstrings
@@ -72,6 +85,7 @@ ignore = [
     "PLR0912", # Too many branches
     "PLR0913", # Too many arguments
     "PLR0915", # Too many statements
+    "PLR0917", # Too many positional arguments
 ]
 
 [tool.ruff.lint.per-file-ignores]
