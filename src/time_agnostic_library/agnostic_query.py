@@ -172,14 +172,29 @@ def _escape_search_term(text: str, *quotes: str) -> str:
     return escaped
 
 
+def _expected_quad_slots(triple: tuple) -> tuple[str | None, str | None, str | None]:
+    subject, predicate, obj = triple[:3]
+    if predicate.startswith("^"):
+        subject, predicate, obj = obj, predicate[1:], subject
+    return (
+        _normalize_constant(subject),
+        _normalize_constant(predicate),
+        _normalize_constant(obj),
+    )
+
+
 def _matching_update_quads(
-    update_query: str, constants: set[str]
+    update_query: str, triple: tuple
 ) -> list[tuple[str, str, str, str]]:
+    expected = _expected_quad_slots(triple)
     return [
         quad
         for _, quads in _fast_parse_update(update_query)
         for quad in quads
-        if constants.issubset(_pattern_constants(quad))
+        if all(
+            slot is None or _normalize_constant(term) == slot
+            for slot, term in zip(expected, quad[:3], strict=True)
+        )
     ]
 
 
@@ -940,7 +955,6 @@ class AgnosticQuery:
     def _find_entity_uris_in_update_queries_exact(
         self, triple: tuple, entities: set
     ) -> None:
-        constants_n3 = _pattern_constants(triple)
         if not any(
             [
                 self.blazegraph_full_text_search,
@@ -964,7 +978,7 @@ class AgnosticQuery:
             results = Sparql(query, self.config).run_select_query()
             for binding in results["results"]["bindings"]:
                 matching_quads = _matching_update_quads(
-                    binding["updateQuery"]["value"], constants_n3
+                    binding["updateQuery"]["value"], triple
                 )
                 if matching_quads:
                     entities.add(binding["entity"]["value"])
@@ -972,9 +986,7 @@ class AgnosticQuery:
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config).run_select_query()
         for binding in results["results"]["bindings"]:
-            for quad in _matching_update_quads(
-                binding["updateQuery"]["value"], constants_n3
-            ):
+            for quad in _matching_update_quads(binding["updateQuery"]["value"], triple):
                 entities.add(quad[0][1:-1])
 
     def _find_entities_in_update_queries(

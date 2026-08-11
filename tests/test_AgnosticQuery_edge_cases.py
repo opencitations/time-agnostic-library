@@ -453,6 +453,52 @@ class TestEntityDiscoverySearchTerms:
         )
         assert entities == {"http://ex.com/e1"}
 
+    @pytest.mark.parametrize(
+        ("triple", "expected_entities"),
+        [
+            (
+                ("?s", "<http://ex.com/p>", "<http://ex.com/o>"),
+                {"http://ex.com/e1"},
+            ),
+            (
+                ("?value", "^<http://ex.com/p>", "<http://ex.com/o>"),
+                {"http://ex.com/o"},
+            ),
+        ],
+    )
+    @patch("time_agnostic_library.agnostic_query.Sparql")
+    def test_find_entity_uris_matches_pattern_positions(
+        self, mock_sparql_class, triple, expected_entities
+    ):
+        config_fts = CONFIG.copy()
+        config_fts["blazegraph_full_text_search"] = "yes"
+        vq = VersionQuery(_LITERAL_QUERY, config_dict=config_fts)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        mock_sparql.run_select_query.return_value = {
+            "results": {
+                "bindings": [
+                    {
+                        "updateQuery": {
+                            "value": "INSERT DATA { GRAPH <http://g/> { "
+                            "<http://ex.com/e1> <http://ex.com/p> "
+                            "<http://ex.com/o> . } }"
+                        },
+                    },
+                    {
+                        "updateQuery": {
+                            "value": "INSERT DATA { GRAPH <http://g/> { "
+                            "<http://ex.com/o> <http://ex.com/p> "
+                            "<http://ex.com/x> . } }"
+                        },
+                    },
+                ]
+            }
+        }
+        entities = set()
+        vq._find_entity_uris_in_update_queries(triple, entities)
+        assert entities == expected_entities
+
     @patch("time_agnostic_library.agnostic_query.Sparql")
     def test_find_entity_uris_filters_default_candidates(self, mock_sparql_class):
         vq = VersionQuery(_LITERAL_QUERY, config_dict=CONFIG)
