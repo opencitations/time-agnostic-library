@@ -23,9 +23,12 @@ _INTEGER_SUFFIX = f"^^<{XSD_NS}integer>"
 _INT_SUFFIX = f"^^<{XSD_NS}int>"
 _INTEGER_SUFFIX_LEN = len(_INTEGER_SUFFIX)
 _STRING_SUFFIX = f"^^<{XSD_NS}string>"
+_INVALID_LANGUAGE_SUFFIX = "@labellang"
 
 
 def normalize_object(obj: str) -> str:
+    if obj.endswith(_INVALID_LANGUAGE_SUFFIX):
+        return obj[: -len(_INVALID_LANGUAGE_SUFFIX)]
     if obj.endswith(_STRING_SUFFIX):
         return obj[: -len(_STRING_SUFFIX)]
     if obj.endswith(_INTEGER_SUFFIX):

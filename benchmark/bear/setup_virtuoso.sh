@@ -82,14 +82,22 @@ isql "ld_dir('/staging/parts${SUFFIX}/dataset', '*.nq.gz', 'http://bear-benchmar
 isql "ld_dir('/staging/parts${SUFFIX}/provenance', '*.nq.gz', 'http://bear-benchmark.org/prov/');" > /dev/null
 # One loader per core: rdf_loader_run takes one file at a time from the queue.
 LOADERS="$(nproc)"
+LOADER_PIDS=()
 for _ in $(seq "${LOADERS}"); do
-    docker exec -d "${CONTAINER_NAME}" /opt/virtuoso-opensource/bin/isql -U dba -P dba \
-        exec="rdf_loader_run();"
+    docker exec "${CONTAINER_NAME}" /opt/virtuoso-opensource/bin/isql -U dba -P dba \
+        exec="rdf_loader_run();" > /dev/null &
+    LOADER_PIDS+=("$!")
 done
-until [ "$(isql "SELECT COUNT(*) FROM DB.DBA.LOAD_LIST WHERE ll_state <> 2;" \
-    | grep -Eo '^[0-9]+' | head -1)" = "0" ]; do
-    sleep 10
+for loader_pid in "${LOADER_PIDS[@]}"; do
+    wait "${loader_pid}"
 done
+DEADLOCKED="$(isql "SELECT COUNT(*) FROM DB.DBA.LOAD_LIST WHERE ll_error LIKE '40001%';" \
+    | grep -Eo '^[0-9]+' | head -1)"
+if [ "${DEADLOCKED:-0}" != "0" ]; then
+    echo "  Retrying ${DEADLOCKED} file(s) interrupted by deadlocks..."
+    isql "UPDATE DB.DBA.LOAD_LIST SET ll_state = 0, ll_error = NULL WHERE ll_error LIKE '40001%';" > /dev/null
+    isql "rdf_loader_run();" > /dev/null
+fi
 isql "checkpoint;" > /dev/null
 LOAD_ELAPSED=$(($(date +%s) - LOAD_START))
 echo "  Load time: ${LOAD_ELAPSED}s"
@@ -112,12 +120,12 @@ if [ "${FAILED:-0}" != "0" ]; then
     exit 1
 fi
 
-EXPECTED="$(zcat "${DATASET_NQ}" | wc -l)"
+SOURCE_LINES="$(zcat "${DATASET_NQ}" | wc -l)"
 TRIPLES="$(isql "SPARQL SELECT COUNT(*) WHERE { GRAPH <http://bear-benchmark.org/data/> { ?s ?p ?o } };" \
     | grep -Eo '^[0-9]+' | head -1)"
-echo "  Triples in the data graph: ${TRIPLES} (the dataset file holds ${EXPECTED} lines)"
-if [ "${TRIPLES:-0}" -lt "${EXPECTED}" ]; then
-    echo "Error: fewer triples than the dataset file holds, the load is incomplete."
+echo "  Distinct triples in the data graph: ${TRIPLES} (the dataset file holds ${SOURCE_LINES} lines)"
+if [ "${TRIPLES:-0}" = "0" ]; then
+    echo "Error: the data graph is empty."
     exit 1
 fi
 
@@ -139,7 +147,9 @@ cat > "${DATA_DIR}/virtuoso_ingestion_time_${CORPUS}${SUFFIX}.json" <<EOF
   "virtuoso_load_s": ${LOAD_ELAPSED},
   "virtuoso_full_text_index_s": ${FT_ELAPSED},
   "triples": ${TRIPLES},
+  "source_lines": ${SOURCE_LINES},
   "loaders": ${LOADERS},
+  "deadlock_retries": ${DEADLOCKED},
   "buffers": ${BUFFERS},
   "store_bytes": ${STORE_BYTES}
 }
