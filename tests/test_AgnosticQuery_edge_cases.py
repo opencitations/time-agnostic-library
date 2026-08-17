@@ -295,20 +295,13 @@ class TestAgnosticQueryEdgeCases:
             VersionQuery(query, config_dict=CONFIG)
 
     @patch("time_agnostic_library.agnostic_query.Sparql")
-    def test_get_present_entities_reverse_with_var_object(self, mock_sparql_class):
-        query = "SELECT ?s WHERE { ?s <http://ex.com/p> <http://ex.com/o> }"
-        vq = VersionQuery(query, config_dict=CONFIG)
+    def test_inverse_path_is_read_in_direct_orientation(self, mock_sparql_class):
         mock_sparql = MagicMock()
         mock_sparql_class.return_value = mock_sparql
-        mock_sparql.run_select_query.return_value = {
-            "results": {
-                "bindings": [
-                    {"o": {"type": "uri", "value": "http://ex.com/result"}},
-                ]
-            }
-        }
-        result = vq._get_present_entities(("?s", "^<http://ex.com/p>", "?o"))
-        assert result == {"http://ex.com/result"}
+        mock_sparql.run_select_query.return_value = {"results": {"bindings": []}}
+        query = "SELECT ?value WHERE { ?value ^<http://ex.com/p> ?o }"
+        vq = VersionQuery(query, config_dict=CONFIG)
+        assert vq.triples == [("?o", "<http://ex.com/p>", "?value")]
 
     def test_build_delta_result_break_after_before_dt(self):
         snapshots = [
@@ -461,7 +454,7 @@ class TestEntityDiscoverySearchTerms:
                 {"http://ex.com/e1"},
             ),
             (
-                ("?value", "^<http://ex.com/p>", "<http://ex.com/o>"),
+                ("<http://ex.com/o>", "<http://ex.com/p>", "?value"),
                 {"http://ex.com/o"},
             ),
         ],

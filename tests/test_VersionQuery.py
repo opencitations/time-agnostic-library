@@ -1566,7 +1566,7 @@ class TestVersionQuery:
 
         assert agnostic_query.vars_to_explicit_by_time == expected_output
 
-    def test__get_present_entities_inverse_property(self):
+    def test__process_query_inverse_property(self):
         query = """
             PREFIX pro: <http://purl.org/spar/pro/>
             SELECT DISTINCT ?o ?id ?value
@@ -1575,11 +1575,13 @@ class TestVersionQuery:
             }
         """
         agnostic_query = VersionQuery(query, config_dict=CONFIG)
-        triple = agnostic_query._process_query()[0]
-        present_entities = agnostic_query._get_present_entities(triple)
-        assert present_entities == {
-            "https://github.com/arcangelo7/time_agnostic/ar/15519"
-        }
+        assert agnostic_query._process_query() == [
+            (
+                "<https://github.com/arcangelo7/time_agnostic/ar/15519>",
+                "<http://purl.org/spar/pro/isHeldBy>",
+                "?o",
+            )
+        ]
 
     def test__get_query_to_update_queries(self):
         query = """
@@ -1758,6 +1760,50 @@ class TestVersionQuery:
         assert set(result.keys()) == set(expected_result.keys())
         for ts in expected_result:
             assert _sort_bindings(result[ts]) == _sort_bindings(expected_result[ts])
+
+    def _assert_same_results(self, direct, inverse):
+        direct_results, _ = _run_query(VersionQuery(direct, config_dict=CONFIG))
+        inverse_results, _ = _run_query(VersionQuery(inverse, config_dict=CONFIG))
+        assert set(inverse_results.keys()) == set(direct_results.keys())
+        for timestamp, bindings in direct_results.items():
+            assert _sort_bindings(inverse_results[timestamp]) == _sort_bindings(
+                bindings
+            )
+        assert any(direct_results.values())
+
+    def test_run_agnostic_query_inverse_property(self):
+        direct = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT DISTINCT ?o
+            WHERE {
+                <https://github.com/arcangelo7/time_agnostic/ar/15519> pro:isHeldBy ?o.
+            }
+        """
+        inverse = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT DISTINCT ?o
+            WHERE {
+                ?o ^pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ar/15519>.
+            }
+        """
+        self._assert_same_results(direct, inverse)
+
+    def test_run_agnostic_query_inverse_property_with_iri_subject(self):
+        direct = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT DISTINCT ?ar
+            WHERE {
+                ?ar pro:isHeldBy <https://github.com/arcangelo7/time_agnostic/ra/4>.
+            }
+        """
+        inverse = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT DISTINCT ?ar
+            WHERE {
+                <https://github.com/arcangelo7/time_agnostic/ra/4> ^pro:isHeldBy ?ar.
+            }
+        """
+        self._assert_same_results(direct, inverse)
 
     def test_run_agnostic_query_optional(self):
         query = """

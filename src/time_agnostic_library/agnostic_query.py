@@ -76,8 +76,8 @@ def _reject_unsupported(node_name: str) -> None:
 
 def _is_unsupported_path(term: object) -> bool:
     # An inverse path over a plain predicate is the one path form the library
-    # resolves: see the ^ branch of _get_present_entities. Every other form
-    # would reach the matcher as an opaque predicate string and match nothing.
+    # resolves, by rewriting it in _n3_triples. Every other form would reach the
+    # matcher as an opaque predicate string and match nothing.
     if isinstance(term, InvPath):
         return not isinstance(term.arg, URIRef)
     return isinstance(term, PropertyPath)
@@ -88,7 +88,12 @@ def _n3_triples(node: CompValue) -> list[tuple[str, ...]]:
     for triple in node["triples"]:
         if any(_is_unsupported_path(el) for el in triple):
             _reject("a property path")
-        triples.append(tuple(el.n3() for el in triple))
+        subject, predicate, obj = triple
+        if isinstance(predicate, InvPath):
+            # Read the pattern in its direct orientation, so that every step
+            # downstream works on a plain triple.
+            subject, predicate, obj = obj, predicate.arg, subject
+        triples.append((subject.n3(), predicate.n3(), obj.n3()))
     return triples
 
 
@@ -174,8 +179,6 @@ def _escape_search_term(text: str, *quotes: str) -> str:
 
 def _expected_quad_slots(triple: tuple) -> tuple[str | None, str | None, str | None]:
     subject, predicate, obj = triple[:3]
-    if predicate.startswith("^"):
-        subject, predicate, obj = obj, predicate[1:], subject
     return (
         _normalize_constant(subject),
         _normalize_constant(predicate),
@@ -846,15 +849,6 @@ class AgnosticQuery:
             )
         results = Sparql(query, self.config).run_select_query()
         bindings = results["results"]["bindings"]
-        if triple[1].startswith("^"):
-            if triple[2].startswith("?"):
-                var_name = triple[2][1:]
-                return {
-                    b[var_name]["value"]
-                    for b in bindings
-                    if var_name in b and b[var_name]["type"] == "uri"
-                }
-            return {triple[2][1:-1]} if bindings else set()
         var_name = triple[0][1:]
         return {
             b[var_name]["value"]
@@ -1216,7 +1210,6 @@ class VersionQuery(AgnosticQuery):
             if (
                 len(self.triples) == 1
                 and self._is_isolated(self.triples[0])
-                and not self.triples[0][1].startswith("^")
                 and not self.merge_aware
             ):
                 self._rebuild_vm_batch(self.on_time)
@@ -1357,7 +1350,6 @@ class VersionQuery(AgnosticQuery):
         use_fast_path = (
             len(self.triples) == 1
             and self._is_isolated(self.triples[0])
-            and not self.triples[0][1].startswith("^")
             and not self.merge_aware
         )
         for triple in self.triples:
