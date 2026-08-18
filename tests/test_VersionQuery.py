@@ -2582,31 +2582,6 @@ class TestVersionQuery:
         values = {b["o"]["value"] for b in result["2021-05-31T18:19:47+00:00"]}
         assert "https://github.com/arcangelo7/time_agnostic/ar/15519" in values
 
-    def test_run_agnostic_query_cross_version_no_entities_fill_timestamps(self):
-        query = """
-            SELECT ?o
-            WHERE {
-                ?o a <http://example.com/NonExistentType> .
-            }
-        """
-        vq = VersionQuery(query, config_dict=CONFIG)
-        result, other = _run_query(vq, include_all_timestamps=True)
-        assert result == {}
-        assert other == set()
-
-    def test_run_agnostic_query_cross_version_with_fill_timestamps(self):
-        query = """
-            PREFIX pro: <http://purl.org/spar/pro/>
-            SELECT ?o
-            WHERE {
-                ?o a pro:RoleInTime .
-            }
-        """
-        vq = VersionQuery(query, config_dict=CONFIG)
-        result, _other = _run_query(vq, include_all_timestamps=True)
-        assert isinstance(result, dict)
-        assert len(result) > 0
-
     def test_run_agnostic_query_cross_version_variable_predicate(self):
         query = """
             SELECT ?s ?p

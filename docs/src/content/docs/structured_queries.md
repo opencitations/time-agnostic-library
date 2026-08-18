@@ -65,16 +65,6 @@ Metadata is grouped by entity and snapshot IRI:
 }
 ```
 
-### Filling timestamp gaps
-
-Results normally contain timestamps where a queried entity changed. `include_all_timestamps=True` also adds provenance timestamps where other entities changed:
-
-```python
-results, provenance, other_provenance = query.run_agnostic_query(
-    include_all_timestamps=True
-)
-```
-
 ## Cross-version structured query
 
 Omit `on_time` to query every version:

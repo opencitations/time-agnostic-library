@@ -12,7 +12,7 @@ CORPUS="${1:-bear-b-daily}"
 INFIX="${2:-}"
 SUFFIX="${INFIX:+.${INFIX}}"
 CONTAINER_NAME="virtuoso-${CORPUS}${SUFFIX}"
-VOLUME_NAME="virtuoso-data-${CORPUS}${SUFFIX}"
+DATABASE_DIR="${DATA_DIR}/${CORPUS}/virtuoso-data${SUFFIX}"
 
 PORT="$(cd "${SCRIPT_DIR}" && uv run python -c "import corpora; print(corpora.get('${CORPUS}').port)")" || {
     echo "Error: unknown corpus '${CORPUS}'"
@@ -23,6 +23,7 @@ DATASET_NQ="${DATA_DIR}/${CORPUS}/dataset${SUFFIX}.nq.gz"
 PROVENANCE_NQ="${DATA_DIR}/${CORPUS}/provenance${SUFFIX}.nq.gz"
 PARTS_DIR="${DATA_DIR}/${CORPUS}/parts${SUFFIX}"
 PART_LINES="${PART_LINES:-20000000}"
+UPDATE_QUERY_PREDICATE="https://w3id.org/oc/ontology/hasUpdateQuery"
 
 for required in "${DATASET_NQ}" "${PROVENANCE_NQ}"; do
     if [ ! -f "${required}" ]; then
@@ -53,12 +54,12 @@ isql() {
 echo "=== Virtuoso setup (${CORPUS}${SUFFIX}, port ${PORT}) ==="
 
 docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
-docker volume rm "${VOLUME_NAME}" 2>/dev/null || true
-docker volume create "${VOLUME_NAME}" > /dev/null
+rm -rf "${DATABASE_DIR}"
+mkdir -p "${DATABASE_DIR}"
 
 docker run -d --name "${CONTAINER_NAME}" \
     -p "${PORT}:8890" \
-    -v "${VOLUME_NAME}:/database" \
+    -v "${DATABASE_DIR}:/database" \
     -v "${DATA_DIR}/${CORPUS}:/staging:ro" \
     -e DBA_PASSWORD=dba \
     -e VIRT_Parameters_NumberOfBuffers="${BUFFERS}" \
@@ -131,9 +132,9 @@ fi
 
 rm -rf "${PARTS_DIR}"
 
-echo "Building the free-text index over literals..."
+echo "Building the free-text index over update queries..."
 FT_START=$(date +%s)
-isql "DB.DBA.RDF_OBJ_FT_RULE_ADD(null, null, 'All');" > /dev/null
+isql "DB.DBA.RDF_OBJ_FT_RULE_ADD(null, '${UPDATE_QUERY_PREDICATE}', 'BEAR update queries');" > /dev/null
 isql "DB.DBA.VT_BATCH_UPDATE('DB.DBA.RDF_OBJ', 'OFF', null);" > /dev/null
 isql "DB.DBA.VT_INC_INDEX_DB_DBA_RDF_OBJ();" > /dev/null
 isql "checkpoint;" > /dev/null

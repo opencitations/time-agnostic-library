@@ -1408,12 +1408,10 @@ class VersionQuery(AgnosticQuery):
         self._streaming_results = _merge_entity_bindings(entity_bindings)
 
     def run_agnostic_query(
-        self, *, include_all_timestamps: bool = False
+        self,
     ) -> tuple[dict[str, list[dict]], dict | None, dict | None]:
         if self.on_time is None or self._streaming_results:
             agnostic_result = self._streaming_results
-            if include_all_timestamps:
-                agnostic_result = self._fill_timestamp_gaps(agnostic_result)
         else:
             agnostic_result = {}
             for timestamp, graph in self.relevant_graphs.items():
@@ -1423,35 +1421,6 @@ class VersionQuery(AgnosticQuery):
             self.reconstructed_entities
         )
         return agnostic_result, provenance, other_provenance
-
-    def _get_all_provenance_timestamps(self) -> set:
-        query = f"""
-            SELECT ?time WHERE {{
-                ?snapshot <{ProvEntity.iri_generated_at_time}> ?time .
-            }}
-        """
-        results = Sparql(query, self.config).run_select_query()
-        return {r["time"]["value"] for r in results["results"]["bindings"]}
-
-    def _fill_timestamp_gaps(self, result: dict) -> dict:
-        all_timestamps = self._get_all_provenance_timestamps()
-        sorted_result_ts = sorted(result.keys(), key=_parse_datetime)
-        if not sorted_result_ts:
-            return result
-        min_ts = _parse_datetime(sorted_result_ts[0])
-        relevant_timestamps = sorted(
-            [t for t in all_timestamps if min_ts <= _parse_datetime(t)],
-            key=_parse_datetime,
-        )
-        filled = dict(result)
-        last_known = None
-        for ts in relevant_timestamps:
-            normalized = convert_to_datetime(ts, stringify=True)
-            if normalized in filled:
-                last_known = normalized
-            elif last_known is not None:
-                filled[normalized] = filled[last_known]
-        return filled
 
 
 class DeltaQuery(AgnosticQuery):

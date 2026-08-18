@@ -94,7 +94,7 @@ def run_vq_query(sparql: str, config: dict) -> tuple[dict[str, int], float]:
         include_prov_metadata=False,
         config_dict=config,
     )
-    result, _, _ = vq.run_agnostic_query(include_all_timestamps=True)
+    result, _, _ = vq.run_agnostic_query()
     elapsed = time.perf_counter() - start
     return {ts: len(bindings) for ts, bindings in result.items()}, elapsed
 
@@ -138,6 +138,19 @@ def verify_pattern_vm(
     return results
 
 
+def carry_counts_forward(
+    counts_by_version: dict[int, int], num_versions: int
+) -> dict[int, int]:
+    carried = {}
+    last = None
+    for version in range(num_versions):
+        if version in counts_by_version:
+            last = counts_by_version[version]
+        if last is not None:
+            carried[version] = last
+    return carried
+
+
 def verify_pattern_vq(
     pattern_idx: int,
     sparql: str,
@@ -159,6 +172,10 @@ def verify_pattern_vq(
         )
         if version is not None:
             actual_by_version[version] = count
+
+    # BEAR tabulates a solution count for every version, while the query only
+    # returns the timestamps where the matched entities changed.
+    actual_by_version = carry_counts_forward(actual_by_version, corpus.num_versions)
 
     results = []
     all_versions = set(counts.keys()) | set(actual_by_version.keys())

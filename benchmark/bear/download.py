@@ -69,7 +69,25 @@ def extract_tar_gz(archive: Path, dest_dir: Path) -> None:
     ) as progress:
         progress.add_task("extract", filename=archive.name, total=None)
         with tarfile.open(archive, "r:gz") as tar:
-            tar.extractall(dest_dir, filter="data")
+            destination_root = dest_dir.resolve()
+            for member in tar:
+                destination = (dest_dir / member.name).resolve()
+                if not destination.is_relative_to(destination_root):
+                    msg = f"Archive member escapes destination: {member.name}"
+                    raise tarfile.ExtractError(msg)
+                if member.isdir():
+                    destination.mkdir(parents=True, exist_ok=True)
+                    continue
+                if not member.isfile():
+                    msg = f"Unsupported archive member: {member.name}"
+                    raise tarfile.ExtractError(msg)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                source = tar.extractfile(member)
+                if source is None:
+                    msg = f"Cannot read archive member: {member.name}"
+                    raise tarfile.ExtractError(msg)
+                with source, destination.open("wb") as output:
+                    shutil.copyfileobj(source, output)
     console.print(f"  Extracted to {dest_dir}")
 
 

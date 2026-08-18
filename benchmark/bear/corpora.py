@@ -180,7 +180,7 @@ def get(name: str) -> Corpus:
     return CORPORA[name]
 
 
-# Every corpus is served by Virtuoso with its free-text index enabled.
+# Every corpus is served by Fuseki with its free-text index enabled.
 def build_config(corpus: Corpus) -> dict:
     source = {
         "triplestore_urls": [corpus.endpoint()],
@@ -191,7 +191,7 @@ def build_config(corpus: Corpus) -> dict:
         "dataset": source,
         "provenance": source,
         "blazegraph_full_text_search": "no",
-        "fuseki_full_text_search": "no",
-        "virtuoso_full_text_search": "yes",
+        "fuseki_full_text_search": "yes",
+        "virtuoso_full_text_search": "no",
         "graphdb_connector_name": "",
     }
