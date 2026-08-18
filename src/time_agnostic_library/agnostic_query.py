@@ -36,6 +36,10 @@ _OBJECT_POS = 2
 
 _PARALLEL_THRESHOLD = os.cpu_count() or 1
 
+# jena-text answers a text:query with no explicit limit with at most 10000 hits
+# and drops the rest silently, leaving entities out of the reconstruction.
+_FUSEKI_TEXT_SEARCH_LIMIT = 10_000_000
+
 # Algebra nodes the pattern collection below knows how to walk. Anything else
 # would be flattened into a conjunction of its operands, silently returning
 # wrong results, so it is rejected instead.
@@ -242,10 +246,15 @@ def _sparql_filter_in(var: str, uris: set[str]) -> str:
 
 
 def _batch_query_dataset_triples(
-    entity_uris: set[str], config: dict
+    entity_uris: set[str], config: dict, *, is_virtuoso: bool
 ) -> dict[str, set[tuple]]:
     is_quadstore = config["dataset"]["is_quadstore"]
-    body = f"?s ?p ?o. {_sparql_filter_in('?s', entity_uris)}"
+    # Virtuoso resolves VALUES inexplicably slowly, while Jena needs it: under
+    # FILTER ... IN no index prefix applies and it scans the whole store.
+    if is_virtuoso:
+        body = f"?s ?p ?o. {_sparql_filter_in('?s', entity_uris)}"
+    else:
+        body = f"VALUES ?s {{ {_sparql_values(entity_uris)} }} ?s ?p ?o."
     wrapped = _wrap_in_graph(body, is_quadstore=is_quadstore)
     select_vars = "?s ?p ?o ?g" if is_quadstore else "?s ?p ?o"
     query = f"SELECT {select_vars} WHERE {{ {wrapped} }}"
@@ -892,7 +901,7 @@ class AgnosticQuery:
             query_to_identify = f"""
                 PREFIX text: <http://jena.apache.org/text#>
                 SELECT ?updateQuery WHERE {{
-                    ?se text:query "\\"{query_obj}\\"";
+                    ?se text:query ("\\"{query_obj}\\"" {_FUSEKI_TEXT_SEARCH_LIMIT});
                         <{ProvEntity.iri_has_update_query}> ?updateQuery.
                 }}
             """
@@ -981,7 +990,10 @@ class AgnosticQuery:
         results = Sparql(query_to_identify, self.config).run_select_query()
         for binding in results["results"]["bindings"]:
             for quad in _matching_update_quads(binding["updateQuery"]["value"], triple):
-                entities.add(quad[0][1:-1])
+                subject = quad[0].removeprefix("<").removesuffix(">")
+                if subject.startswith("_:"):
+                    continue
+                entities.add(subject)
 
     def _find_entities_in_update_queries(
         self, triple: tuple, present_entities: set | None = None
@@ -1248,7 +1260,10 @@ class VersionQuery(AgnosticQuery):
             _batch_query_provenance_snapshots, all_entity_strs, self.config
         )
         fut_data = _IO_EXECUTOR.submit(
-            _batch_query_dataset_triples, all_entity_strs, self.config
+            _batch_query_dataset_triples,
+            all_entity_strs,
+            self.config,
+            is_virtuoso=self.virtuoso_full_text_search,
         )
         prov_data = fut_prov.result()
         dataset_data = fut_data.result()
@@ -1370,7 +1385,10 @@ class VersionQuery(AgnosticQuery):
                 _batch_query_provenance_snapshots, all_entity_strs, self.config
             )
             fut_data = _IO_EXECUTOR.submit(
-                _batch_query_dataset_triples, all_entity_strs, self.config
+                _batch_query_dataset_triples,
+                all_entity_strs,
+                self.config,
+                is_virtuoso=self.virtuoso_full_text_search,
             )
             prov_data = fut_prov.result()
             dataset_data = fut_data.result()
