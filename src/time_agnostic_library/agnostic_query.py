@@ -332,6 +332,19 @@ def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
     return bindings
 
 
+def _index_quads_by_subject(
+    quads: set[tuple[str, ...]],
+) -> dict[str, set[tuple[str, ...]]]:
+    by_subject: dict[str, set[tuple[str, ...]]] = {}
+    for quad in quads:
+        subject = quad[0]
+        if subject in by_subject:
+            by_subject[subject].add(quad)
+        else:
+            by_subject[subject] = {quad}
+    return by_subject
+
+
 def _merge_entity_bindings(
     entity_bindings: dict[str, dict[str, list[dict]]],
 ) -> dict[str, list[dict]]:
@@ -1057,13 +1070,20 @@ class AgnosticQuery:
                     variable = variables[0]
                     variable_index = triple.index(variable)
                     if variable_index == _OBJECT_POS:
-                        matching = [
-                            q
-                            for q in self.relevant_graphs[se]
-                            if self._term_matches(triple[0], q[0], 0)
-                            and q[1] == triple[1]
+                        subject_terms = {triple[0]}
+                        if triple[0].startswith("<") and triple[0].endswith(">"):
+                            subject_terms = {
+                                f"<{uri}>"
+                                for uri in self._entity_aliases(triple[0][1:-1])
+                            }
+                        quads_by_subject = self._relevant_graphs_by_subject[se]
+                        query_results = [
+                            (triple[0], triple[1], q[2])
+                            for subject in subject_terms
+                            if subject in quads_by_subject
+                            for q in quads_by_subject[subject]
+                            if q[1] == triple[1]
                         ]
-                        query_results = [(triple[0], triple[1], q[2]) for q in matching]
                         for row in query_results:
                             explicit_triples.setdefault(se, {})
                             explicit_triples[se].setdefault(variable, set())
@@ -1096,29 +1116,32 @@ class AgnosticQuery:
                     self.relevant_graphs[snapshot].update(quad_set)
                 else:
                     self.relevant_graphs[snapshot] = set(quad_set)
+        self._relevant_graphs_by_subject = {
+            timestamp: _index_quads_by_subject(quad_set)
+            for timestamp, quad_set in self.relevant_graphs.items()
+        }
         if len(self.relevant_graphs) <= 1:
             return
         ordered_data = sorted(
             self.relevant_graphs.items(),
             key=lambda x: _parse_datetime(x[0]),
         )
-        for index, (se, quad_set) in enumerate(ordered_data):
-            if index > 0:
-                previous_se = ordered_data[index - 1][0]
-                prev_subjects = {q[0] for q in self.relevant_graphs[previous_se]}
-                cur_subjects = {q[0] for q in quad_set}
-                for subject_n3 in prev_subjects:
-                    subject_uri = (
-                        subject_n3[1:-1] if subject_n3.startswith("<") else subject_n3
-                    )
-                    if (
-                        subject_n3 not in cur_subjects
-                        and subject_uri in self.relevant_entities_graphs
-                        and se not in self.relevant_entities_graphs[subject_uri]
-                    ):
-                        for quad in self.relevant_graphs[previous_se]:
-                            if quad[0] == subject_n3:
-                                self.relevant_graphs[se].add(quad)
+        for index in range(1, len(ordered_data)):
+            previous_se = ordered_data[index - 1][0]
+            se = ordered_data[index][0]
+            previous_by_subject = self._relevant_graphs_by_subject[previous_se]
+            current_by_subject = self._relevant_graphs_by_subject[se]
+            for subject_n3, subject_quads in previous_by_subject.items():
+                subject_uri = (
+                    subject_n3[1:-1] if subject_n3.startswith("<") else subject_n3
+                )
+                if (
+                    subject_n3 not in current_by_subject
+                    and subject_uri in self.relevant_entities_graphs
+                    and se not in self.relevant_entities_graphs[subject_uri]
+                ):
+                    self.relevant_graphs[se].update(subject_quads)
+                    current_by_subject[subject_n3] = set(subject_quads)
 
     def _update_vars_to_explicit(self, solved_variables: dict):
         vars_to_explicit_by_time: dict = {}
