@@ -85,26 +85,31 @@ Parameters:
 - `dataset_output`: path for the generated dataset N-Quads file
 - `provenance_output`: path for the generated provenance N-Quads file
 
-## Object normalization
+## Term normalization
 
-Some SPARQL backends require specific datatype representations. The `object_normalizer` parameter allows custom transformations on triple objects during parsing:
+Some SPARQL backends require specific datatype representations, and a source file may carry terms no SPARQL query can address, such as blank nodes and relative IRIs. The `term_normalizer` parameter rewrites subjects and objects as they are parsed, and receives each term in its N-Triples form:
 
 ```python
 XSD = "http://www.w3.org/2001/XMLSchema#"
+GENID = "http://example.org/.well-known/genid/"
 
 
-def normalize_for_qlever(obj: str) -> str:
-    if obj.endswith(f"^^<{XSD}integer>"):
-        return obj.replace(f"^^<{XSD}integer>", f"^^<{XSD}int>")
-    return obj
+def normalize(term: str) -> str:
+    if term.startswith("_:"):
+        return f"<{GENID}{term[2:]}>"
+    if term.endswith(f"^^<{XSD}integer>"):
+        return term.replace(f"^^<{XSD}integer>", f"^^<{XSD}int>")
+    return term
 
 
 converter = OCDMConverter(
     data_graph_uri="http://example.org/data/",
     agent_uri="http://example.org/agent/1",
-    object_normalizer=normalize_for_qlever,
+    term_normalizer=normalize,
 )
 ```
+
+Predicates are left untouched.
 
 ## Output format
 

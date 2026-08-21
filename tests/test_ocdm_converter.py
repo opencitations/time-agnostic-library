@@ -71,15 +71,18 @@ class TestParseNtriplesLine:
         assert parse_ntriples_line("") is None
         assert parse_ntriples_line("   ") is None
 
-    def test_object_normalizer(self):
+    def test_term_normalizer(self):
         line = '<http://example.com/s> <http://example.com/p> "value" .'
 
-        def normalizer(obj):
-            return obj.upper()
+        def normalizer(term):
+            return term.upper()
 
-        result = parse_ntriples_line(line, object_normalizer=normalizer)
-        assert result is not None
-        assert result[2] == '"VALUE"'
+        result = parse_ntriples_line(line, term_normalizer=normalizer)
+        assert result == (
+            "<HTTP://EXAMPLE.COM/S>",
+            "<http://example.com/p>",
+            '"VALUE"',
+        )
 
     def test_escaped_literal(self):
         line = r'<http://example.com/s> <http://example.com/p> "line1\nline2" .'
@@ -128,12 +131,11 @@ class TestParseNtriplesLineFallback:
     def test_fallback_with_normalizer(self):
         line = '<http://s> <http://p> "value"'
 
-        def normalizer(obj):
-            return obj.upper()
+        def normalizer(term):
+            return term.upper()
 
-        result = parse_ntriples_line(line, object_normalizer=normalizer)
-        assert result is not None
-        assert result[2] == '"VALUE"'
+        result = parse_ntriples_line(line, term_normalizer=normalizer)
+        assert result == ("<HTTP://S>", "<http://p>", '"VALUE"')
 
     def test_fallback_incomplete_line(self):
         line = "<http://s> <http://p>"
@@ -247,15 +249,15 @@ class TestReadAndGroup:
                 '<http://example.com/s2> <http://example.com/p> "42"^^xsd:integer\n'
             )
 
-            def normalizer(obj):
-                return obj.upper()
+            def normalizer(term):
+                return term.upper()
 
             result = _read_and_group(path, normalizer)
-            assert result["http://example.com/s1"] == {
-                ("<http://example.com/p>", '"ABC"')
-            }
-            assert result["http://example.com/s2"] == {
-                ("<http://example.com/p>", '"42"^^XSD:INTEGER')
+            assert result == {
+                "HTTP://EXAMPLE.COM/S1": {("<http://example.com/p>", '"ABC"')},
+                "HTTP://EXAMPLE.COM/S2": {
+                    ("<http://example.com/p>", '"42"^^XSD:INTEGER')
+                },
             }
 
     def test_gzip(self):

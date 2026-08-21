@@ -17,6 +17,8 @@ console = Console()
 
 DATA_GRAPH = "http://bear-benchmark.org/data/"
 AGENT_URI = "http://bear-benchmark.org/converter"
+BEAR_BNODE_BASE = "http://example.org/bnode/"
+SKOLEM_BASE = "http://bear-benchmark.org/.well-known/genid/"
 XSD_NS = "http://www.w3.org/2001/XMLSchema#"
 
 _INTEGER_SUFFIX = f"^^<{XSD_NS}integer>"
@@ -25,15 +27,37 @@ _INTEGER_SUFFIX_LEN = len(_INTEGER_SUFFIX)
 _STRING_SUFFIX = f"^^<{XSD_NS}string>"
 _INVALID_LANGUAGE_SUFFIX = "@labellang"
 
+_ABSOLUTE_IRI_RE = re.compile(r"^<[A-Za-z][A-Za-z0-9+.-]*:")
 
-def normalize_object(obj: str) -> str:
-    if obj.endswith(_INVALID_LANGUAGE_SUFFIX):
-        return obj[: -len(_INVALID_LANGUAGE_SUFFIX)]
-    if obj.endswith(_STRING_SUFFIX):
-        return obj[: -len(_STRING_SUFFIX)]
-    if obj.endswith(_INTEGER_SUFFIX):
-        return obj[:-_INTEGER_SUFFIX_LEN] + _INT_SUFFIX
-    return obj
+
+def _normalize_literal(literal: str) -> str:
+    if literal.endswith(_INVALID_LANGUAGE_SUFFIX):
+        return literal[: -len(_INVALID_LANGUAGE_SUFFIX)]
+    if literal.endswith(_STRING_SUFFIX):
+        return literal[: -len(_STRING_SUFFIX)]
+    if literal.endswith(_INTEGER_SUFFIX):
+        return literal[:-_INTEGER_SUFFIX_LEN] + _INT_SUFFIX
+    return literal
+
+
+def normalize_term(term: str) -> str:
+    # Nothing outside an absolute IRI survives a SPARQL round trip: a blank node
+    # has no identity beyond its file, and a relative IRI is resolved against the
+    # request base and stops matching what was stored.
+    if term.startswith("<"):
+        if _ABSOLUTE_IRI_RE.match(term):
+            return term
+        return f"<{SKOLEM_BASE}{term[1:-1]}>"
+    if term.startswith("_:"):
+        # Version 0 is the only one BEAR ships with blank nodes; from version 1
+        # on it skolemises the same nodes as <http://example.org/bnode/LABEL>,
+        # dropping the B its labels start with. Following that scheme keeps an
+        # entity one entity across the whole archive.
+        label = term[2:]
+        if label.startswith("B"):
+            return f"<{BEAR_BNODE_BASE}{label[1:]}>"
+        return f"<{SKOLEM_BASE}{label}>"
+    return _normalize_literal(term)
 
 
 def find_ic_files(ic_dir: Path) -> list[Path]:
@@ -88,7 +112,7 @@ def main():
     converter = OCDMConverter(
         data_graph_uri=DATA_GRAPH,
         agent_uri=AGENT_URI,
-        object_normalizer=normalize_object,
+        term_normalizer=normalize_term,
     )
 
     infix = f".{args.versions}v" if args.versions else ""

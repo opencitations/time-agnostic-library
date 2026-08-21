@@ -374,6 +374,55 @@ class TestAgnosticEntityEdgeCases:
             == '"line1\\nline2"^^<http://www.w3.org/2001/XMLSchema#string>'
         )
 
+    def test_fast_parse_update_with_operation_keyword_inside_literal(self):
+        query = (
+            "INSERT DATA { GRAPH <http://ex.com/g/> { "
+            '<http://ex.com/s> <http://ex.com/p> "SPARQL 1.1 supports '
+            'INSERT DATA and DELETE DATA" . '
+            "<http://ex.com/s> <http://ex.com/p2> <http://ex.com/o> . } }"
+        )
+        ops = _fast_parse_update(query)
+        assert ops == [
+            (
+                "InsertData",
+                [
+                    (
+                        "<http://ex.com/s>",
+                        "<http://ex.com/p>",
+                        '"SPARQL 1.1 supports INSERT DATA and DELETE DATA"',
+                        "<http://ex.com/g/>",
+                    ),
+                    (
+                        "<http://ex.com/s>",
+                        "<http://ex.com/p2>",
+                        "<http://ex.com/o>",
+                        "<http://ex.com/g/>",
+                    ),
+                ],
+            )
+        ]
+
+    def test_fast_parse_update_with_operation_keyword_inside_comment(self):
+        query = (
+            "# DELETE DATA appears in this comment\n"
+            "INSERT DATA { GRAPH <http://ex.com/g/> { "
+            "<http://ex.com/s> <http://ex.com/p> <http://ex.com/o> . } }"
+        )
+        ops = _fast_parse_update(query)
+        assert ops == [
+            (
+                "InsertData",
+                [
+                    (
+                        "<http://ex.com/s>",
+                        "<http://ex.com/p>",
+                        "<http://ex.com/o>",
+                        "<http://ex.com/g/>",
+                    )
+                ],
+            )
+        ]
+
     def test_find_matching_close_brace_nested(self):
         text = "{ inner { deep } } after"
         pos = _find_matching_close_brace(text, 2)

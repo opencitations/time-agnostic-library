@@ -9,16 +9,25 @@ from time_agnostic_library.sparql import Sparql, _n3_value
 from time_agnostic_library.support import _cached_parse as _parse_datetime
 from time_agnostic_library.support import convert_to_datetime
 
-_OPERATION_RE = re.compile(r"(DELETE|INSERT)\s+DATA", re.IGNORECASE)
+# The alternatives before the keyword consume the constructs a keyword can hide
+# inside, so that only one standing in the query itself is reported.
+_UPDATE_TOKEN_RE = re.compile(
+    r"<[^>]*>"  # IRI
+    r'|"(?:[^"\\]|\\.)*"'  # literal between double quotes
+    r"|'(?:[^'\\]|\\.)*'"  # literal between single quotes
+    r"|#[^\r\n]*"  # comment, up to the end of the line
+    r"|(?P<operation>DELETE|INSERT)\s+DATA",  # the keyword being looked for
+    re.IGNORECASE,
+)
 _GRAPH_BLOCK_RE = re.compile(r"GRAPH\s*<([^>]+)>\s*\{", re.IGNORECASE)
 
 _RDF_TERM_RE = re.compile(
-    r"<([^>]+)>"
-    r'|"((?:[^"\\]|\\.)*)"\^\^<([^>]+)>'
-    r'|"((?:[^"\\]|\\.)*)"@([a-zA-Z][\w-]*)'
-    r'|"((?:[^"\\]|\\.)*)"'
-    r"|'((?:[^'\\]|\\.)*)'"
-    r"|(_:\S+)",
+    r"<(?P<iri>[^>]+)>"
+    r'|"(?P<typed>(?:[^"\\]|\\.)*)"\^\^<(?P<datatype>[^>]+)>'
+    r'|"(?P<tagged>(?:[^"\\]|\\.)*)"@(?P<language>[a-zA-Z][\w-]*)'
+    r'|"(?P<quoted>(?:[^"\\]|\\.)*)"'
+    r"|'(?P<single_quoted>(?:[^'\\]|\\.)*)'"
+    r"|(?P<blank_node>_:\S+)",
     re.DOTALL,
 )
 
@@ -49,27 +58,27 @@ def _normalize_literal(raw: str) -> str:
 
 
 def _regex_match_to_n3(match: re.Match) -> str:
-    uri = match.group(1)
-    if uri is not None:
-        return f"<{uri}>"
+    iri = match.group("iri")
+    if iri is not None:
+        return f"<{iri}>"
 
-    typed_value = match.group(2)
-    if typed_value is not None:
-        return f'"{_normalize_literal(typed_value)}"^^<{match.group(3)}>'
+    typed = match.group("typed")
+    if typed is not None:
+        return f'"{_normalize_literal(typed)}"^^<{match.group("datatype")}>'
 
-    lang_value = match.group(4)
-    if lang_value is not None:
-        return f'"{_normalize_literal(lang_value)}"@{match.group(5)}'
+    tagged = match.group("tagged")
+    if tagged is not None:
+        return f'"{_normalize_literal(tagged)}"@{match.group("language")}'
 
-    double_quoted = match.group(6)
-    if double_quoted is not None:
-        return f'"{_normalize_literal(double_quoted)}"'
+    quoted = match.group("quoted")
+    if quoted is not None:
+        return f'"{_normalize_literal(quoted)}"'
 
-    single_quoted = match.group(7)
+    single_quoted = match.group("single_quoted")
     if single_quoted is not None:
         return f'"{_normalize_literal(single_quoted)}"'
 
-    return match.group(8)
+    return match.group("blank_node")
 
 
 _BRACE_OR_QUOTE_RE = re.compile(r'[{}\'"]')
@@ -113,43 +122,67 @@ def _find_matching_close_brace(text: str, start: int) -> int:
     return length
 
 
+def _parse_graph_blocks(
+    text: str, start: int, end: int
+) -> list[tuple[str, str, str, str]]:
+    quads: list[tuple[str, str, str, str]] = []
+    pos = start
+    while pos < end:
+        graph_match = _GRAPH_BLOCK_RE.search(text, pos, end)
+        if graph_match is None:
+            break
+        graph_n3 = f"<{graph_match.group(1)}>"
+        triples_start = graph_match.end()
+        triples_end = _find_matching_close_brace(text, triples_start)
+
+        terms: list[str] = []
+        for m in _RDF_TERM_RE.finditer(text, triples_start, triples_end):
+            terms.append(_regex_match_to_n3(m))
+            if len(terms) == _TRIPLE_LEN:
+                quads.append((terms[0], terms[1], terms[2], graph_n3))
+                terms.clear()
+
+        pos = triples_end + 1
+    return quads
+
+
+def _find_next_operation(text: str, start: int) -> re.Match | None:
+    for token_match in _UPDATE_TOKEN_RE.finditer(text, start):
+        if token_match.group("operation") is not None:
+            return token_match
+    return None
+
+
 def _fast_parse_update(
     update_query: str,
 ) -> list[tuple[str, list[tuple[str, str, str, str]]]]:
     operations: list[tuple[str, list[tuple[str, str, str, str]]]] = []
-    operation_matches = list(_OPERATION_RE.finditer(update_query))
     query_len = len(update_query)
+    pos = 0
 
-    for i, operation_match in enumerate(operation_matches):
+    # Each operation is parsed up to the brace that closes it, and the scan
+    # resumes past that brace: a literal quoting "INSERT DATA" would otherwise
+    # read as the start of a new operation and truncate the one it sits in.
+    while pos < query_len:
+        operation_match = _find_next_operation(update_query, pos)
+        if operation_match is None:
+            break
+        block_start = update_query.find("{", operation_match.end())
+        if block_start == -1:
+            break
         operation_type = (
             "DeleteData"
-            if operation_match.group(1).upper() == "DELETE"
+            if operation_match.group("operation").upper() == "DELETE"
             else "InsertData"
         )
-
-        op_start = operation_match.end()
-        op_end = (
-            operation_matches[i + 1].start()
-            if i + 1 < len(operation_matches)
-            else query_len
+        block_end = _find_matching_close_brace(update_query, block_start + 1)
+        operations.append(
+            (
+                operation_type,
+                _parse_graph_blocks(update_query, block_start + 1, block_end),
+            )
         )
-        operation_body = update_query[op_start:op_end]
-
-        quads: list[tuple[str, str, str, str]] = []
-        for graph_match in _GRAPH_BLOCK_RE.finditer(operation_body):
-            graph_n3 = f"<{graph_match.group(1)}>"
-            triples_start = graph_match.end()
-            triples_end = _find_matching_close_brace(operation_body, triples_start)
-            triples_text = operation_body[triples_start:triples_end]
-
-            terms: list[str] = []
-            for m in _RDF_TERM_RE.finditer(triples_text):
-                terms.append(_regex_match_to_n3(m))
-                if len(terms) == _TRIPLE_LEN:
-                    quads.append((terms[0], terms[1], terms[2], graph_n3))
-                    terms.clear()
-
-        operations.append((operation_type, quads))
+        pos = block_end + 1
 
     return operations
 

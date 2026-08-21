@@ -42,17 +42,18 @@ _NT_RE = re.compile(
 
 def parse_ntriples_line(
     line: str,
-    object_normalizer: Callable[[str], str] | None = None,
+    term_normalizer: Callable[[str], str] | None = None,
 ) -> tuple[str, str, str] | None:
     line = line.strip()
     if not line or line.startswith("#"):
         return None
     m = _NT_RE.match(line)
     if m:
-        obj = m.group(3)
-        if object_normalizer:
-            obj = object_normalizer(obj)
-        return (m.group(1), m.group(2), obj)
+        subject, obj = m.group(1), m.group(3)
+        if term_normalizer:
+            subject = term_normalizer(subject)
+            obj = term_normalizer(obj)
+        return (subject, m.group(2), obj)
     if line.endswith(" ."):
         line = line[:-2]
     elif line.endswith("."):
@@ -120,10 +121,11 @@ def parse_ntriples_line(
                 parts.append(line[i:space])
                 i = space
     if len(parts) == _TRIPLE_LEN:
-        obj = parts[2]
-        if object_normalizer:
-            obj = object_normalizer(obj)
-        return (parts[0], parts[1], obj)
+        subject, obj = parts[0], parts[2]
+        if term_normalizer:
+            subject = term_normalizer(subject)
+            obj = term_normalizer(obj)
+        return (subject, parts[1], obj)
     return None
 
 
@@ -147,12 +149,12 @@ def _open_for_writing(filepath: Path):
 
 def read_ntriples_file(
     filepath: Path,
-    object_normalizer: Callable[[str], str] | None = None,
+    term_normalizer: Callable[[str], str] | None = None,
 ) -> list[tuple[str, str, str]]:
     triples = []
     with _open_ntriples(filepath) as f:
         for line in f:
-            parsed = parse_ntriples_line(line, object_normalizer)
+            parsed = parse_ntriples_line(line, term_normalizer)
             if parsed:
                 triples.append(parsed)
     return triples
@@ -170,7 +172,7 @@ def group_triples_by_subject(
 
 def _read_and_group(
     filepath: Path,
-    object_normalizer: Callable[[str], str] | None = None,
+    term_normalizer: Callable[[str], str] | None = None,
 ) -> dict[str, set[tuple[str, str]]]:
     by_subject: dict[str, set[tuple[str, str]]] = defaultdict(set)
     match = _NT_RE.match
@@ -179,11 +181,12 @@ def _read_and_group(
             m = match(line)
             if m:
                 s, p, obj = m.groups()
-                if object_normalizer:
-                    obj = object_normalizer(obj)
+                if term_normalizer:
+                    s = term_normalizer(s)
+                    obj = term_normalizer(obj)
                 uri = s[1:-1] if s[0] == "<" else s
             else:
-                parsed = parse_ntriples_line(line, object_normalizer)
+                parsed = parse_ntriples_line(line, term_normalizer)
                 if not parsed:
                     continue
                 s, p, obj = parsed
@@ -309,11 +312,11 @@ class OCDMConverter:
         self,
         data_graph_uri: str,
         agent_uri: str,
-        object_normalizer: Callable[[str], str] | None = None,
+        term_normalizer: Callable[[str], str] | None = None,
     ):
         self.data_graph_uri = data_graph_uri
         self.agent_uri = agent_uri
-        self.object_normalizer = object_normalizer
+        self.term_normalizer = term_normalizer
 
     def convert_from_ic(
         self,
@@ -332,9 +335,7 @@ class OCDMConverter:
             self._open_provenance(provenance_output, timestamps) as writer,
             ThreadPoolExecutor(max_workers=1) as executor,
         ):
-            future = executor.submit(
-                _read_and_group, ic_files[0], self.object_normalizer
-            )
+            future = executor.submit(_read_and_group, ic_files[0], self.term_normalizer)
 
             for version_idx in range(len(ic_files)):
                 cur_by_subject = future.result()
@@ -343,7 +344,7 @@ class OCDMConverter:
                     future = executor.submit(
                         _read_and_group,
                         ic_files[version_idx + 1],
-                        self.object_normalizer,
+                        self.term_normalizer,
                     )
 
                 for entity_uri in cur_by_subject:
@@ -379,7 +380,7 @@ class OCDMConverter:
         provenance_output: Path,
     ) -> None:
         current_state: dict[str, set[tuple[str, str]]] = defaultdict(
-            set, _read_and_group(initial_snapshot, self.object_normalizer)
+            set, _read_and_group(initial_snapshot, self.term_normalizer)
         )
 
         # Read the added and deleted files of each changeset in parallel.
@@ -394,10 +395,10 @@ class OCDMConverter:
                 version_idx = changeset_idx + 1
 
                 fut_del = executor.submit(
-                    _read_and_group, deleted_file, self.object_normalizer
+                    _read_and_group, deleted_file, self.term_normalizer
                 )
                 fut_add = executor.submit(
-                    _read_and_group, added_file, self.object_normalizer
+                    _read_and_group, added_file, self.term_normalizer
                 )
                 deleted_by_subject = fut_del.result()
                 added_by_subject = fut_add.result()
