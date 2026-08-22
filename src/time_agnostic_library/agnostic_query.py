@@ -7,6 +7,7 @@ import atexit
 import json
 import os
 import re
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import product
 from pathlib import Path
@@ -23,6 +24,7 @@ from time_agnostic_library.agnostic_entity import (
     _apply_update_ops,
     _fast_parse_update,
     _filter_timestamps_by_interval,
+    _iter_working_states,
     _materialize_versions,
     _parse_datetime,
 )
@@ -307,7 +309,9 @@ def _reconstruct_at_time_as_sets(
     return _materialize_versions(sorted_versions, dataset_quads, relevant_times)
 
 
-def _match_single_pattern(triple_pattern: tuple, quads: tuple) -> list[dict]:
+def _match_single_pattern(
+    triple_pattern: tuple, quads: Iterable[tuple[str, ...]]
+) -> list[dict]:
     s_pat, p_pat, o_pat = triple_pattern[0], triple_pattern[1], triple_pattern[2]
     s_is_var = s_pat.startswith("?")
     p_is_var = p_pat.startswith("?")
@@ -1427,7 +1431,7 @@ class VersionQuery(AgnosticQuery):
                     key=lambda version: _parse_datetime(version[0]),
                     reverse=True,
                 )
-                for ts, quad_set in _materialize_versions(
+                for ts, quad_set in _iter_working_states(
                     sorted_versions, dataset_data[entity_str]
                 ):
                     per_ts[ts] = _match_single_pattern(triple, quad_set)

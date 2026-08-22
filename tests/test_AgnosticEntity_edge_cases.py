@@ -15,6 +15,7 @@ from time_agnostic_library.agnostic_entity import (
     _filter_timestamps_by_interval,
     _find_matching_close_brace,
     _find_related_object_uris,
+    _iter_working_states,
 )
 from time_agnostic_library.prov_entity import ProvEntity
 
@@ -485,6 +486,52 @@ class TestAgnosticEntityEdgeCases:
         )
         versions = list(entity.iter_versions())
         assert versions == []
+
+    def test_iter_working_states_reconstructs_on_demand(self):
+        graph = "<https://example.org/graph>"
+        previous_quad = (
+            "<https://example.org/entity>",
+            "<https://example.org/value>",
+            '"previous"',
+            graph,
+        )
+        current_quad = (
+            "<https://example.org/entity>",
+            "<https://example.org/value>",
+            '"current"',
+            graph,
+        )
+        update_query = (
+            "DELETE DATA { GRAPH <https://example.org/graph> { "
+            '<https://example.org/entity> <https://example.org/value> "previous" . '
+            "} }; INSERT DATA { GRAPH <https://example.org/graph> { "
+            '<https://example.org/entity> <https://example.org/value> "current" . '
+            "} }"
+        )
+        sorted_versions = [
+            ("2026-08-22T12:00:00+00:00", update_query),
+            ("2026-08-21T12:00:00+00:00", None),
+        ]
+
+        with patch(
+            "time_agnostic_library.agnostic_entity._apply_inverse_update",
+            wraps=_apply_inverse_update,
+        ) as apply_inverse_update:
+            versions = _iter_working_states(sorted_versions, {current_quad})
+
+            assert apply_inverse_update.call_count == 0
+            assert next(versions) == (
+                "2026-08-22T12:00:00+00:00",
+                {current_quad},
+            )
+            assert apply_inverse_update.call_count == 0
+            assert next(versions) == (
+                "2026-08-21T12:00:00+00:00",
+                {previous_quad},
+            )
+            assert apply_inverse_update.call_count == 1
+            with pytest.raises(StopIteration):
+                next(versions)
 
     def test_compose_update_queries_delete_cancels_add(self):
         queries = [

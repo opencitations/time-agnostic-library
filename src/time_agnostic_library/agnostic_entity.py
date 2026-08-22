@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: ISC
 
 import re
+from collections.abc import Iterator
 
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql, _n3_value
@@ -229,14 +230,14 @@ def _compose_update_queries(
     return additions, deletions
 
 
-def _materialize_versions(
+def _iter_working_states(
     sorted_versions: list[tuple[str, str | None]],
     current_state: set[tuple[str, ...]],
     target_times: set[str] | None = None,
-) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:
+) -> Iterator[tuple[str, set[tuple[str, ...]]]]:
     target_count = len(target_times) if target_times is not None else None
     working_state = set(current_state)
-    materialized_versions = []
+    materialized_count = 0
     for index, (timestamp, _update_query) in enumerate(sorted_versions):
         if index > 0:
             previous_update = sorted_versions[index - 1][1]
@@ -244,10 +245,23 @@ def _materialize_versions(
                 _apply_inverse_update(working_state, previous_update)
         if target_times is None or timestamp in target_times:
             normalized_timestamp = str(convert_to_datetime(timestamp, stringify=True))
-            materialized_versions.append((normalized_timestamp, tuple(working_state)))
-            if target_count is not None and len(materialized_versions) == target_count:
-                break
-    return materialized_versions
+            yield normalized_timestamp, working_state
+            materialized_count += 1
+            if target_count is not None and materialized_count == target_count:
+                return
+
+
+def _materialize_versions(
+    sorted_versions: list[tuple[str, str | None]],
+    current_state: set[tuple[str, ...]],
+    target_times: set[str] | None = None,
+) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:
+    return [
+        (timestamp, tuple(working_state))
+        for timestamp, working_state in _iter_working_states(
+            sorted_versions, current_state, target_times
+        )
+    ]
 
 
 CONFIG_PATH = "./config.json"
