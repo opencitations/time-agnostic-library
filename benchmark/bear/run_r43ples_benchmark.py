@@ -32,8 +32,6 @@ console = Console()
 
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR / "data"
-QUERIES_DIR = DATA_DIR / "queries"
-
 GRAPH_URI = "http://bear.benchmark/dataset"
 R43PLES_PORT = 9998
 DEFAULT_REPLICATIONS = 1
@@ -41,8 +39,6 @@ MAX_RETRIES = 5
 RETRY_BACKOFF_S = 5
 
 DM_STEPS = {"daily": 5, "hourly": 100, "instant": 1500}
-
-QUERY_FILES = ["p.txt", "po.txt"]
 
 SPARQL_NS = "http://www.w3.org/2005/sparql-results#"
 
@@ -139,10 +135,19 @@ def build_sparql(
     )
 
 
-def query_r43ples(session: requests.Session, sparql: str, endpoint: str) -> int:
+def query_r43ples(
+    session: requests.Session,
+    sparql: str,
+    endpoint: str,
+    *,
+    query_rewriting: bool,
+) -> int:
+    params = {"query": sparql}
+    if query_rewriting:
+        params["query_rewriting"] = "true"
     resp = session.get(
         endpoint,
-        params={"query": sparql},
+        params=params,
         headers={"Accept": "application/sparql-results+xml"},
         timeout=600,
     )
@@ -152,10 +157,19 @@ def query_r43ples(session: requests.Session, sparql: str, endpoint: str) -> int:
 
 
 def timed_query(
-    session: requests.Session, sparql: str, endpoint: str
+    session: requests.Session,
+    sparql: str,
+    endpoint: str,
+    *,
+    query_rewriting: bool,
 ) -> tuple[float, int]:
     start = time.perf_counter()
-    count = query_r43ples(session, sparql, endpoint)
+    count = query_r43ples(
+        session,
+        sparql,
+        endpoint,
+        query_rewriting=query_rewriting,
+    )
     elapsed = time.perf_counter() - start
     return elapsed, count
 
@@ -187,6 +201,8 @@ def global_warmup(
     endpoint: str,
     revision_map: dict[int, int],
     corpus_name: str,
+    *,
+    query_rewriting: bool,
 ) -> None:
     sample_versions = [1, num_versions // 2, num_versions]
     sample_patterns = patterns[: min(3, len(patterns))]
@@ -197,7 +213,16 @@ def global_warmup(
         revision = revision_map[v] if revision_map else v
         for pat in sample_patterns:
             sparql = build_sparql(pat, pattern_type, revision)
-            _with_retry(partial(query_r43ples, session, sparql, endpoint), corpus_name)
+            _with_retry(
+                partial(
+                    query_r43ples,
+                    session,
+                    sparql,
+                    endpoint,
+                    query_rewriting=query_rewriting,
+                ),
+                corpus_name,
+            )
 
 
 def run_vm_benchmark(
@@ -211,6 +236,8 @@ def run_vm_benchmark(
     state: dict,
     state_file: Path,
     corpus_name: str,
+    *,
+    query_rewriting: bool,
     skip: int = 0,
 ) -> None:
     if skip == 0:
@@ -222,6 +249,7 @@ def run_vm_benchmark(
             endpoint,
             revision_map,
             corpus_name,
+            query_rewriting=query_rewriting,
         )
     total = num_versions * len(patterns)
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
@@ -238,7 +266,14 @@ def run_vm_benchmark(
                 count = 0
                 for _ in range(num_replications):
                     elapsed, count = _with_retry(
-                        partial(timed_query, session, sparql, endpoint), corpus_name
+                        partial(
+                            timed_query,
+                            session,
+                            sparql,
+                            endpoint,
+                            query_rewriting=query_rewriting,
+                        ),
+                        corpus_name,
                     )
                     times.append(elapsed)
                 median_ms = statistics.median(times) * 1000
@@ -268,6 +303,8 @@ def run_dm_benchmark(
     state: dict,
     state_file: Path,
     corpus_name: str,
+    *,
+    query_rewriting: bool,
     skip: int = 0,
 ) -> None:
     diff_versions = compute_dm_versions(num_versions, dm_step)
@@ -281,6 +318,7 @@ def run_dm_benchmark(
             endpoint,
             revision_map,
             corpus_name,
+            query_rewriting=query_rewriting,
         )
     total = len(diff_versions) * len(patterns)
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
@@ -299,11 +337,23 @@ def run_dm_benchmark(
                 for _ in range(num_replications):
                     start = time.perf_counter()
                     results_v0 = _with_retry(
-                        partial(query_r43ples, session, sparql_v0, endpoint),
+                        partial(
+                            query_r43ples,
+                            session,
+                            sparql_v0,
+                            endpoint,
+                            query_rewriting=query_rewriting,
+                        ),
                         corpus_name,
                     )
                     results_vn = _with_retry(
-                        partial(query_r43ples, session, sparql_vn, endpoint),
+                        partial(
+                            query_r43ples,
+                            session,
+                            sparql_vn,
+                            endpoint,
+                            query_rewriting=query_rewriting,
+                        ),
                         corpus_name,
                     )
                     elapsed = time.perf_counter() - start
@@ -336,6 +386,8 @@ def run_vq_benchmark(
     state: dict,
     state_file: Path,
     corpus_name: str,
+    *,
+    query_rewriting: bool,
     skip: int = 0,
 ) -> None:
     if skip == 0:
@@ -347,6 +399,7 @@ def run_vq_benchmark(
             endpoint,
             revision_map,
             corpus_name,
+            query_rewriting=query_rewriting,
         )
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
         task = progress.add_task(
@@ -364,7 +417,14 @@ def run_vq_benchmark(
                     revision = revision_map[version] if revision_map else version
                     sparql = build_sparql(pattern, pattern_type, revision)
                     run_total += _with_retry(
-                        partial(query_r43ples, session, sparql, endpoint), corpus_name
+                        partial(
+                            query_r43ples,
+                            session,
+                            sparql,
+                            endpoint,
+                            query_rewriting=query_rewriting,
+                        ),
+                        corpus_name,
                     )
                 elapsed = time.perf_counter() - start
                 total_count = run_total
@@ -482,16 +542,16 @@ def print_summary(results: dict) -> None:
     console.print(table)
 
 
-def find_latest_run(corpus_name: str) -> Path | None:
-    matches = sorted(DATA_DIR.glob(f"r43ples_runs_{corpus_name}_*.json"))
+def find_latest_run(corpus_name: str, mode: str) -> Path | None:
+    matches = sorted(DATA_DIR.glob(f"r43ples_runs_{corpus_name}_{mode}_*.json"))
     if matches:
         return matches[-1]
     return None
 
 
-def create_run_file(corpus_name: str) -> Path:
+def create_run_file(corpus_name: str, mode: str) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return DATA_DIR / f"r43ples_runs_{corpus_name}_{timestamp}.json"
+    return DATA_DIR / f"r43ples_runs_{corpus_name}_{mode}_{timestamp}.json"
 
 
 def main():
@@ -502,24 +562,27 @@ def main():
     parser.add_argument("--only", choices=["vm", "dm", "vq"], nargs="+")
     parser.add_argument("--replications", type=int, default=DEFAULT_REPLICATIONS)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--query-rewriting", action="store_true")
     args = parser.parse_args()
 
-    num_versions = corpora.get(args.corpus).num_versions
+    corpus = corpora.get(args.corpus)
+    num_versions = corpus.num_versions
     dm_step = DM_STEPS[args.corpus]
     endpoint = f"http://localhost:{R43PLES_PORT}/r43ples/sparql"
-    output_file = DATA_DIR / f"r43ples_benchmark_results_{args.corpus}.json"
+    mode = "query_rewriting" if args.query_rewriting else "default"
+    output_file = DATA_DIR / f"r43ples_benchmark_results_{args.corpus}_{mode}.json"
     query_types = args.only or ["vm", "dm", "vq"]
     revision_map = load_revision_map(args.corpus)
 
     if args.resume:
-        run_file = find_latest_run(args.corpus)
+        run_file = find_latest_run(args.corpus, mode)
         if run_file:
             console.print(f"[bold]Resuming from {run_file}[/bold]")
             with run_file.open(encoding="utf-8") as f:
                 state = json.load(f)
         else:
             console.print("[yellow]No previous run file found, starting fresh")
-            run_file = create_run_file(args.corpus)
+            run_file = create_run_file(args.corpus, mode)
             state = {
                 "replications": args.replications,
                 "corpus_name": args.corpus,
@@ -527,7 +590,7 @@ def main():
                 "detail": {"vm": [], "dm": [], "vq": []},
             }
     else:
-        run_file = create_run_file(args.corpus)
+        run_file = create_run_file(args.corpus, mode)
         state = {
             "replications": args.replications,
             "corpus_name": args.corpus,
@@ -539,6 +602,7 @@ def main():
         f"[bold]R43ples benchmark ({args.corpus}, {num_versions} versions)[/bold]"
     )
     console.print(f"  Endpoint: {endpoint}")
+    console.print(f"  Query rewriting: {args.query_rewriting}")
     console.print(f"  Replications: {args.replications} (global warmup per query type)")
     console.print(f"  Run file: {run_file}")
     if revision_map:
@@ -549,9 +613,9 @@ def main():
 
     session = requests.Session()
 
-    for query_file in QUERY_FILES:
-        pattern_type = query_file.replace(".txt", "")
-        query_path = QUERIES_DIR / query_file
+    for query_set in corpus.queries:
+        pattern_type = query_set.name
+        query_path = query_set.path
         if not query_path.exists():
             console.print(f"[yellow]Query file not found: {query_path}")
             continue
@@ -579,6 +643,7 @@ def main():
                     state,
                     run_file,
                     args.corpus,
+                    query_rewriting=args.query_rewriting,
                     skip=completed,
                 )
 
@@ -605,6 +670,7 @@ def main():
                     state,
                     run_file,
                     args.corpus,
+                    query_rewriting=args.query_rewriting,
                     skip=completed,
                 )
 
@@ -629,6 +695,7 @@ def main():
                     state,
                     run_file,
                     args.corpus,
+                    query_rewriting=args.query_rewriting,
                     skip=completed,
                 )
 
