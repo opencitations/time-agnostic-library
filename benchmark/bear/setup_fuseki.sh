@@ -85,7 +85,11 @@ cat > "${DATABASE_DIR}/config.ttl" <<'EOF'
 
 :index a text:TextIndexLucene ;
     text:directory <file:/database/Lucene> ;
-    text:entityMap :entity_map .
+    text:entityMap :entity_map ;
+    text:analyzer [
+        a text:ConfigurableAnalyzer ;
+        text:tokenizer text:WhitespaceTokenizer
+    ] .
 
 :entity_map a text:EntityMap ;
     text:entityField "uri" ;

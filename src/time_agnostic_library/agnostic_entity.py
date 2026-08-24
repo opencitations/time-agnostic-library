@@ -82,45 +82,28 @@ def _regex_match_to_n3(match: re.Match) -> str:
     return match.group("blank_node")
 
 
-_BRACE_OR_QUOTE_RE = re.compile(r'[{}\'"]')
+_STRUCTURE_TOKEN_RE = re.compile(
+    r"<[^>]*>"  # IRI
+    r'|"(?:[^"\\]|\\.)*"'  # literal between double quotes
+    r"|'(?:[^'\\]|\\.)*'"  # literal between single quotes
+    r"|#[^\r\n]*"  # comment, up to the end of the line
+    r"|(?P<brace>[{}])"
+)
 
 
 def _find_matching_close_brace(text: str, start: int) -> int:
-    pos = start
-    length = len(text)
     depth = 1
-    while pos < length:
-        m = _BRACE_OR_QUOTE_RE.search(text, pos)
-        if m is None:
-            return length
-        pos = m.start()
-        char = text[pos]
-        if char == "{":
+    for token_match in _STRUCTURE_TOKEN_RE.finditer(text, start):
+        brace = token_match.group("brace")
+        if brace is None:
+            continue
+        if brace == "{":
             depth += 1
-            pos += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return pos
-            pos += 1
-        else:
-            quote_char = char
-            pos += 1
-            while pos < length:
-                q = text.find(quote_char, pos)
-                if q == -1:
-                    pos = length
-                    break
-                num_backslashes = 0
-                check = q - 1
-                while check >= start and text[check] == "\\":
-                    num_backslashes += 1
-                    check -= 1
-                if num_backslashes % 2 == 0:
-                    pos = q + 1
-                    break
-                pos = q + 1
-    return length
+            continue
+        depth -= 1
+        if depth == 0:
+            return token_match.start()
+    return len(text)
 
 
 def _parse_graph_blocks(
@@ -134,7 +117,7 @@ def _parse_graph_blocks(
             break
         graph_n3 = f"<{graph_match.group(1)}>"
         triples_start = graph_match.end()
-        triples_end = _find_matching_close_brace(text, triples_start)
+        triples_end = min(_find_matching_close_brace(text, triples_start), end)
 
         terms: list[str] = []
         for m in _RDF_TERM_RE.finditer(text, triples_start, triples_end):

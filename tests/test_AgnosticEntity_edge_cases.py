@@ -424,6 +424,39 @@ class TestAgnosticEntityEdgeCases:
             )
         ]
 
+    def test_fast_parse_update_with_apostrophe_inside_iri(self):
+        query = (
+            "DELETE DATA { GRAPH <http://ex.com/g/> { "
+            "<http://ex.com/s> <http://ex.com/p> <http://ex.com/People's_Bank> . } }; "
+            "INSERT DATA { GRAPH <http://ex.com/g/> { "
+            "<http://ex.com/s> <http://ex.com/p> <http://ex.com/o> . } }"
+        )
+        ops = _fast_parse_update(query)
+        assert ops == [
+            (
+                "DeleteData",
+                [
+                    (
+                        "<http://ex.com/s>",
+                        "<http://ex.com/p>",
+                        "<http://ex.com/People's_Bank>",
+                        "<http://ex.com/g/>",
+                    )
+                ],
+            ),
+            (
+                "InsertData",
+                [
+                    (
+                        "<http://ex.com/s>",
+                        "<http://ex.com/p>",
+                        "<http://ex.com/o>",
+                        "<http://ex.com/g/>",
+                    )
+                ],
+            ),
+        ]
+
     def test_find_matching_close_brace_nested(self):
         text = "{ inner { deep } } after"
         pos = _find_matching_close_brace(text, 2)
@@ -434,6 +467,11 @@ class TestAgnosticEntityEdgeCases:
         text = '{ "contains { brace" } after'
         pos = _find_matching_close_brace(text, 2)
         assert text[pos] == "}"
+
+    def test_find_matching_close_brace_with_apostrophe_inside_iri(self):
+        text = "{ <http://ex.com/People's_Bank> } after"
+        pos = _find_matching_close_brace(text, 2)
+        assert text[pos:] == "} after"
 
     def test_find_matching_close_brace_unclosed(self):
         text = "{ no closing brace"

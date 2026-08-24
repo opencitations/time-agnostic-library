@@ -912,8 +912,11 @@ class AgnosticQuery:
             }}
             """
         elif self.fuseki_full_text_search:
+            # The angle brackets keep the IRI a single token under the
+            # whitespace tokenizer the index requires, so a namespace root such
+            # as <http://www.w3.org/> no longer matches every IRI below it.
             query_obj = '\\" AND \\"'.join(
-                _escape_search_term(term, '"') for term in terms
+                _escape_search_term(f"<{term}>", '"') for term in terms
             )
             query_to_identify = f"""
                 PREFIX text: <http://jena.apache.org/text#>
@@ -1005,7 +1008,17 @@ class AgnosticQuery:
             return
         query_to_identify = self._get_query_to_update_queries(triple)
         results = Sparql(query_to_identify, self.config).run_select_query()
-        for binding in results["results"]["bindings"]:
+        bindings = results["results"]["bindings"]
+        if self.fuseki_full_text_search and len(bindings) >= _FUSEKI_TEXT_SEARCH_LIMIT:
+            terms = ", ".join(sorted(_pattern_search_terms(triple)))
+            msg = (
+                f"The full-text search for {terms} returned "
+                f"{_FUSEKI_TEXT_SEARCH_LIMIT} update queries, which is the "
+                "limit, so the rest were dropped and the entities behind them "
+                "would be missing from the answer."
+            )
+            raise ValueError(msg)
+        for binding in bindings:
             for quad in _matching_update_quads(binding["updateQuery"]["value"], triple):
                 subject = quad[0].removeprefix("<").removesuffix(">")
                 if subject.startswith("_:"):

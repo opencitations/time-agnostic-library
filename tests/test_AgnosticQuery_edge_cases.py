@@ -541,3 +541,31 @@ class TestEntityDiscoverySearchTerms:
         checked = {("?s", "<http://ex.com/p>", '"foo"')}
         assert not vq._is_a_new_triple(("?s", "<http://ex.com/p>", '"foo"'), checked)
         assert vq._is_a_new_triple(("?s", "<http://ex.com/p>", '"bar"'), checked)
+
+    @patch("time_agnostic_library.agnostic_query.Sparql", new=MagicMock())
+    def test_fuseki_search_looks_up_the_whole_iri(self):
+        config_fts = CONFIG.copy()
+        config_fts["fuseki_full_text_search"] = "yes"
+        vq = VersionQuery(_LITERAL_QUERY, config_dict=config_fts)
+        query = vq.get_full_text_search({"http://www.w3.org/"})
+        assert '"\\"<http://www.w3.org/>\\""' in query
+
+    @patch("time_agnostic_library.agnostic_query._FUSEKI_TEXT_SEARCH_LIMIT", 2)
+    @patch("time_agnostic_library.agnostic_query.Sparql")
+    def test_saturated_fuseki_search_raises(self, mock_sparql_class):
+        config_fts = CONFIG.copy()
+        config_fts["fuseki_full_text_search"] = "yes"
+        vq = VersionQuery(_LITERAL_QUERY, config_dict=config_fts)
+        mock_sparql = MagicMock()
+        mock_sparql_class.return_value = mock_sparql
+        update_query = (
+            "INSERT DATA { GRAPH <http://g/> { "
+            "<http://ex.com/e1> <http://ex.com/p> <http://ex.com/o> . } }"
+        )
+        mock_sparql.run_select_query.return_value = {
+            "results": {"bindings": [{"updateQuery": {"value": update_query}}] * 2}
+        }
+        with pytest.raises(ValueError, match="which is the limit"):
+            vq._find_entity_uris_in_update_queries(
+                ("?s", "<http://ex.com/p>", "<http://ex.com/o>"), set()
+            )

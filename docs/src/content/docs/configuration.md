@@ -69,6 +69,33 @@ This setting must be applied via a Turtle assembler configuration when creating 
     tdb2:unionDefaultGraph true .
 ```
 
+When `fuseki_full_text_search` is on, the Lucene index over `hasUpdateQuery`
+must split text on spaces, because the library looks up an IRI as a whole
+token. The default analyzer breaks an IRI into words, so a namespace root such
+as `<http://www.w3.org/>` matches every IRI below it.
+
+```turtle
+@prefix text: <http://jena.apache.org/text#> .
+
+:index a text:TextIndexLucene ;
+    text:directory <file:/path/to/lucene> ;
+    text:entityMap :entity_map ;
+    text:analyzer [
+        a text:ConfigurableAnalyzer ;
+        text:tokenizer text:WhitespaceTokenizer
+    ] .
+
+:entity_map a text:EntityMap ;
+    text:entityField "uri" ;
+    text:defaultField "updateQuery" ;
+    text:map (
+        [
+            text:field "updateQuery" ;
+            text:predicate <https://w3id.org/oc/ontology/hasUpdateQuery>
+        ]
+    ) .
+```
+
 SPARQL endpoint example: `http://127.0.0.1:3030/dataset`
 
 ### GraphDB Free Edition
