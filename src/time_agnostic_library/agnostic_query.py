@@ -7,7 +7,7 @@ import atexit
 import json
 import os
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import product
 from pathlib import Path
@@ -195,16 +195,31 @@ def _expected_quad_slots(triple: tuple) -> tuple[str | None, str | None, str | N
 def _matching_update_quads(
     update_query: str, triple: tuple
 ) -> list[tuple[str, str, str, str]]:
-    expected = _expected_quad_slots(triple)
+    quad_matches = _quad_filter_for_pattern(triple)
     return [
         quad
         for _, quads in _fast_parse_update(update_query)
         for quad in quads
-        if all(
-            slot is None or _normalize_constant(term) == slot
-            for slot, term in zip(expected, quad[:3], strict=True)
-        )
+        if quad_matches(quad)
     ]
+
+
+def _quad_filter_for_pattern(
+    triple: tuple,
+) -> Callable[[tuple[str, ...]], bool]:
+    expected = tuple(
+        (index, slot, slot.startswith("<"))
+        for index, slot in enumerate(_expected_quad_slots(triple))
+        if slot is not None
+    )
+
+    def matches(quad: tuple[str, ...]) -> bool:
+        return all(
+            quad[index] == slot if is_iri else _normalize_constant(quad[index]) == slot
+            for index, slot, is_iri in expected
+        )
+
+    return matches
 
 
 def _sparql_values(uris: set[str]) -> str:
@@ -248,25 +263,38 @@ def _sparql_filter_in(var: str, uris: set[str]) -> str:
 
 
 def _batch_query_dataset_triples(
-    entity_uris: set[str], config: dict, *, is_virtuoso: bool
+    entity_uris: set[str],
+    config: dict,
+    *,
+    is_virtuoso: bool,
+    triple: tuple | None = None,
 ) -> dict[str, set[tuple]]:
     is_quadstore = config["dataset"]["is_quadstore"]
+    predicate = "?p"
+    obj = "?o"
+    if triple is not None:
+        predicate = triple[1] if _normalize_constant(triple[1]) is not None else "?p"
+        obj = triple[2] if _normalize_constant(triple[2]) is not None else "?o"
     # Virtuoso resolves VALUES inexplicably slowly, while Jena needs it: under
     # FILTER ... IN no index prefix applies and it scans the whole store.
     if is_virtuoso:
-        body = f"?s ?p ?o. {_sparql_filter_in('?s', entity_uris)}"
+        body = f"?s {predicate} {obj}. {_sparql_filter_in('?s', entity_uris)}"
     else:
-        body = f"VALUES ?s {{ {_sparql_values(entity_uris)} }} ?s ?p ?o."
+        body = f"VALUES ?s {{ {_sparql_values(entity_uris)} }} ?s {predicate} {obj}."
     wrapped = _wrap_in_graph(body, is_quadstore=is_quadstore)
-    select_vars = "?s ?p ?o ?g" if is_quadstore else "?s ?p ?o"
+    select_vars = " ".join(
+        variable
+        for variable in ("?s", predicate, obj, "?g" if is_quadstore else None)
+        if variable is not None and variable.startswith("?")
+    )
     query = f"SELECT {select_vars} WHERE {{ {wrapped} }}"
     results = Sparql(query, config).run_select_query()
     output: dict[str, set[tuple]] = {uri: set() for uri in entity_uris}
     for binding in results["results"]["bindings"]:
         s_val = binding["s"]["value"]
         s = _binding_to_n3(binding["s"])
-        p = _binding_to_n3(binding["p"])
-        o = _binding_to_n3(binding["o"])
+        p = _binding_to_n3(binding["p"]) if predicate == "?p" else predicate
+        o = _binding_to_n3(binding["o"]) if obj == "?o" else obj
         if is_quadstore and "g" in binding:
             output[s_val].add((s, p, o, _binding_to_n3(binding["g"])))
         else:
@@ -278,6 +306,7 @@ def _reconstruct_at_time_as_sets(
     prov_snapshots: list[dict],
     dataset_quads: set[tuple],
     on_time: tuple[str | None, str | None],
+    triple: tuple | None = None,
 ) -> list[tuple[str, tuple]]:
     if not prov_snapshots:
         return []
@@ -306,7 +335,10 @@ def _reconstruct_at_time_as_sets(
     sorted_versions = [
         (snapshot["time"], snapshot["updateQuery"]) for snapshot in sorted_snaps
     ]
-    return _materialize_versions(sorted_versions, dataset_quads, relevant_times)
+    quad_filter = _quad_filter_for_pattern(triple) if triple is not None else None
+    return _materialize_versions(
+        sorted_versions, dataset_quads, relevant_times, quad_filter
+    )
 
 
 def _match_single_pattern(
@@ -1304,6 +1336,7 @@ class VersionQuery(AgnosticQuery):
             all_entity_strs,
             self.config,
             is_virtuoso=self.virtuoso_full_text_search,
+            triple=triple,
         )
         prov_data = fut_prov.result()
         dataset_data = fut_data.result()
@@ -1314,6 +1347,7 @@ class VersionQuery(AgnosticQuery):
                 prov_data[entity_str],
                 dataset_data[entity_str],
                 on_time,
+                triple,
             ):
                 per_ts[ts] = _match_single_pattern(triple, quad_set)
             entity_bindings[entity_str] = per_ts
@@ -1429,10 +1463,12 @@ class VersionQuery(AgnosticQuery):
                 all_entity_strs,
                 self.config,
                 is_virtuoso=self.virtuoso_full_text_search,
+                triple=self.triples[0],
             )
             prov_data = fut_prov.result()
             dataset_data = fut_data.result()
             triple = self.triples[0]
+            quad_filter = _quad_filter_for_pattern(triple)
             entity_bindings: dict[str, dict[str, list[dict]]] = {}
             for entity_str in all_entity_strs:
                 per_ts: dict[str, list[dict]] = {}
@@ -1445,7 +1481,9 @@ class VersionQuery(AgnosticQuery):
                     reverse=True,
                 )
                 for ts, quad_set in _iter_working_states(
-                    sorted_versions, dataset_data[entity_str]
+                    sorted_versions,
+                    dataset_data[entity_str],
+                    quad_filter=quad_filter,
                 ):
                     per_ts[ts] = _match_single_pattern(triple, quad_set)
                 entity_bindings[entity_str] = per_ts

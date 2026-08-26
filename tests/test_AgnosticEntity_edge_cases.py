@@ -571,6 +571,40 @@ class TestAgnosticEntityEdgeCases:
             with pytest.raises(StopIteration):
                 next(versions)
 
+    def test_iter_working_states_filters_replayed_quads(self):
+        graph = "<https://example.org/graph>"
+        subject = "<https://example.org/entity>"
+        predicate = "<https://example.org/selected>"
+        previous_quad = (subject, predicate, '"previous"', graph)
+        current_quad = (subject, predicate, '"current"', graph)
+        update_query = (
+            "DELETE DATA { GRAPH <https://example.org/graph> { "
+            f'{subject} {predicate} "previous" . '
+            f'{subject} <https://example.org/other> "ignored-old" . '
+            "} }; INSERT DATA { GRAPH <https://example.org/graph> { "
+            f'{subject} {predicate} "current" . '
+            f'{subject} <https://example.org/other> "ignored-current" . '
+            "} }"
+        )
+        sorted_versions = [
+            ("2026-08-22T12:00:00+00:00", update_query),
+            ("2026-08-21T12:00:00+00:00", None),
+        ]
+
+        versions = [
+            (timestamp, set(quads))
+            for timestamp, quads in _iter_working_states(
+                sorted_versions,
+                {current_quad},
+                quad_filter=lambda quad: quad[1] == predicate,
+            )
+        ]
+
+        assert versions == [
+            ("2026-08-22T12:00:00+00:00", {current_quad}),
+            ("2026-08-21T12:00:00+00:00", {previous_quad}),
+        ]
+
     def test_compose_update_queries_delete_cancels_add(self):
         queries = [
             'INSERT DATA { GRAPH <http://g/> { <http://s> <http://p> "v" . } }',

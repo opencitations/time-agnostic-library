@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: ISC
 
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql, _n3_value
@@ -172,14 +172,20 @@ def _fast_parse_update(
 
 
 def _apply_inverse_update(
-    current_state: set[tuple[str, ...]], update_query: str
+    current_state: set[tuple[str, ...]],
+    update_query: str,
+    quad_filter: Callable[[tuple[str, ...]], bool] | None = None,
 ) -> None:
     for operation_type, quads in _fast_parse_update(update_query):
+        if quad_filter is not None:
+            matching_quads = [quad for quad in quads if quad_filter(quad)]
+        else:
+            matching_quads = quads
         if operation_type == "DeleteData":
-            for quad in quads:
+            for quad in matching_quads:
                 current_state.add(quad)
         elif operation_type == "InsertData":
-            for quad in quads:
+            for quad in matching_quads:
                 current_state.discard(quad)
 
 
@@ -217,6 +223,7 @@ def _iter_working_states(
     sorted_versions: list[tuple[str, str | None]],
     current_state: set[tuple[str, ...]],
     target_times: set[str] | None = None,
+    quad_filter: Callable[[tuple[str, ...]], bool] | None = None,
 ) -> Iterator[tuple[str, set[tuple[str, ...]]]]:
     target_count = len(target_times) if target_times is not None else None
     working_state = set(current_state)
@@ -225,7 +232,7 @@ def _iter_working_states(
         if index > 0:
             previous_update = sorted_versions[index - 1][1]
             if previous_update is not None:
-                _apply_inverse_update(working_state, previous_update)
+                _apply_inverse_update(working_state, previous_update, quad_filter)
         if target_times is None or timestamp in target_times:
             normalized_timestamp = str(convert_to_datetime(timestamp, stringify=True))
             yield normalized_timestamp, working_state
@@ -238,11 +245,12 @@ def _materialize_versions(
     sorted_versions: list[tuple[str, str | None]],
     current_state: set[tuple[str, ...]],
     target_times: set[str] | None = None,
+    quad_filter: Callable[[tuple[str, ...]], bool] | None = None,
 ) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:
     return [
         (timestamp, tuple(working_state))
         for timestamp, working_state in _iter_working_states(
-            sorted_versions, current_state, target_times
+            sorted_versions, current_state, target_times, quad_filter
         )
     ]
 

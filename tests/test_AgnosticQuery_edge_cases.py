@@ -10,6 +10,7 @@ from triplestore_config import CONFIG
 from time_agnostic_library.agnostic_query import (
     DeltaQuery,
     VersionQuery,
+    _batch_query_dataset_triples,
     _build_delta_result,
     _escape_search_term,
     _match_single_pattern,
@@ -21,6 +22,79 @@ from time_agnostic_library.agnostic_query import (
 
 
 class TestAgnosticQueryEdgeCases:
+    @patch("time_agnostic_library.agnostic_query.Sparql")
+    def test_batch_dataset_query_filters_the_isolated_pattern(self, mock_sparql_class):
+        mock_sparql_class.return_value.run_select_query.return_value = {
+            "results": {
+                "bindings": [
+                    {
+                        "s": {"type": "uri", "value": "http://example.com/e"},
+                        "g": {"type": "uri", "value": "http://example.com/g"},
+                    }
+                ]
+            }
+        }
+
+        result = _batch_query_dataset_triples(
+            {"http://example.com/e"},
+            CONFIG,
+            is_virtuoso=False,
+            triple=("?s", "<http://example.com/p>", '"value"'),
+        )
+
+        assert mock_sparql_class.call_args.args[0] == (
+            "SELECT ?s ?g WHERE { GRAPH ?g { VALUES ?s { "
+            '<http://example.com/e> } ?s <http://example.com/p> "value". } }'
+        )
+        assert result == {
+            "http://example.com/e": {
+                (
+                    "<http://example.com/e>",
+                    "<http://example.com/p>",
+                    '"value"',
+                    "<http://example.com/g>",
+                )
+            }
+        }
+
+    @patch("time_agnostic_library.agnostic_query.Sparql")
+    def test_batch_dataset_query_reconstructs_a_constant_predicate(
+        self, mock_sparql_class
+    ):
+        mock_sparql_class.return_value.run_select_query.return_value = {
+            "results": {
+                "bindings": [
+                    {
+                        "s": {"type": "uri", "value": "http://example.com/e"},
+                        "o": {"type": "literal", "value": "value"},
+                        "g": {"type": "uri", "value": "http://example.com/g"},
+                    }
+                ]
+            }
+        }
+
+        result = _batch_query_dataset_triples(
+            {"http://example.com/e"},
+            CONFIG,
+            is_virtuoso=False,
+            triple=("?s", "<http://example.com/p>", "?o"),
+        )
+
+        assert mock_sparql_class.call_args.args[0] == (
+            "SELECT ?s ?o ?g WHERE { GRAPH ?g { VALUES ?s { "
+            "<http://example.com/e> } ?s <http://example.com/p> ?o. } }"
+        )
+        assert result == {
+            "http://example.com/e": {
+                (
+                    "<http://example.com/e>",
+                    "<http://example.com/p>",
+                    '"value"',
+                    "<http://example.com/g>",
+                )
+            }
+        }
+
     def test_fuseki_full_text_search_configuration(self):
         fuseki_config = CONFIG.copy()
         fuseki_config["fuseki_full_text_search"] = "yes"
