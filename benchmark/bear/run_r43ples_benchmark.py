@@ -5,17 +5,22 @@
 import argparse
 import json
 import statistics
-import subprocess
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Callable
 from datetime import datetime, timezone
-from functools import partial
 from pathlib import Path
-from typing import TypeVar
 
 import corpora
 import requests
+from protocol import (
+    DEFAULT_REPLICATIONS,
+    DEFAULT_TIMEOUT_S,
+    build_manifest,
+    docker_image_id,
+    hardware_info,
+    manifest_patterns,
+    protocol_metadata,
+)
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -34,11 +39,7 @@ SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR / "data"
 GRAPH_URI = "http://bear.benchmark/dataset"
 R43PLES_PORT = 9998
-DEFAULT_REPLICATIONS = 1
-MAX_RETRIES = 5
-RETRY_BACKOFF_S = 5
-
-DM_STEPS = {"daily": 5, "hourly": 100, "instant": 1500}
+SAVE_EVERY = 200
 
 SPARQL_NS = "http://www.w3.org/2005/sparql-results#"
 
@@ -52,96 +53,58 @@ PROGRESS_COLUMNS = (
 )
 
 
-T = TypeVar("T")
-
-
-def _restart_container(corpus_name: str) -> None:
-    container = f"r43ples-bear-{corpus_name}"
-    console.print(f"[yellow]Restarting container {container}...")
-    subprocess.run(["docker", "restart", container], check=True, capture_output=True)
-    for i in range(1, 61):
-        try:
-            resp = requests.get(
-                f"http://localhost:{R43PLES_PORT}/r43ples/sparql",
-                timeout=2,
-            )
-            if resp.status_code < 500:
-                console.print(f"[green]R43ples ready after {i}s")
-                return
-        except requests.ConnectionError:
-            pass
-        time.sleep(1)
-    msg = "R43ples failed to restart within 60s"
-    raise RuntimeError(msg)
-
-
-def _with_retry(fn: Callable[[], T], corpus_name: str) -> T:
-    for attempt in range(MAX_RETRIES):
-        try:
-            return fn()
-        except (requests.ConnectionError, requests.Timeout):  # noqa: PERF203 -- retry-with-backoff needs a per-attempt except; the loop body is network I/O, so exception overhead is negligible
-            if attempt == MAX_RETRIES - 1:
-                raise
-            console.print(
-                f"[yellow]Connection failed (attempt {attempt + 1}/{MAX_RETRIES}), "
-                f"restarting container..."
-            )
-            _restart_container(corpus_name)
-            time.sleep(RETRY_BACKOFF_S)
-    msg = "unreachable"
-    raise RuntimeError(msg)
-
-
-def parse_bear_query_file(filepath: Path) -> list[tuple[str, str, str]]:
-    queries = []
-    with filepath.open(encoding="utf-8") as f:
-        for raw_line in f:
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split(" ", 2)
-            if len(parts) == 3:
-                s, p, o = parts
-                if o.endswith(" ."):
-                    o = o[:-2]
-                elif o.endswith("."):
-                    o = o[:-1].strip()
-                queries.append((s.strip(), p.strip(), o.strip()))
-    return queries
+ResultBinding = tuple[str, str, str, tuple[tuple[str, str], ...]]
+ResultRow = tuple[ResultBinding, ...]
+PatternRecord = tuple[int, tuple[str, str, str]]
 
 
 def load_revision_map(corpus_name: str) -> dict[int, int]:
     map_file = DATA_DIR / f"r43ples_revision_map_{corpus_name}.json"
-    if not map_file.exists():
-        console.print("[yellow]No revision map found, assuming 1:1 mapping")
-        return {}
     with map_file.open(encoding="utf-8") as f:
         raw = json.load(f)
     return {int(k): v for k, v in raw.items()}
 
 
-def build_sparql(
-    pattern: tuple[str, str, str], pattern_type: str, revision: int
-) -> str:
-    _, p, o = pattern
-    if pattern_type == "p":
-        return (
-            f'SELECT ?s ?o WHERE {{ GRAPH <{GRAPH_URI}> REVISION "{revision}" '
-            f"{{ ?s {p} ?o . }} }}"
-        )
+def build_sparql(pattern: tuple[str, str, str], revision: int) -> str:
+    variables = []
+    for term in pattern:
+        if term.startswith("?") and term not in variables:
+            variables.append(term)
+    projection = " ".join(variables) if variables else "*"
+    subject, predicate, obj = pattern
     return (
-        f'SELECT ?s WHERE {{ GRAPH <{GRAPH_URI}> REVISION "{revision}" '
-        f"{{ ?s {p} {o} . }} }}"
+        f'SELECT {projection} WHERE {{ GRAPH <{GRAPH_URI}> REVISION "{revision}" '
+        f"{{ {subject} {predicate} {obj} . }} }}"
     )
+
+
+def parse_result_rows(response_text: str) -> set[ResultRow]:
+    root = ET.fromstring(response_text)
+    rows = set()
+    for result in root.findall(f".//{{{SPARQL_NS}}}result"):
+        bindings = []
+        for binding in result:
+            value = binding[0]
+            bindings.append(
+                (
+                    binding.attrib["name"],
+                    value.tag,
+                    value.text or "",
+                    tuple(sorted(value.attrib.items())),
+                )
+            )
+        rows.add(tuple(sorted(bindings)))
+    return rows
 
 
 def query_r43ples(
     session: requests.Session,
     sparql: str,
     endpoint: str,
+    timeout_s: int,
     *,
     query_rewriting: bool,
-) -> int:
+) -> set[ResultRow]:
     params = {"query": sparql}
     if query_rewriting:
         params["query_rewriting"] = "true"
@@ -149,17 +112,17 @@ def query_r43ples(
         endpoint,
         params=params,
         headers={"Accept": "application/sparql-results+xml"},
-        timeout=600,
+        timeout=timeout_s,
     )
     resp.raise_for_status()
-    root = ET.fromstring(resp.text)
-    return len(root.findall(f".//{{{SPARQL_NS}}}result"))
+    return parse_result_rows(resp.text)
 
 
 def timed_query(
     session: requests.Session,
     sparql: str,
     endpoint: str,
+    timeout_s: int,
     *,
     query_rewriting: bool,
 ) -> tuple[float, int]:
@@ -168,16 +131,69 @@ def timed_query(
         session,
         sparql,
         endpoint,
+        timeout_s,
         query_rewriting=query_rewriting,
     )
     elapsed = time.perf_counter() - start
-    return elapsed, count
+    return elapsed, len(count)
 
 
 def save_state(state: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
+    temporary_file = path.with_suffix(f"{path.suffix}.tmp")
+    with temporary_file.open("w", encoding="utf-8") as f:
         json.dump(state, f, indent=2)
+    temporary_file.replace(path)
+
+
+def detail_key(query_type: str, entry: dict) -> tuple:
+    version = None
+    if query_type == "vm":
+        version = entry["version"]
+    elif query_type == "dm":
+        version = entry["version_end"]
+    return (
+        entry["pattern_type"],
+        entry["pattern_index"],
+        version,
+    )
+
+
+def append_detail(state: dict, query_type: str, entry: dict, state_file: Path) -> None:
+    state["detail"][query_type].append(entry)
+    journal_file = state_file.with_suffix(".jsonl")
+    with journal_file.open("a", encoding="utf-8") as file:
+        file.write(json.dumps({"query_type": query_type, "entry": entry}))
+        file.write("\n")
+    completed = sum(len(entries) for entries in state["detail"].values())
+    if completed % SAVE_EVERY == 0:
+        save_state(state, state_file)
+
+
+def merge_journal(state: dict, state_file: Path) -> None:
+    journal_file = state_file.with_suffix(".jsonl")
+    if not journal_file.exists():
+        return
+    entries_by_type = {
+        query_type: {detail_key(query_type, entry): entry for entry in entries}
+        for query_type, entries in state["detail"].items()
+    }
+    with journal_file.open(encoding="utf-8") as file:
+        lines = file.readlines()
+        for index, line in enumerate(lines):
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                if index == len(lines) - 1 and not line.endswith("\n"):
+                    break
+                raise
+            query_type = record["query_type"]
+            entry = record["entry"]
+            entries_by_type[query_type][detail_key(query_type, entry)] = entry
+    state["detail"] = {
+        query_type: list(entries.values())
+        for query_type, entries in entries_by_type.items()
+    }
 
 
 def count_items(state: dict, query_type: str, pattern_type: str) -> int:
@@ -187,47 +203,15 @@ def count_items(state: dict, query_type: str, pattern_type: str) -> int:
 
 
 def compute_dm_versions(num_versions: int, dm_step: int) -> list[int]:
-    diff_versions = list(range(dm_step, min(num_versions, dm_step * 11 + 1), dm_step))
+    diff_versions = [index + 1 for index in range(dm_step, num_versions, dm_step)]
     if num_versions not in diff_versions:
         diff_versions.append(num_versions)
     return diff_versions
 
 
-def global_warmup(
-    session: requests.Session,
-    patterns: list[tuple[str, str, str]],
-    pattern_type: str,
-    num_versions: int,
-    endpoint: str,
-    revision_map: dict[int, int],
-    corpus_name: str,
-    *,
-    query_rewriting: bool,
-) -> None:
-    sample_versions = [1, num_versions // 2, num_versions]
-    sample_patterns = patterns[: min(3, len(patterns))]
-    console.print(
-        f"  Warming up ({len(sample_versions) * len(sample_patterns)} queries)..."
-    )
-    for v in sample_versions:
-        revision = revision_map[v] if revision_map else v
-        for pat in sample_patterns:
-            sparql = build_sparql(pat, pattern_type, revision)
-            _with_retry(
-                partial(
-                    query_r43ples,
-                    session,
-                    sparql,
-                    endpoint,
-                    query_rewriting=query_rewriting,
-                ),
-                corpus_name,
-            )
-
-
 def run_vm_benchmark(
     session: requests.Session,
-    patterns: list[tuple[str, str, str]],
+    patterns: list[PatternRecord],
     pattern_type: str,
     num_versions: int,
     endpoint: str,
@@ -235,65 +219,65 @@ def run_vm_benchmark(
     num_replications: int,
     state: dict,
     state_file: Path,
-    corpus_name: str,
+    timeout_s: int,
     *,
     query_rewriting: bool,
     skip: int = 0,
 ) -> None:
-    if skip == 0:
-        global_warmup(
-            session,
-            patterns,
-            pattern_type,
-            num_versions,
-            endpoint,
-            revision_map,
-            corpus_name,
-            query_rewriting=query_rewriting,
-        )
     total = num_versions * len(patterns)
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
         task = progress.add_task(f"VM {pattern_type}", total=total, completed=skip)
         item_idx = 0
         for version in range(1, num_versions + 1):
-            revision = revision_map[version] if revision_map else version
-            for pat_idx, pattern in enumerate(patterns):
+            revision = revision_map[version]
+            for pattern_index, pattern in patterns:
                 if item_idx < skip:
                     item_idx += 1
                     continue
-                sparql = build_sparql(pattern, pattern_type, revision)
+                sparql = build_sparql(pattern, revision)
+                query_r43ples(
+                    session,
+                    sparql,
+                    endpoint,
+                    timeout_s,
+                    query_rewriting=query_rewriting,
+                )
                 times = []
-                count = 0
+                counts = []
                 for _ in range(num_replications):
-                    elapsed, count = _with_retry(
-                        partial(
-                            timed_query,
-                            session,
-                            sparql,
-                            endpoint,
-                            query_rewriting=query_rewriting,
-                        ),
-                        corpus_name,
+                    elapsed, count = timed_query(
+                        session,
+                        sparql,
+                        endpoint,
+                        timeout_s,
+                        query_rewriting=query_rewriting,
                     )
                     times.append(elapsed)
+                    counts.append(count)
+                if any(count != counts[0] for count in counts[1:]):
+                    msg = "R43ples returned different VM results across replications"
+                    raise RuntimeError(msg)
                 median_ms = statistics.median(times) * 1000
-                state["detail"]["vm"].append(
+                append_detail(
+                    state,
+                    "vm",
                     {
                         "pattern_type": pattern_type,
-                        "pattern_index": pat_idx,
-                        "version": version,
+                        "pattern_index": pattern_index,
+                        "version": version - 1,
                         "median_ms": median_ms,
-                        "results": count,
-                    }
+                        "results": counts[0],
+                    },
+                    state_file,
                 )
-                save_state(state, state_file)
                 item_idx += 1
                 progress.advance(task)
+    save_state(state, state_file)
 
 
 def run_dm_benchmark(
     session: requests.Session,
-    patterns: list[tuple[str, str, str]],
+    patterns: list[PatternRecord],
     pattern_type: str,
     num_versions: int,
     dm_step: int,
@@ -302,82 +286,112 @@ def run_dm_benchmark(
     num_replications: int,
     state: dict,
     state_file: Path,
-    corpus_name: str,
+    timeout_s: int,
     *,
     query_rewriting: bool,
     skip: int = 0,
 ) -> None:
     diff_versions = compute_dm_versions(num_versions, dm_step)
-    rev_1 = revision_map[1] if revision_map else 1
-    if skip == 0:
-        global_warmup(
-            session,
-            patterns,
-            pattern_type,
-            num_versions,
-            endpoint,
-            revision_map,
-            corpus_name,
-            query_rewriting=query_rewriting,
-        )
+    rev_1 = revision_map[1]
     total = len(diff_versions) * len(patterns)
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
         task = progress.add_task(f"DM {pattern_type}", total=total, completed=skip)
         item_idx = 0
         for target_version in diff_versions:
-            rev_n = revision_map[target_version] if revision_map else target_version
-            for pat_idx, pattern in enumerate(patterns):
+            rev_n = revision_map[target_version]
+            for pattern_index, pattern in patterns:
                 if item_idx < skip:
                     item_idx += 1
                     continue
-                sparql_v0 = build_sparql(pattern, pattern_type, rev_1)
-                sparql_vn = build_sparql(pattern, pattern_type, rev_n)
+                sparql_v0 = build_sparql(pattern, rev_1)
+                sparql_vn = build_sparql(pattern, rev_n)
+                query_r43ples(
+                    session,
+                    sparql_v0,
+                    endpoint,
+                    timeout_s,
+                    query_rewriting=query_rewriting,
+                )
+                query_r43ples(
+                    session,
+                    sparql_vn,
+                    endpoint,
+                    timeout_s,
+                    query_rewriting=query_rewriting,
+                )
                 times = []
-                count = 0
+                counts = []
                 for _ in range(num_replications):
                     start = time.perf_counter()
-                    results_v0 = _with_retry(
-                        partial(
-                            query_r43ples,
-                            session,
-                            sparql_v0,
-                            endpoint,
-                            query_rewriting=query_rewriting,
-                        ),
-                        corpus_name,
+                    results_v0 = query_r43ples(
+                        session,
+                        sparql_v0,
+                        endpoint,
+                        timeout_s,
+                        query_rewriting=query_rewriting,
                     )
-                    results_vn = _with_retry(
-                        partial(
-                            query_r43ples,
-                            session,
-                            sparql_vn,
-                            endpoint,
-                            query_rewriting=query_rewriting,
-                        ),
-                        corpus_name,
+                    results_vn = query_r43ples(
+                        session,
+                        sparql_vn,
+                        endpoint,
+                        timeout_s,
+                        query_rewriting=query_rewriting,
                     )
                     elapsed = time.perf_counter() - start
-                    count = abs(results_vn - results_v0)
+                    count = len(results_v0.symmetric_difference(results_vn))
                     times.append(elapsed)
+                    counts.append(count)
+                if any(count != counts[0] for count in counts[1:]):
+                    msg = "R43ples returned different DM results across replications"
+                    raise RuntimeError(msg)
                 median_ms = statistics.median(times) * 1000
-                state["detail"]["dm"].append(
+                append_detail(
+                    state,
+                    "dm",
                     {
                         "pattern_type": pattern_type,
-                        "pattern_index": pat_idx,
-                        "version_start": 1,
-                        "version_end": target_version,
+                        "pattern_index": pattern_index,
+                        "version_start": 0,
+                        "version_end": target_version - 1,
                         "median_ms": median_ms,
-                        "results": count,
-                    }
+                        "results": counts[0],
+                    },
+                    state_file,
                 )
-                save_state(state, state_file)
                 item_idx += 1
                 progress.advance(task)
+    save_state(state, state_file)
+
+
+def query_all_versions(
+    session: requests.Session,
+    pattern: tuple[str, str, str],
+    num_versions: int,
+    endpoint: str,
+    revision_map: dict[int, int],
+    timeout_s: int,
+    *,
+    query_rewriting: bool,
+) -> int:
+    total = 0
+    for version in range(1, num_versions + 1):
+        revision = revision_map[version]
+        sparql = build_sparql(pattern, revision)
+        total += len(
+            query_r43ples(
+                session,
+                sparql,
+                endpoint,
+                timeout_s,
+                query_rewriting=query_rewriting,
+            )
+        )
+    return total
 
 
 def run_vq_benchmark(
     session: requests.Session,
-    patterns: list[tuple[str, str, str]],
+    patterns: list[PatternRecord],
     pattern_type: str,
     num_versions: int,
     endpoint: str,
@@ -385,61 +399,60 @@ def run_vq_benchmark(
     num_replications: int,
     state: dict,
     state_file: Path,
-    corpus_name: str,
+    timeout_s: int,
     *,
     query_rewriting: bool,
     skip: int = 0,
 ) -> None:
-    if skip == 0:
-        global_warmup(
-            session,
-            patterns,
-            pattern_type,
-            num_versions,
-            endpoint,
-            revision_map,
-            corpus_name,
-            query_rewriting=query_rewriting,
-        )
     with Progress(*PROGRESS_COLUMNS, console=console) as progress:
         task = progress.add_task(
             f"VQ {pattern_type}", total=len(patterns), completed=skip
         )
-        for pat_idx, pattern in enumerate(patterns):
-            if pat_idx < skip:
+        for position, (pattern_index, pattern) in enumerate(patterns):
+            if position < skip:
                 continue
+            query_all_versions(
+                session,
+                pattern,
+                num_versions,
+                endpoint,
+                revision_map,
+                timeout_s,
+                query_rewriting=query_rewriting,
+            )
             times = []
-            total_count = 0
+            counts = []
             for _ in range(num_replications):
                 start = time.perf_counter()
-                run_total = 0
-                for version in range(1, num_versions + 1):
-                    revision = revision_map[version] if revision_map else version
-                    sparql = build_sparql(pattern, pattern_type, revision)
-                    run_total += _with_retry(
-                        partial(
-                            query_r43ples,
-                            session,
-                            sparql,
-                            endpoint,
-                            query_rewriting=query_rewriting,
-                        ),
-                        corpus_name,
-                    )
+                run_total = query_all_versions(
+                    session,
+                    pattern,
+                    num_versions,
+                    endpoint,
+                    revision_map,
+                    timeout_s,
+                    query_rewriting=query_rewriting,
+                )
                 elapsed = time.perf_counter() - start
-                total_count = run_total
+                counts.append(run_total)
                 times.append(elapsed)
+            if any(count != counts[0] for count in counts[1:]):
+                msg = "R43ples returned different VQ results across replications"
+                raise RuntimeError(msg)
             median_ms = statistics.median(times) * 1000
-            state["detail"]["vq"].append(
+            append_detail(
+                state,
+                "vq",
                 {
                     "pattern_type": pattern_type,
-                    "pattern_index": pat_idx,
+                    "pattern_index": pattern_index,
                     "median_ms": median_ms,
-                    "results": total_count,
-                }
+                    "results": counts[0],
+                },
+                state_file,
             )
-            save_state(state, state_file)
             progress.advance(task)
+    save_state(state, state_file)
 
 
 def build_final_output(state: dict) -> dict:
@@ -450,6 +463,8 @@ def build_final_output(state: dict) -> dict:
             ingestion_s = json.load(f)["ingestion_s"]
 
     output: dict = {
+        "hardware": state["hardware"],
+        "protocol": state["protocol"],
         "replications": state["replications"],
         "ingestion_s": ingestion_s,
         "num_versions": state["num_versions"],
@@ -475,7 +490,7 @@ def build_final_output(state: dict) -> dict:
         for e in dm_entries:
             dm_by_delta.setdefault(e["version_end"], []).append(e)
         output["detail"]["per_delta_dm"] = [
-            {"version_start": 1, "version_end": v, "patterns": pats}
+            {"version_start": 0, "version_end": v, "patterns": pats}
             for v, pats in sorted(dm_by_delta.items())
         ]
 
@@ -542,16 +557,16 @@ def print_summary(results: dict) -> None:
     console.print(table)
 
 
-def find_latest_run(corpus_name: str, mode: str) -> Path | None:
-    matches = sorted(DATA_DIR.glob(f"r43ples_runs_{corpus_name}_{mode}_*.json"))
+def find_latest_run(corpus_name: str, run_label: str) -> Path | None:
+    matches = sorted(DATA_DIR.glob(f"r43ples_runs_{corpus_name}_{run_label}_*.json"))
     if matches:
         return matches[-1]
     return None
 
 
-def create_run_file(corpus_name: str, mode: str) -> Path:
+def create_run_file(corpus_name: str, run_label: str) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return DATA_DIR / f"r43ples_runs_{corpus_name}_{mode}_{timestamp}.json"
+    return DATA_DIR / f"r43ples_runs_{corpus_name}_{run_label}_{timestamp}.json"
 
 
 def main():
@@ -561,65 +576,102 @@ def main():
     )
     parser.add_argument("--only", choices=["vm", "dm", "vq"], nargs="+")
     parser.add_argument("--replications", type=int, default=DEFAULT_REPLICATIONS)
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_S)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--query-rewriting", action="store_true")
     args = parser.parse_args()
+    if args.replications < 1:
+        parser.error("--replications must be at least 1")
+    if args.timeout < 1:
+        parser.error("--timeout must be at least 1")
 
     corpus = corpora.get(args.corpus)
     num_versions = corpus.num_versions
-    dm_step = DM_STEPS[args.corpus]
+    dm_step = corpus.dm_step
     endpoint = f"http://localhost:{R43PLES_PORT}/r43ples/sparql"
     mode = "query_rewriting" if args.query_rewriting else "default"
-    output_file = DATA_DIR / f"r43ples_benchmark_results_{args.corpus}_{mode}.json"
+    manifest = build_manifest(corpus)
+    mode_part = "" if mode == "default" else f"_{mode}"
+    output_file = DATA_DIR / f"r43ples_benchmark_results_{args.corpus}{mode_part}.json"
+    run_label = mode
+    protocol = protocol_metadata(
+        manifest,
+        args.replications,
+        measurement="time",
+        timeout_s=args.timeout,
+    )
+    protocol["system"] = "r43ples"
+    protocol["engine_image_id"] = docker_image_id("plttud/r43ples:latest")
+    protocol["query_rewriting"] = args.query_rewriting
+    protocol["dm_execution"] = "symmetric difference of endpoint result sets"
+    protocol["vq_execution"] = "one materialization request per revision"
+    protocol["reported_version_indexing"] = "zero-based"
+    ingestion_stats_file = DATA_DIR / f"r43ples_ingestion_stats_{args.corpus}.json"
+    with ingestion_stats_file.open(encoding="utf-8") as file:
+        protocol["ingestion_stats"] = json.load(file)
+    protocol["ingestion_filter"] = "r43ples_safe_triples"
     query_types = args.only or ["vm", "dm", "vq"]
     revision_map = load_revision_map(args.corpus)
+    if sorted(revision_map) != list(range(1, num_versions + 1)):
+        parser.error("The R43ples revision map does not cover every corpus version")
+    hardware = hardware_info()
 
     if args.resume:
-        run_file = find_latest_run(args.corpus, mode)
+        run_file = find_latest_run(args.corpus, run_label)
         if run_file:
             console.print(f"[bold]Resuming from {run_file}[/bold]")
             with run_file.open(encoding="utf-8") as f:
                 state = json.load(f)
+            if state["protocol"] != protocol:
+                parser.error("The latest run uses a different benchmark protocol")
+            if state["hardware"] != hardware:
+                parser.error("The latest run was measured on different hardware")
+            merge_journal(state, run_file)
         else:
             console.print("[yellow]No previous run file found, starting fresh")
-            run_file = create_run_file(args.corpus, mode)
+            run_file = create_run_file(args.corpus, run_label)
             state = {
+                "hardware": hardware,
+                "protocol": protocol,
                 "replications": args.replications,
                 "corpus_name": args.corpus,
                 "num_versions": num_versions,
                 "detail": {"vm": [], "dm": [], "vq": []},
             }
     else:
-        run_file = create_run_file(args.corpus, mode)
+        run_file = create_run_file(args.corpus, run_label)
         state = {
+            "hardware": hardware,
+            "protocol": protocol,
             "replications": args.replications,
             "corpus_name": args.corpus,
             "num_versions": num_versions,
             "detail": {"vm": [], "dm": [], "vq": []},
         }
+    save_state(state, run_file)
 
     console.print(
         f"[bold]R43ples benchmark ({args.corpus}, {num_versions} versions)[/bold]"
     )
     console.print(f"  Endpoint: {endpoint}")
     console.print(f"  Query rewriting: {args.query_rewriting}")
-    console.print(f"  Replications: {args.replications} (global warmup per query type)")
+    console.print(f"  Replications: {args.replications} (one warmup per case)")
+    console.print(f"  Timeout: {args.timeout}s")
+    console.print(f"  Manifest: {protocol['manifest_hash']}")
     console.print(f"  Run file: {run_file}")
-    if revision_map:
-        console.print(
-            f"  Revision map: {len(revision_map)} entries "
-            f"(max rev {max(revision_map.values())})"
-        )
+    console.print(
+        f"  Revision map: {len(revision_map)} entries "
+        f"(max rev {max(revision_map.values())})"
+    )
 
     session = requests.Session()
 
     for query_set in corpus.queries:
         pattern_type = query_set.name
-        query_path = query_set.path
-        if not query_path.exists():
-            console.print(f"[yellow]Query file not found: {query_path}")
-            continue
-        patterns = parse_bear_query_file(query_path)
+        patterns = [
+            (record["pattern_index"], tuple(record["triple"]))
+            for record in manifest_patterns(manifest, pattern_type)
+        ]
         console.print(f"Loaded {len(patterns)} {pattern_type} patterns")
 
         if "vm" in query_types:
@@ -642,7 +694,7 @@ def main():
                     args.replications,
                     state,
                     run_file,
-                    args.corpus,
+                    args.timeout,
                     query_rewriting=args.query_rewriting,
                     skip=completed,
                 )
@@ -669,7 +721,7 @@ def main():
                     args.replications,
                     state,
                     run_file,
-                    args.corpus,
+                    args.timeout,
                     query_rewriting=args.query_rewriting,
                     skip=completed,
                 )
@@ -694,15 +746,13 @@ def main():
                     args.replications,
                     state,
                     run_file,
-                    args.corpus,
+                    args.timeout,
                     query_rewriting=args.query_rewriting,
                     skip=completed,
                 )
 
     final = build_final_output(state)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    with output_file.open("w", encoding="utf-8") as f:
-        json.dump(final, f, indent=2)
+    save_state(final, output_file)
     console.print(f"\nResults saved to {output_file}")
 
     print_summary(final["results"])

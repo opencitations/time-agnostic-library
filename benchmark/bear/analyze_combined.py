@@ -24,6 +24,8 @@ from analyze_results import (
     load_tal_dm_by_version,
     load_tal_vm_by_version,
     load_tal_vq_median,
+    validate_manifest,
+    validate_result_counts,
 )
 from matplotlib.axes import Axes
 from matplotlib.patches import Patch
@@ -71,6 +73,8 @@ def _load_corpus_data(corpus_name: str) -> tuple[dict, list[Path], Path]:
     ]
     r43ples_file = DATA_DIR / f"r43ples_benchmark_results_{corpus_name}.json"
     data = load_results(results_file)
+    validate_manifest(data, [ostrich_results_file, r43ples_file])
+    validate_result_counts(data, [ostrich_results_file, r43ples_file])
     load_measured_ostrich_results(ostrich_results_file)
     return data, ostrich_raw_files, r43ples_file
 

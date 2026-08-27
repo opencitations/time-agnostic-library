@@ -10,6 +10,16 @@ import subprocess
 from pathlib import Path
 
 import corpora
+from protocol import (
+    DEFAULT_REPLICATIONS,
+    build_manifest,
+    docker_image_id,
+    git_dirty,
+    git_revision,
+    hardware_info,
+    manifest_patterns,
+    protocol_metadata,
+)
 from rich.console import Console
 from rich.table import Table
 
@@ -21,11 +31,21 @@ OSTRICH_DIR = DATA_DIR / "ostrich"
 QUERIES_DIR = OSTRICH_DIR / "queries"
 IMAGE_NAME = "ostrich-bear"
 
-NUM_REPLICATIONS = 5
-QUERY_FILES = ["p.txt", "po.txt"]
+DEFAULT_GROUP_TIMEOUT_S = 3600
 
 
-def run_ostrich_queries(query_file: str, evalrun_dir: Path) -> str:
+def write_query_file(query_file: Path, patterns: list[dict]) -> None:
+    query_file.parent.mkdir(parents=True, exist_ok=True)
+    contents = "".join(f"{' '.join(pattern['triple'])} .\n" for pattern in patterns)
+    query_file.write_text(contents, encoding="utf-8")
+
+
+def run_ostrich_queries(
+    query_file: Path,
+    evalrun_dir: Path,
+    replications: int,
+    timeout_s: int,
+) -> str:
     cmd = [
         "docker",
         "run",
@@ -35,15 +55,15 @@ def run_ostrich_queries(query_file: str, evalrun_dir: Path) -> str:
         "-v",
         f"{evalrun_dir}:/var/evalrun",
         "-v",
-        f"{QUERIES_DIR}:/var/queries",
+        f"{query_file.parent}:/var/queries",
         IMAGE_NAME,
         "query",
-        f"/var/queries/{query_file}",
-        str(NUM_REPLICATIONS),
+        f"/var/queries/{query_file.name}",
+        str(replications),
     ]
-    console.print(f"Running OSTRICH queries for {query_file}...")
+    console.print(f"Running OSTRICH queries for {query_file.name}...")
     result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=3600, check=False
+        cmd, capture_output=True, text=True, timeout=timeout_s, check=False
     )
     if result.returncode != 0:
         console.print(f"[red]OSTRICH error: {result.stderr[:500]}")
@@ -120,20 +140,44 @@ def parse_ostrich_output(raw_output: str) -> list[dict]:
     return patterns
 
 
+def align_patterns(parsed_patterns: list[dict], selected: list[dict]) -> None:
+    if len(parsed_patterns) != len(selected):
+        msg = (
+            f"OSTRICH returned {len(parsed_patterns)} patterns for "
+            f"{len(selected)} manifest entries"
+        )
+        raise RuntimeError(msg)
+    for parsed, manifest_entry in zip(parsed_patterns, selected, strict=True):
+        parsed["pattern_index"] = manifest_entry["pattern_index"]
+
+
+def filter_dm_workload(patterns: list[dict], corpus: corpora.Corpus) -> None:
+    endpoints = set(range(corpus.dm_step, corpus.num_versions, corpus.dm_step))
+    endpoints.add(corpus.num_versions - 1)
+    for pattern in patterns:
+        pattern["dm"] = [
+            entry
+            for entry in pattern["dm"]
+            if entry["patch_start"] == 0 and entry["patch_end"] in endpoints
+        ]
+
+
 def build_per_version_detail(all_patterns: dict[str, list[dict]]) -> dict:
     vm_by_version: dict[int, list] = {}
     dm_by_delta: dict[tuple[int, int], list] = {}
     vq_entries: list[dict] = []
 
     for pattern_type, patterns in all_patterns.items():
-        for pat_idx, pattern in enumerate(patterns):
+        for pattern in patterns:
+            pattern_index = pattern["pattern_index"]
             for entry in pattern["vm"]:
                 version = entry["patch"]
                 vm_by_version.setdefault(version, []).append(
                     {
                         "pattern_type": pattern_type,
-                        "pattern_index": pat_idx,
+                        "pattern_index": pattern_index,
                         "median_us": entry["median_us"],
+                        "results": entry["results"],
                     }
                 )
             for entry in pattern["dm"]:
@@ -141,15 +185,17 @@ def build_per_version_detail(all_patterns: dict[str, list[dict]]) -> dict:
                 dm_by_delta.setdefault(key, []).append(
                     {
                         "pattern_type": pattern_type,
-                        "pattern_index": pat_idx,
+                        "pattern_index": pattern_index,
                         "median_us": entry["median_us"],
+                        "results": entry["results"],
                     }
                 )
             vq_entries.extend(
                 {
                     "pattern_type": pattern_type,
-                    "pattern_index": pat_idx,
+                    "pattern_index": pattern_index,
                     "median_us": entry["median_us"],
+                    "results": entry["results"],
                 }
                 for entry in pattern["vq"]
             )
@@ -158,7 +204,7 @@ def build_per_version_detail(all_patterns: dict[str, list[dict]]) -> dict:
         {"version": v, "patterns": pats} for v, pats in sorted(vm_by_version.items())
     ]
     per_delta_dm = [
-        {"patch_start": k[0], "patch_end": k[1], "patterns": pats}
+        {"version_start": k[0], "version_end": k[1], "patterns": pats}
         for k, pats in sorted(dm_by_delta.items())
     ]
 
@@ -180,12 +226,9 @@ def aggregate_results(all_patterns: dict[str, list[dict]]) -> dict:
             pattern_medians = []
             for pattern in patterns:
                 entries = pattern[query_type]
-                if entries:
-                    medians = [e["median_us"] for e in entries]
-                    avg_median = statistics.mean(medians)
-                    pattern_medians.append(avg_median)
-                    all_medians_us.append(avg_median)
+                pattern_medians.extend(entry["median_us"] for entry in entries)
             if pattern_medians:
+                all_medians_us.extend(pattern_medians)
                 by_pattern_type[pattern_type] = {
                     "count": len(pattern_medians),
                     "mean_us": statistics.mean(pattern_medians),
@@ -256,18 +299,46 @@ def main():
     parser.add_argument(
         "--corpus", choices=corpora.CORPUS_NAMES, default="bear-b-daily"
     )
+    parser.add_argument("--replications", type=int, default=DEFAULT_REPLICATIONS)
+    parser.add_argument("--timeout", type=int, default=DEFAULT_GROUP_TIMEOUT_S)
     args = parser.parse_args()
+    if args.replications < 1:
+        parser.error("--replications must be at least 1")
+    if args.timeout < 1:
+        parser.error("--timeout must be at least 1")
 
     corpus = corpora.get(args.corpus)
+    manifest = build_manifest(corpus)
+    protocol = protocol_metadata(
+        manifest,
+        args.replications,
+        measurement="time",
+        timeout_s=args.timeout,
+    )
+    protocol["system"] = "ostrich"
+    protocol["engine_image_id"] = docker_image_id(IMAGE_NAME)
+    protocol["engine_revision"] = git_revision(OSTRICH_DIR / "ostrich-repo")
+    protocol["engine_dirty"] = git_dirty(OSTRICH_DIR / "ostrich-repo")
+    protocol["timeout_scope"] = "query group"
+    protocol["warmup"] = "native untimed executions per case"
     evalrun_dir = OSTRICH_DIR / f"evalrun_{corpus.name}"
     ingestion_log = OSTRICH_DIR / f"ingestion_output_{corpus.name}.txt"
     output_file = DATA_DIR / f"ostrich_benchmark_results_{corpus.name}.json"
+    query_dir = QUERIES_DIR / corpus.name / protocol["manifest_hash"]
 
     all_patterns: dict[str, list[dict]] = {}
 
-    for query_file in QUERY_FILES:
-        pattern_type = query_file.replace(".txt", "")
-        raw_output = run_ostrich_queries(query_file, evalrun_dir)
+    for query_set in corpus.queries:
+        pattern_type = query_set.name
+        patterns_in_manifest = manifest_patterns(manifest, pattern_type)
+        query_file = query_dir / f"{pattern_type}.txt"
+        write_query_file(query_file, patterns_in_manifest)
+        raw_output = run_ostrich_queries(
+            query_file,
+            evalrun_dir,
+            args.replications,
+            args.timeout,
+        )
 
         raw_path = DATA_DIR / f"ostrich_raw_{pattern_type}_{corpus.name}.txt"
         with raw_path.open("w", encoding="utf-8") as f:
@@ -275,8 +346,10 @@ def main():
         console.print(f"  Raw output saved to {raw_path}")
 
         patterns = parse_ostrich_output(raw_output)
+        align_patterns(patterns, patterns_in_manifest)
+        filter_dm_workload(patterns, corpus)
         all_patterns[pattern_type] = patterns
-        console.print(f"  Parsed {len(patterns)} patterns from {query_file}")
+        console.print(f"  Parsed {len(patterns)} patterns from {query_file.name}")
 
     results = aggregate_results(all_patterns)
     detail = build_per_version_detail(all_patterns)
@@ -286,7 +359,9 @@ def main():
         console.print(f"OSTRICH ingestion time: {ingestion_s:.2f}s")
 
     output = {
-        "replications": NUM_REPLICATIONS,
+        "hardware": hardware_info(),
+        "protocol": protocol,
+        "replications": args.replications,
         "ingestion_s": ingestion_s,
         "results": results,
         "detail": detail,

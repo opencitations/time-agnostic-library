@@ -12,7 +12,6 @@ CORPUS="${1:-bear-b-daily}"
 OSTRICH_DIR="$DATA_DIR/ostrich"
 PATCHES_DIR="$OSTRICH_DIR/patches_${CORPUS}"
 EVALRUN_DIR="$OSTRICH_DIR/evalrun_${CORPUS}"
-QUERIES_DIR="$OSTRICH_DIR/queries"
 OSTRICH_REPO="$OSTRICH_DIR/ostrich-repo"
 IMAGE_NAME="ostrich-bear"
 
@@ -88,12 +87,6 @@ else
     prepare "$CB_SRC" "$CB_DST" "CB"
 fi
 
-# Copy query files
-mkdir -p "$QUERIES_DIR"
-cp -n "$DATA_DIR/queries/p.txt" "$QUERIES_DIR/" 2>/dev/null || true
-cp -n "$DATA_DIR/queries/po.txt" "$QUERIES_DIR/" 2>/dev/null || true
-echo "Query files ready in $QUERIES_DIR"
-
 # Run OSTRICH ingestion
 INGESTION_LOG="$OSTRICH_DIR/ingestion_output_${CORPUS}.txt"
 if [ -d "$EVALRUN_DIR" ] && [ "$(ls -A "$EVALRUN_DIR" 2>/dev/null)" ]; then
@@ -119,6 +112,5 @@ echo ""
 echo "=== Setup complete ==="
 echo "  OSTRICH store: $EVALRUN_DIR"
 echo "  Patches: $PATCHES_DIR"
-echo "  Queries: $QUERIES_DIR"
 echo ""
 echo "Next: python benchmark/bear/run_ostrich_benchmark.py --corpus ${CORPUS}"

@@ -24,16 +24,26 @@ CONFIG_PATH = "./config.json"
 
 _PROV_PROPERTY_STRINGS: tuple[str, ...] = tuple(ProvEntity.get_prov_properties())
 
-_client_cache: dict[tuple[str, int], SPARQLClient] = {}
+_client_cache: dict[tuple[str, int, int, float, float | None], SPARQLClient] = {}
 _client_lock = threading.Lock()
 
 
-def _get_client(url: str) -> SPARQLClient:
-    key = (url, threading.get_ident())
+def _get_client(
+    url: str,
+    max_retries: int = 5,
+    backoff_factor: float = 0.5,
+    timeout: float | None = None,
+) -> SPARQLClient:
+    key = (url, threading.get_ident(), max_retries, backoff_factor, timeout)
     with _client_lock:
         client = _client_cache.get(key)
         if client is None:
-            client = SPARQLClient(url)
+            client = SPARQLClient(
+                url,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+                timeout=timeout,
+            )
             _client_cache[key] = client
         return client
 
@@ -147,6 +157,22 @@ class Sparql:
         else:
             self.storer: dict = config["dataset"]
 
+    def _client(self, url: str) -> SPARQLClient:
+        max_retries = (
+            self.config["sparql_max_retries"]
+            if "sparql_max_retries" in self.config
+            else 5
+        )
+        backoff_factor = (
+            self.config["sparql_backoff_factor"]
+            if "sparql_backoff_factor" in self.config
+            else 0.5
+        )
+        timeout = (
+            self.config["sparql_timeout"] if "sparql_timeout" in self.config else None
+        )
+        return _get_client(url, max_retries, backoff_factor, timeout)
+
     def run_select_query(self) -> dict:
         output = {"head": {"vars": []}, "results": {"bindings": []}}
         if self.storer["file_paths"]:
@@ -182,7 +208,7 @@ class Sparql:
     def _get_results_from_triplestores(self, output: dict) -> dict:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            results = _get_client(url).query(self.query)
+            results = self._client(url).query(self.query)
             if not output["head"]["vars"]:
                 output["head"]["vars"] = results["head"]["vars"]
             output["results"]["bindings"].extend(results["results"]["bindings"])
@@ -220,7 +246,7 @@ class Sparql:
     def run_ask_query(self) -> bool:
         storer = self.storer["triplestore_urls"]
         for url in storer:
-            return _get_client(url).ask(self.query)
+            return self._client(url).ask(self.query)
         return False
 
     @classmethod

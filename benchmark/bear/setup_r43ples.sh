@@ -74,7 +74,14 @@ fi
 
 INGESTION_TIME_FILE="$DATA_DIR/r43ples_ingestion_time_${CORPUS}.json"
 
-if [ -f "$INGESTION_TIME_FILE" ]; then
+if [ -f "$INGESTION_TIME_FILE" ] && python - "$INGESTION_TIME_FILE" 2>/dev/null <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as file:
+    assert json.load(file)["ingestion_filter"] == "r43ples_safe_triples"
+PY
+then
     echo "Ingestion already completed (found $INGESTION_TIME_FILE), skipping."
     echo "Delete the file and the container to re-run."
     ensure_container_running
@@ -118,7 +125,9 @@ cat > "$INGESTION_TIME_FILE" << EOF
     "ingestion_s": ${INGESTION_S},
     "store_bytes": ${STORE_BYTES},
     "num_versions": ${NUM_VERSIONS},
-    "corpus": "${CORPUS}"
+    "corpus": "${CORPUS}",
+    "ingestion_filter": "r43ples_safe_triples",
+    "ingestion_stats_file": "r43ples_ingestion_stats_${CORPUS}.json"
 }
 EOF
 echo "Saved: ${INGESTION_TIME_FILE}"

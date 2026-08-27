@@ -181,13 +181,13 @@ def get(name: str) -> Corpus:
 
 
 # Every corpus is served by Fuseki with its free-text index enabled.
-def build_config(corpus: Corpus) -> dict:
+def build_config(corpus: Corpus, timeout_s: int | None = None) -> dict:
     source = {
         "triplestore_urls": [corpus.endpoint()],
         "file_paths": [],
         "is_quadstore": True,
     }
-    return {
+    config = {
         "dataset": source,
         "provenance": source,
         "blazegraph_full_text_search": "no",
@@ -195,3 +195,7 @@ def build_config(corpus: Corpus) -> dict:
         "virtuoso_full_text_search": "no",
         "graphdb_connector_name": "",
     }
+    if timeout_s is not None:
+        config["sparql_timeout"] = timeout_s
+        config["sparql_max_retries"] = 0
+    return config

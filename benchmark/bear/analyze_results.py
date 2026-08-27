@@ -89,6 +89,162 @@ def load_results(filepath: Path) -> dict:
         return json.load(f)
 
 
+def result_key(result: dict) -> tuple:
+    return (
+        result["type"],
+        result["pattern_type"],
+        result["pattern_index"],
+        result["version_index"] if "version_index" in result else None,
+        result["version_end"] if "version_end" in result else None,
+    )
+
+
+def merge_memory_results(time_data: dict, memory_data: dict) -> None:
+    if (
+        time_data["protocol"]["manifest_hash"]
+        != memory_data["protocol"]["manifest_hash"]
+    ):
+        msg = "Time and memory results use different query manifests"
+        raise ValueError(msg)
+    if (
+        time_data["hardware"] != memory_data["hardware"]
+        or time_data["protocol"]["git_revision"]
+        != memory_data["protocol"]["git_revision"]
+    ):
+        msg = "Time and memory results use different benchmark setups"
+        raise ValueError(msg)
+
+    memory_fields = (
+        "memory_peak_bytes",
+        "mean_memory_bytes",
+        "median_memory_bytes",
+        "max_memory_bytes",
+    )
+    for query_type, time_entries in time_data["results"].items():
+        if query_type not in memory_data["results"]:
+            continue
+        memory_by_key = {
+            result_key(entry): entry
+            for entry in memory_data["results"][query_type]
+            if entry["status"] == "ok"
+        }
+        for entry in time_entries:
+            memory_entry = memory_by_key.get(result_key(entry))
+            if memory_entry is not None:
+                for field in memory_fields:
+                    entry[field] = memory_entry[field]
+
+
+def validate_manifest(results: dict, comparison_files: list[Path]) -> None:
+    expected = results["protocol"]
+    for comparison_file in comparison_files:
+        if not comparison_file.exists():
+            continue
+        comparison = load_results(comparison_file)
+        protocol = comparison["protocol"]
+        if comparison["hardware"] != results["hardware"]:
+            msg = f"Benchmark hardware differs in {comparison_file}"
+            raise ValueError(msg)
+        for field in (
+            "manifest_hash",
+            "replications",
+            "per_case_statistic",
+            "git_revision",
+        ):
+            if protocol[field] != expected[field]:
+                msg = f"Benchmark protocol field {field} differs in {comparison_file}"
+                raise ValueError(msg)
+        if expected["git_dirty"] or protocol["git_dirty"]:
+            msg = "Cross-system analysis requires results from a clean Git revision"
+            raise ValueError(msg)
+
+
+def tal_result_counts(results: dict) -> dict[tuple, int]:
+    counts = {}
+    for query_type, entries in results["results"].items():
+        for entry in entries:
+            if entry["status"] != "ok":
+                continue
+            version = None
+            if query_type == "vm":
+                version = entry["version_index"]
+            elif query_type == "dm":
+                version = entry["version_end"]
+            key = (
+                query_type,
+                entry["pattern_type"],
+                entry["pattern_index"],
+                version,
+            )
+            counts[key] = entry["num_results"]
+    return counts
+
+
+def comparison_result_counts(results: dict) -> dict[tuple, int]:
+    counts = {}
+    detail = results["detail"]
+    if "per_version_vm" in detail:
+        for group in detail["per_version_vm"]:
+            for pattern in group["patterns"]:
+                key = (
+                    "vm",
+                    pattern["pattern_type"],
+                    pattern["pattern_index"],
+                    group["version"],
+                )
+                counts[key] = pattern["results"]
+    if "per_delta_dm" in detail:
+        for group in detail["per_delta_dm"]:
+            for pattern in group["patterns"]:
+                key = (
+                    "dm",
+                    pattern["pattern_type"],
+                    pattern["pattern_index"],
+                    group["version_end"],
+                )
+                counts[key] = pattern["results"]
+    if "per_pattern_vq" in detail:
+        for pattern in detail["per_pattern_vq"]:
+            key = (
+                "vq",
+                pattern["pattern_type"],
+                pattern["pattern_index"],
+                None,
+            )
+            counts[key] = pattern["results"]
+    return counts
+
+
+def validate_result_counts(results: dict, comparison_files: list[Path]) -> None:
+    all_expected = tal_result_counts(results)
+    for comparison_file in comparison_files:
+        if not comparison_file.exists():
+            continue
+        comparison = load_results(comparison_file)
+        observed = comparison_result_counts(comparison)
+        expected = all_expected
+        if comparison["protocol"]["system"] == "ostrich":
+            expected = {
+                key: count for key, count in all_expected.items() if key[0] != "vq"
+            }
+            observed = {key: count for key, count in observed.items() if key[0] != "vq"}
+        missing = expected.keys() - observed.keys()
+        extra = observed.keys() - expected.keys()
+        if missing or extra:
+            msg = (
+                f"Result coverage differs in {comparison_file}: "
+                f"{len(missing)} missing and {len(extra)} extra cases"
+            )
+            raise ValueError(msg)
+        mismatches = [key for key, count in expected.items() if observed[key] != count]
+        if mismatches:
+            msg = (
+                f"Result counts differ in {comparison_file} for "
+                f"{len(mismatches)} cases; first mismatch: {mismatches[0]}"
+            )
+            raise ValueError(msg)
+
+
 def load_disk_usage(corpus_name: str) -> dict[str, int | None]:
     usage: dict[str, int | None] = {
         "ocdm_dataset_bytes": None,
@@ -174,11 +330,17 @@ def print_disk_usage_table(usage: dict[str, int | None]) -> None:
 
 
 def compute_aggregates(results: list[dict]) -> dict:
-    valid_means = [r["mean_s"] * 1000 for r in results if r["mean_s"] is not None]
+    valid_results = [
+        result
+        for result in results
+        if result["status"] == "ok" and result["median_s"] is not None
+    ]
+    valid_means = [result["median_s"] * 1000 for result in valid_results]
     if not valid_means:
-        return {"count": 0}
+        return {"count": 0, "failed_count": len(results)}
     agg: dict = {
-        "count": len(results),
+        "count": len(valid_results),
+        "failed_count": len(results) - len(valid_results),
         "mean_ms": statistics.mean(valid_means),
         "median_ms": statistics.median(valid_means),
         "std_ms": statistics.stdev(valid_means) if len(valid_means) > 1 else 0.0,
@@ -186,9 +348,9 @@ def compute_aggregates(results: list[dict]) -> dict:
         "max_ms": max(valid_means),
     }
     valid_memory = [
-        r["median_memory_bytes"]
-        for r in results
-        if r.get("median_memory_bytes") is not None
+        result["median_memory_bytes"]
+        for result in valid_results
+        if "median_memory_bytes" in result
     ]
     if valid_memory:
         agg["mean_memory_bytes"] = statistics.mean(valid_memory)
@@ -233,7 +395,9 @@ def _group_by(entries: list[dict], field: str) -> dict:
 def load_tal_vm_by_version(
     vm_results: list[dict], pattern_filter: str | None = None
 ) -> dict[int, float]:
-    filtered = [r for r in vm_results if r["median_s"] is not None]
+    filtered = [
+        r for r in vm_results if r["status"] == "ok" and r["median_s"] is not None
+    ]
     if pattern_filter:
         filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
     by_version = _group_by(filtered, "version_index")
@@ -243,7 +407,9 @@ def load_tal_vm_by_version(
 def load_tal_dm_by_version(
     dm_results: list[dict], pattern_filter: str | None = None
 ) -> dict[int, float]:
-    filtered = [r for r in dm_results if r["median_s"] is not None]
+    filtered = [
+        r for r in dm_results if r["status"] == "ok" and r["median_s"] is not None
+    ]
     if pattern_filter:
         filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
     by_end = _group_by(filtered, "version_end")
@@ -253,7 +419,9 @@ def load_tal_dm_by_version(
 def load_tal_vq_median(
     vq_results: list[dict], pattern_filter: str | None = None
 ) -> float:
-    filtered = [r for r in vq_results if r["median_s"] is not None]
+    filtered = [
+        r for r in vq_results if r["status"] == "ok" and r["median_s"] is not None
+    ]
     if pattern_filter:
         filtered = [r for r in filtered if r["pattern_type"] == pattern_filter]
     return _median_ms(filtered)
@@ -806,14 +974,18 @@ def main():
     args = parser.parse_args()
 
     results_file = DATA_DIR / f"benchmark_results_{args.corpus}.json"
+    memory_results_file = DATA_DIR / f"benchmark_memory_results_{args.corpus}.json"
     ostrich_results_file = DATA_DIR / f"ostrich_benchmark_results_{args.corpus}.json"
     ocdm_timing_file = DATA_DIR / f"ocdm_conversion_time_{args.corpus}.json"
     fuseki_timing_file = DATA_DIR / f"fuseki_ingestion_time_{args.corpus}.json"
     output_dir = DATA_DIR / "analysis" / args.corpus
-
     r43ples_results_file = DATA_DIR / f"r43ples_benchmark_results_{args.corpus}.json"
 
     data = load_results(results_file)
+    if memory_results_file.exists():
+        merge_memory_results(data, load_results(memory_results_file))
+    validate_manifest(data, [ostrich_results_file, r43ples_results_file])
+    validate_result_counts(data, [ostrich_results_file, r43ples_results_file])
     load_measured_ostrich_results(ostrich_results_file)
     load_measured_r43ples_results(r43ples_results_file)
 
@@ -849,6 +1021,7 @@ def main():
         "tal_aggregates": tal_aggregates,
         "comparison": comparison,
         "hardware": data.get("hardware", {}),
+        "protocol": data["protocol"],
         "disk_usage": disk_usage,
     }
     summary_path = output_dir / "summary.json"

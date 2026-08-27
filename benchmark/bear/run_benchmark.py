@@ -4,10 +4,7 @@
 
 import argparse
 import json
-import os
-import platform
 import statistics
-import subprocess
 import sys
 import time
 import tracemalloc
@@ -26,18 +23,27 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 from rich.table import Table
+from sparqlite import SPARQLError
 
 from time_agnostic_library.agnostic_query import DeltaQuery, VersionQuery
 
 sys.path.insert(0, str(Path(__file__).parent))
 import corpora
 from parse_queries import generate
+from protocol import (
+    DEFAULT_REPLICATIONS,
+    DEFAULT_TIMEOUT_S,
+    build_manifest,
+    hardware_info,
+    manifest_hash,
+    protocol_metadata,
+)
 
 sys.setrecursionlimit(5000)
 
 console = Console()
 
-NUM_RUNS = 5
+NUM_RUNS = DEFAULT_REPLICATIONS
 ALL_QUERY_TYPES = ["vm", "dm", "vq"]
 
 SAVE_EVERY = 200
@@ -54,43 +60,28 @@ PROGRESS_COLUMNS = (
 )
 
 
-def get_hardware_info() -> dict[str, str | int]:
-    info: dict[str, str | int] = {
-        "platform": platform.platform(),
-        "processor": platform.processor(),
-        "python_version": platform.python_version(),
-    }
-    try:
-        result = subprocess.run(["nproc"], capture_output=True, text=True, check=True)
-        info["cpu_cores"] = int(result.stdout.strip())
-    except (OSError, subprocess.CalledProcessError, ValueError):
-        info["cpu_cores"] = os.cpu_count() or 1
-    try:
-        with Path("/proc/meminfo").open() as f:
-            for line in f:
-                if line.startswith("MemTotal:"):
-                    info["memory_total_kb"] = int(line.split()[1])
-                    break
-    except (OSError, ValueError):
-        pass
-    return info
-
-
-def _measure_query(fn: Callable[[], dict]) -> dict:
-    if not tracemalloc.is_tracing():
-        tracemalloc.start()
-    tracemalloc.reset_peak()
+def _measure_query(fn: Callable[[], dict], measurement: str | None) -> dict:
+    if measurement is None:
+        return fn()
+    if measurement == "time":
+        start = time.perf_counter()
+        result = fn()
+        result["time_s"] = time.perf_counter() - start
+        return result
+    tracemalloc.start()
     baseline = tracemalloc.get_traced_memory()[0]
-    start = time.perf_counter()
-    result = fn()
-    elapsed = time.perf_counter() - start
-    _, peak = tracemalloc.get_traced_memory()
-    result["time_s"] = elapsed
-    result["memory_peak_bytes"] = peak - baseline
-    return result
+    try:
+        result = fn()
+        _, peak = tracemalloc.get_traced_memory()
+        result["memory_peak_bytes"] = peak - baseline
+        return result
+    finally:
+        tracemalloc.stop()
 
 
-def run_vm_query(sparql: str, on_time: tuple, config: dict) -> dict:
+def run_vm_query(
+    sparql: str, on_time: tuple, config: dict, measurement: str | None
+) -> dict:
     def fn() -> dict:
         vq = VersionQuery(
             sparql,
@@ -102,10 +93,12 @@ def run_vm_query(sparql: str, on_time: tuple, config: dict) -> dict:
         result, _, _ = vq.run_agnostic_query()
         return {"num_results": sum(len(v) for v in result.values())}
 
-    return _measure_query(fn)
+    return _measure_query(fn, measurement)
 
 
-def run_dm_query(sparql: str, on_time: tuple, config: dict) -> dict:
+def run_dm_query(
+    sparql: str, on_time: tuple, config: dict, measurement: str | None
+) -> dict:
     def fn() -> dict:
         dq = DeltaQuery(
             sparql,
@@ -123,10 +116,10 @@ def run_dm_query(sparql: str, on_time: tuple, config: dict) -> dict:
             "deletions": total_deletions,
         }
 
-    return _measure_query(fn)
+    return _measure_query(fn, measurement)
 
 
-def run_vq_query(sparql: str, config: dict) -> dict:
+def run_vq_query(sparql: str, config: dict, measurement: str | None) -> dict:
     def fn() -> dict:
         vq = VersionQuery(
             sparql,
@@ -140,30 +133,42 @@ def run_vq_query(sparql: str, config: dict) -> dict:
             "num_versions": len(result),
         }
 
-    return _measure_query(fn)
+    return _measure_query(fn, measurement)
 
 
 def _dispatch_query(
-    qt: str, sparql: str, on_time: Sequence[str] | None, config: dict
+    qt: str,
+    sparql: str,
+    on_time: Sequence[str] | None,
+    config: dict,
+    measurement: str | None,
 ) -> dict | None:
     if qt == "vq":
-        return run_vq_query(sparql, config)
+        return run_vq_query(sparql, config, measurement)
     assert on_time is not None
     if qt == "vm":
-        return run_vm_query(sparql, tuple(on_time), config)
+        return run_vm_query(sparql, tuple(on_time), config, measurement)
     if qt == "dm":
-        return run_dm_query(sparql, tuple(on_time), config)
+        return run_dm_query(sparql, tuple(on_time), config, measurement)
     return None
 
 
 def _try_query(
-    qt: str, sparql: str, on_time: Sequence[str] | None, config: dict, label: str
-) -> dict | None:
+    qt: str,
+    sparql: str,
+    on_time: Sequence[str] | None,
+    config: dict,
+    label: str,
+    measurement: str | None,
+) -> tuple[dict | None, dict | None]:
     try:
-        return _dispatch_query(qt, sparql, on_time, config)
-    except Exception as e:  # noqa: BLE001 -- keep benchmarking past any single query failure
-        console.print(f"    {label} error: {e}")
-        return None
+        return _dispatch_query(qt, sparql, on_time, config, measurement), None
+    except (SPARQLError, ValueError) as error:
+        console.print(f"    {label} error: {error}")
+        return None, {
+            "type": type(error).__name__,
+            "message": str(error),
+        }
 
 
 def query_key(spec: dict) -> tuple:
@@ -183,6 +188,54 @@ def pending_queries(queries: list[dict], completed: list[dict]) -> list[dict]:
     return [spec for spec in queries if query_key(spec) not in done]
 
 
+def _result_summary(result: dict, measurement: str) -> dict:
+    metric = "time_s" if measurement == "time" else "memory_peak_bytes"
+    return {key: value for key, value in result.items() if key != metric}
+
+
+def _entry_status(errors: list[dict | None], summaries: list[dict | None]) -> str:
+    valid_summaries = [summary for summary in summaries if summary is not None]
+    if not valid_summaries:
+        return "failed"
+    if any(error is not None for error in errors):
+        return "partial"
+    if any(summary != valid_summaries[0] for summary in valid_summaries[1:]):
+        return "mismatch"
+    return "ok"
+
+
+def append_journal(journal_file: Path, query_type: str, entry: dict) -> None:
+    journal_file.parent.mkdir(parents=True, exist_ok=True)
+    with journal_file.open("a", encoding="utf-8") as file:
+        file.write(json.dumps({"query_type": query_type, "entry": entry}))
+        file.write("\n")
+
+
+def merge_journal(all_results: dict, journal_file: Path) -> None:
+    if not journal_file.exists():
+        return
+    entries_by_type = {
+        query_type: {query_key(entry): entry for entry in entries}
+        for query_type, entries in all_results["results"].items()
+    }
+    with journal_file.open(encoding="utf-8") as file:
+        lines = file.readlines()
+        for index, line in enumerate(lines):
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                if index == len(lines) - 1 and not line.endswith("\n"):
+                    break
+                raise
+            query_type = record["query_type"]
+            entry = record["entry"]
+            entries_by_type.setdefault(query_type, {})[query_key(entry)] = entry
+    all_results["results"] = {
+        query_type: list(entries.values())
+        for query_type, entries in entries_by_type.items()
+    }
+
+
 def benchmark_queries(
     queries: list[dict],
     config: dict,
@@ -190,6 +243,8 @@ def benchmark_queries(
     all_results: dict,
     query_type: str,
     output_file: Path,
+    journal_file: Path,
+    measurement: str,
     total: int | None = None,
 ) -> None:
     total = total if total is not None else len(queries)
@@ -204,46 +259,88 @@ def benchmark_queries(
             sparql = query_spec["sparql"]
             on_time = query_spec["on_time"]
 
-            _try_query(qt, sparql, on_time, config, "[yellow]Warmup")
+            _try_query(
+                qt,
+                sparql,
+                on_time,
+                config,
+                "[yellow]Warmup",
+                None,
+            )
 
             times = []
             memory_peaks = []
-            last_result: dict | None = None
+            errors: list[dict | None] = []
+            summaries: list[dict | None] = []
             for run_idx in range(num_runs):
-                result = _try_query(
-                    qt, sparql, on_time, config, f"[red]Run {run_idx + 1}"
+                result, error = _try_query(
+                    qt,
+                    sparql,
+                    on_time,
+                    config,
+                    f"[red]Run {run_idx + 1}",
+                    measurement,
                 )
-                if result:
-                    last_result = result
-                    times.append(result["time_s"])
-                    memory_peaks.append(result["memory_peak_bytes"])
-                else:
+                errors.append(error)
+                if result is None:
+                    summaries.append(None)
                     times.append(None)
                     memory_peaks.append(None)
+                    continue
+                summaries.append(_result_summary(result, measurement))
+                if measurement == "time":
+                    times.append(result["time_s"])
+                else:
+                    memory_peaks.append(result["memory_peak_bytes"])
 
             valid_times = [t for t in times if t is not None]
             valid_memory = [m for m in memory_peaks if m is not None]
             entry = {
                 **query_spec,
                 "runs": num_runs,
-                "times_s": times,
-                "mean_s": statistics.mean(valid_times) if valid_times else None,
-                "std_s": statistics.stdev(valid_times) if len(valid_times) > 1 else 0.0,
-                "median_s": statistics.median(valid_times) if valid_times else None,
-                "memory_peak_bytes": memory_peaks,
-                "mean_memory_bytes": statistics.mean(valid_memory)
-                if valid_memory
-                else None,
-                "median_memory_bytes": statistics.median(valid_memory)
-                if valid_memory
-                else None,
-                "max_memory_bytes": max(valid_memory) if valid_memory else None,
+                "status": _entry_status(errors, summaries),
+                "errors": errors,
+                "result_summaries": summaries,
             }
-            if last_result:
-                entry["num_results"] = last_result.get(
-                    "num_results", last_result.get("num_entities", 0)
+            if measurement == "time":
+                entry.update(
+                    {
+                        "times_s": times,
+                        "mean_s": statistics.mean(valid_times) if valid_times else None,
+                        "std_s": statistics.stdev(valid_times)
+                        if len(valid_times) > 1
+                        else 0.0,
+                        "median_s": statistics.median(valid_times)
+                        if valid_times
+                        else None,
+                    }
                 )
+            else:
+                entry.update(
+                    {
+                        "memory_peak_bytes": memory_peaks,
+                        "mean_memory_bytes": statistics.mean(valid_memory)
+                        if valid_memory
+                        else None,
+                        "median_memory_bytes": statistics.median(valid_memory)
+                        if valid_memory
+                        else None,
+                        "max_memory_bytes": max(valid_memory) if valid_memory else None,
+                    }
+                )
+            valid_summaries = [summary for summary in summaries if summary is not None]
+            if valid_summaries:
+                last_summary = valid_summaries[-1]
+                if "additions" in last_summary:
+                    entry["num_results"] = (
+                        last_summary["additions"] + last_summary["deletions"]
+                    )
+                elif "num_results" in last_summary:
+                    entry["num_results"] = last_summary["num_results"]
+                else:
+                    entry["num_results"] = last_summary["num_entities"]
             all_results["results"][query_type].append(entry)
+            append_journal(journal_file, query_type, entry)
             if position % SAVE_EVERY == 0:
                 save_results(all_results, output_file)
             progress.advance(task)
@@ -252,17 +349,60 @@ def benchmark_queries(
 
 def save_results(all_results: dict, output_file: Path) -> None:
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    with output_file.open("w", encoding="utf-8") as f:
+    temporary_file = output_file.with_suffix(f"{output_file.suffix}.tmp")
+    with temporary_file.open("w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2)
+    temporary_file.replace(output_file)
+
+
+def load_or_generate_queries(
+    corpus: corpora.Corpus,
+    queries_file: Path,
+    source_manifest_hash: str,
+) -> dict[str, list[dict]]:
+    if queries_file.exists():
+        with queries_file.open(encoding="utf-8") as file:
+            cached = json.load(file)
+        if (
+            "source_manifest_hash" in cached
+            and cached["source_manifest_hash"] == source_manifest_hash
+        ):
+            return cached["queries"]
+
+    console.print(f"[yellow]Generating parsed queries in {queries_file}...")
+    queries = generate(corpus)
+    queries_file.parent.mkdir(parents=True, exist_ok=True)
+    with queries_file.open("w", encoding="utf-8") as file:
+        json.dump(
+            {
+                "source_manifest_hash": source_manifest_hash,
+                "queries": queries,
+            },
+            file,
+            indent=2,
+        )
+    console.print(f"[green]Saved parsed queries to {queries_file}")
+    return queries
 
 
 def update_canonical(
     all_results: dict, canonical_file: Path, query_types: list[str]
 ) -> None:
-    canonical: dict = {"hardware": all_results["hardware"], "results": {}}
+    canonical: dict = {
+        "hardware": all_results["hardware"],
+        "protocol": all_results["protocol"],
+        "results": {},
+    }
     if canonical_file.exists():
         with canonical_file.open(encoding="utf-8") as f:
             canonical = json.load(f)
+        if (
+            "protocol" not in canonical
+            or canonical["protocol"] != all_results["protocol"]
+            or canonical["hardware"] != all_results["hardware"]
+        ):
+            msg = f"Canonical results use a different setup: {canonical_file}"
+            raise ValueError(msg)
         canonical["hardware"] = all_results["hardware"]
     for query_type in query_types:
         results = all_results["results"].get(query_type)
@@ -271,38 +411,50 @@ def update_canonical(
     save_results(canonical, canonical_file)
 
 
-def print_summary_table(all_results: dict) -> None:
+def print_summary_table(all_results: dict, measurement: str) -> None:
     table = Table(title="Benchmark summary")
     table.add_column("Query type", style="bold")
     table.add_column("Queries", justify="right")
-    table.add_column("Mean (ms)", justify="right")
-    table.add_column("Median (ms)", justify="right")
+    unit = "ms" if measurement == "time" else "bytes"
+    table.add_column(f"Mean ({unit})", justify="right")
+    table.add_column(f"Median ({unit})", justify="right")
 
     for query_type in ALL_QUERY_TYPES:
         results = all_results["results"].get(query_type, [])
-        valid_means = [r["mean_s"] for r in results if r["mean_s"] is not None]
+        key = "median_s" if measurement == "time" else "median_memory_bytes"
+        valid_means = [
+            result[key]
+            for result in results
+            if result["status"] == "ok" and result[key] is not None
+        ]
         if valid_means:
+            scale = 1000 if measurement == "time" else 1
             table.add_row(
                 query_type.upper(),
                 str(len(results)),
-                f"{statistics.mean(valid_means) * 1000:.2f}",
-                f"{statistics.median(valid_means) * 1000:.2f}",
+                f"{statistics.mean(valid_means) * scale:.2f}",
+                f"{statistics.median(valid_means) * scale:.2f}",
             )
 
     console.print()
     console.print(table)
 
 
-def find_latest_run(corpus_name: str) -> Path | None:
-    matches = sorted(DATA_DIR.glob(f"benchmark_runs_{corpus_name}_*.json"))
+def find_latest_run(corpus_name: str, run_label: str) -> Path | None:
+    matches = sorted(DATA_DIR.glob(f"benchmark_runs_{corpus_name}_{run_label}_*.json"))
     if matches:
         return matches[-1]
     return None
 
 
-def create_run_file(corpus_name: str) -> Path:
+def create_run_file(corpus_name: str, run_label: str) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return DATA_DIR / f"benchmark_runs_{corpus_name}_{timestamp}.json"
+    return DATA_DIR / f"benchmark_runs_{corpus_name}_{run_label}_{timestamp}.json"
+
+
+def canonical_path(corpus_name: str, measurement: str) -> Path:
+    measurement_part = "" if measurement == "time" else "_memory"
+    return DATA_DIR / f"benchmark{measurement_part}_results_{corpus_name}.json"
 
 
 def main():
@@ -319,8 +471,19 @@ def main():
     parser.add_argument(
         "--runs",
         type=int,
-        default=NUM_RUNS,
-        help="Number of repetitions per query (default: 5)",
+        help="Number of repetitions per query (default: 3 for time, 1 for memory)",
+    )
+    parser.add_argument(
+        "--measurement",
+        choices=["time", "memory"],
+        default="time",
+        help="Measure elapsed time or traced Python memory",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT_S,
+        help="SPARQL request timeout in seconds",
     )
     parser.add_argument(
         "--resume",
@@ -329,41 +492,76 @@ def main():
     )
     args = parser.parse_args()
 
+    num_runs = (
+        args.runs
+        if args.runs is not None
+        else (NUM_RUNS if args.measurement == "time" else 1)
+    )
+    if num_runs < 1:
+        parser.error("--runs must be at least 1")
+    if args.timeout < 1:
+        parser.error("--timeout must be at least 1")
+
     corpus = corpora.get(args.corpus)
     queries_file = DATA_DIR / f"parsed_queries_{corpus.name}.json"
-    canonical_file = DATA_DIR / f"benchmark_results_{corpus.name}.json"
+    manifest = build_manifest(corpus)
+    source_manifest_hash = manifest_hash(manifest)
+    canonical_file = canonical_path(corpus.name, args.measurement)
+    run_label = args.measurement
+    protocol = protocol_metadata(
+        manifest,
+        num_runs,
+        measurement=args.measurement,
+        timeout_s=args.timeout,
+    )
+    protocol["system"] = "tal"
+    protocol["store"] = "Apache Jena Fuseki 6.2.0"
 
     query_types = args.only or ALL_QUERY_TYPES
 
-    if not queries_file.exists():
-        console.print(f"[yellow]Parsed queries not found, generating {queries_file}...")
-        all_queries = generate(corpus)
-        queries_file.parent.mkdir(parents=True, exist_ok=True)
-        with queries_file.open("w", encoding="utf-8") as f:
-            json.dump(all_queries, f, indent=2)
-        console.print(f"[green]Saved parsed queries to {queries_file}")
-    else:
-        with queries_file.open(encoding="utf-8") as f:
-            all_queries = json.load(f)
+    all_queries = load_or_generate_queries(
+        corpus,
+        queries_file,
+        source_manifest_hash,
+    )
+    config = corpora.build_config(corpus, timeout_s=args.timeout)
 
-    config = corpora.build_config(corpus)
-
-    hardware = get_hardware_info()
+    hardware = hardware_info()
     console.print(f"[bold]Hardware:[/bold] {hardware}")
+    console.print(
+        "[bold]Protocol:[/bold] "
+        f"{num_runs} repetitions, {args.measurement}, "
+        f"timeout {args.timeout}s, manifest {protocol['manifest_hash']}"
+    )
 
     if args.resume:
-        run_file = find_latest_run(corpus.name)
+        run_file = find_latest_run(corpus.name, run_label)
         if run_file:
             console.print(f"[bold]Resuming from {run_file}[/bold]")
             with run_file.open(encoding="utf-8") as f:
                 all_results = json.load(f)
+            if all_results["protocol"] != protocol:
+                parser.error("The latest run uses a different benchmark protocol")
+            if all_results["hardware"] != hardware:
+                parser.error("The latest run was measured on different hardware")
+            merge_journal(all_results, run_file.with_suffix(".jsonl"))
         else:
             console.print("[yellow]No previous run file found, starting fresh[/yellow]")
-            run_file = create_run_file(corpus.name)
-            all_results = {"hardware": hardware, "results": {}}
+            run_file = create_run_file(corpus.name, run_label)
+            all_results = {
+                "hardware": hardware,
+                "protocol": protocol,
+                "results": {},
+            }
     else:
-        run_file = create_run_file(corpus.name)
-        all_results = {"hardware": hardware, "results": {}}
+        run_file = create_run_file(corpus.name, run_label)
+        all_results = {
+            "hardware": hardware,
+            "protocol": protocol,
+            "results": {},
+        }
+    save_results(all_results, run_file)
+    journal_file = run_file.with_suffix(".jsonl")
 
     for query_type in query_types:
         queries = all_queries.get(query_type, [])
@@ -379,15 +577,17 @@ def main():
 
         console.rule(
             f"[bold]{query_type.upper()} queries[/bold] "
-            f"({len(queries)} queries, {args.runs} runs each)"
+            f"({len(queries)} queries, {num_runs} runs each)"
         )
         benchmark_queries(
             pending,
             config,
-            num_runs=args.runs,
+            num_runs=num_runs,
             all_results=all_results,
             query_type=query_type,
             output_file=run_file,
+            journal_file=journal_file,
+            measurement=args.measurement,
             total=len(queries),
         )
         console.print(
@@ -396,7 +596,7 @@ def main():
 
     update_canonical(all_results, canonical_file, query_types)
     console.print(f"\nAll results saved to {canonical_file}")
-    print_summary_table(all_results)
+    print_summary_table(all_results, args.measurement)
 
 
 if __name__ == "__main__":
