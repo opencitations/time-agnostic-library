@@ -741,8 +741,16 @@ class TestAgnosticEntityEdgeCases:
             ("<http://s>", "<http://p>", '"val"', "<http://g>"),
         }
 
-        entity_graphs, _, _ = entity._get_entity_state_at_time(
-            ("2021-05-01T00:00:00+00:00", "2021-06-01T00:00:00+00:00"),
-            include_prov_metadata=False,
+        entity_graphs, entity_snapshots, other_snapshots = (
+            entity._get_entity_state_at_time(
+                ("2021-05-01T00:00:00+00:00", "2021-06-01T00:00:00+00:00"),
+                include_prov_metadata=False,
+            )
         )
-        assert gen_time in entity_graphs
+        assert entity_graphs == {
+            "2021-05-01T00:00:00+00:00": {
+                ("<http://s>", "<http://p>", '"val"', "<http://g>")
+            }
+        }
+        assert entity_snapshots == {}
+        assert other_snapshots == {}

@@ -216,8 +216,91 @@ class TestAgnosticQueryEdgeCases:
         result = _reconstruct_at_time_as_sets(
             prov, quads, ("2021-05-20T00:00:00+00:00", "2021-05-20T00:00:00+00:00")
         )
-        assert len(result) == 1
-        assert result[0][0] == "2021-05-07T09:59:15+00:00"
+        assert result == [
+            (
+                "2021-05-20T00:00:00+00:00",
+                (("<http://s>", "<http://p>", '"o"', "<http://g>"),),
+            )
+        ]
+
+    def test_reconstruct_at_time_as_sets_includes_interval_start_state(self):
+        graph = "<https://example.org/graph>"
+        subject = "<https://example.org/entity>"
+        predicate = "<https://example.org/value>"
+        old = (subject, predicate, '"old"', graph)
+        middle = (subject, predicate, '"middle"', graph)
+        latest = (subject, predicate, '"latest"', graph)
+        to_middle = (
+            f'DELETE DATA {{ GRAPH {graph} {{ {subject} {predicate} "old" . }} }}; '
+            f'INSERT DATA {{ GRAPH {graph} {{ {subject} {predicate} "middle" . }} }}'
+        )
+        to_latest = (
+            f'DELETE DATA {{ GRAPH {graph} {{ {subject} {predicate} "middle" . }} }}; '
+            f'INSERT DATA {{ GRAPH {graph} {{ {subject} {predicate} "latest" . }} }}'
+        )
+        prov = [
+            {"time": "2021-01-01T00:00:00+00:00", "updateQuery": None},
+            {"time": "2021-01-03T00:00:00+00:00", "updateQuery": to_middle},
+            {"time": "2021-01-05T00:00:00+00:00", "updateQuery": to_latest},
+        ]
+
+        result = _reconstruct_at_time_as_sets(
+            prov,
+            {latest},
+            ("2021-01-02T00:00:00+00:00", "2021-01-04T00:00:00+00:00"),
+        )
+
+        assert result == [
+            ("2021-01-03T00:00:00+00:00", (middle,)),
+            ("2021-01-02T00:00:00+00:00", (old,)),
+        ]
+
+    def test_reconstruct_at_time_as_sets_with_open_end(self):
+        prov = [
+            {"time": "2021-01-01T00:00:00+00:00", "updateQuery": None},
+            {"time": "2021-01-03T00:00:00+00:00", "updateQuery": None},
+        ]
+        quad = ("<http://s>", "<http://p>", '"o"', "<http://g>")
+
+        result = _reconstruct_at_time_as_sets(
+            prov, {quad}, ("2021-01-02T00:00:00+00:00", None)
+        )
+
+        assert result == [
+            ("2021-01-03T00:00:00+00:00", (quad,)),
+            ("2021-01-02T00:00:00+00:00", (quad,)),
+        ]
+
+    def test_reconstruct_at_time_as_sets_with_open_start(self):
+        prov = [
+            {"time": "2021-01-01T00:00:00+00:00", "updateQuery": None},
+            {"time": "2021-01-03T00:00:00+00:00", "updateQuery": None},
+            {"time": "2021-01-05T00:00:00+00:00", "updateQuery": None},
+        ]
+        quad = ("<http://s>", "<http://p>", '"o"', "<http://g>")
+
+        result = _reconstruct_at_time_as_sets(
+            prov, {quad}, (None, "2021-01-04T00:00:00+00:00")
+        )
+
+        assert result == [
+            ("2021-01-03T00:00:00+00:00", (quad,)),
+            ("2021-01-01T00:00:00+00:00", (quad,)),
+        ]
+
+    def test_reconstruct_at_time_as_sets_for_entity_created_inside_interval(self):
+        prov = [
+            {"time": "2021-01-03T00:00:00+00:00", "updateQuery": None},
+        ]
+        quad = ("<http://s>", "<http://p>", '"o"', "<http://g>")
+
+        result = _reconstruct_at_time_as_sets(
+            prov,
+            {quad},
+            ("2021-01-02T00:00:00+00:00", "2021-01-04T00:00:00+00:00"),
+        )
+
+        assert result == [("2021-01-03T00:00:00+00:00", (quad,))]
 
     def test_reconstruct_at_time_as_sets_no_earlier_snapshot(self):
         prov = [

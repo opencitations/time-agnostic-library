@@ -122,6 +122,23 @@ def test_delta_query_returns_solution_mapping_differences_for_a_bgp():
     }
 
 
+def test_delta_query_with_coincident_endpoints_has_no_changes():
+    query = f"""
+        PREFIX pro: <http://purl.org/spar/pro/>
+        SELECT ?agent WHERE {{
+            <{_AR}> a pro:RoleInTime;
+                pro:isHeldBy ?agent.
+        }}
+    """
+
+    assert _run(query, (_UNRELATED_CHANGE, _UNRELATED_CHANGE)) == {
+        "additions": [],
+        "deletions": [],
+        "merges": None,
+        "changes": [],
+    }
+
+
 def test_delta_query_runs_one_version_query_for_a_bgp():
     query = f"""
         PREFIX pro: <http://purl.org/spar/pro/>
@@ -137,7 +154,13 @@ def test_delta_query_runs_one_version_query_for_a_bgp():
     ) as version_query:
         _run(query, (_START, _END))
 
-    assert version_query.call_count == 1
+    version_query.assert_called_once_with(
+        query,
+        on_time=(_START, _END),
+        merge_aware=False,
+        include_prov_metadata=False,
+        config_dict=CONFIG,
+    )
 
 
 def test_delta_query_evaluates_optional_patterns_at_each_endpoint():

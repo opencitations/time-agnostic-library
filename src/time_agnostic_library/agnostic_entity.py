@@ -952,23 +952,9 @@ class AgnosticEntity:
             key=lambda x: _parse_datetime(x["time"]["value"]),
             reverse=True,
         )
-        relevant_results = _filter_timestamps_by_interval(
+        relevant_results, start_timestamp_alias = _select_interval_snapshots(
             time, sorted_results, time_index="time"
         )
-        if not relevant_results:
-            interval_start = _parse_datetime(time[0]) if time[0] else None
-            if interval_start:
-                earlier_snapshots = [
-                    r
-                    for r in bindings
-                    if _parse_datetime(r["time"]["value"]) <= interval_start
-                ]
-                if earlier_snapshots:
-                    latest_snapshot = max(
-                        earlier_snapshots,
-                        key=lambda x: _parse_datetime(x["time"]["value"]),
-                    )
-                    relevant_results = [latest_snapshot]
         relevant_snapshot_uris = {
             result["snapshot"]["value"] for result in relevant_results
         }
@@ -1011,6 +997,8 @@ class AgnosticEntity:
                 for snapshot_uri, metadata in metadata_by_snapshot.items()
                 if snapshot_uri not in relevant_snapshot_uris
             }
+        if not relevant_results:
+            return {}, entity_snapshots, other_snapshots_metadata
         entity_quads = self._query_dataset(self.res)
         sorted_versions = [
             (
@@ -1024,12 +1012,17 @@ class AgnosticEntity:
         target_times = {
             relevant_result["time"]["value"] for relevant_result in relevant_results
         }
-        entity_graphs = {
-            timestamp: set(quad_set)
-            for timestamp, quad_set in _materialize_versions(
-                sorted_versions, entity_quads, target_times
+        entity_graphs = {}
+        for timestamp, quad_set in _materialize_versions(
+            sorted_versions, entity_quads, target_times
+        ):
+            result_timestamp = (
+                start_timestamp_alias[1]
+                if start_timestamp_alias is not None
+                and timestamp == start_timestamp_alias[0]
+                else timestamp
             )
-        }
+            entity_graphs[result_timestamp] = set(quad_set)
         return entity_graphs, entity_snapshots, other_snapshots_metadata
 
     def _include_prov_metadata(
@@ -1351,3 +1344,35 @@ def _filter_timestamps_by_interval(
     else:
         relevant_timestamps = iterator.copy()
     return relevant_timestamps
+
+
+def _select_interval_snapshots(
+    interval: tuple[str | None, str | None] | None,
+    snapshots: list[dict],
+    *,
+    time_index: str,
+) -> tuple[list[dict], tuple[str, str] | None]:
+    selected_snapshots = _filter_timestamps_by_interval(
+        interval, snapshots, time_index=time_index
+    )
+    if not interval or not interval[0]:
+        return selected_snapshots, None
+    interval_start = _parse_datetime(interval[0])
+    snapshots_at_start = [
+        snapshot
+        for snapshot in snapshots
+        if _parse_datetime(snapshot[time_index]["value"]) <= interval_start
+    ]
+    if not snapshots_at_start:
+        return selected_snapshots, None
+    start_snapshot = max(
+        snapshots_at_start,
+        key=lambda snapshot: _parse_datetime(snapshot[time_index]["value"]),
+    )
+    if start_snapshot not in selected_snapshots:
+        selected_snapshots.append(start_snapshot)
+    timestamp_alias = (
+        str(convert_to_datetime(start_snapshot[time_index]["value"], stringify=True)),
+        str(convert_to_datetime(interval[0], stringify=True)),
+    )
+    return selected_snapshots, timestamp_alias

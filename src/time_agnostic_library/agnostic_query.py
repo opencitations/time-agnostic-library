@@ -23,10 +23,10 @@ from rdflib.plugins.sparql.processor import prepareQuery
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity,
     _fast_parse_update,
-    _filter_timestamps_by_interval,
     _iter_working_states,
     _materialize_versions,
     _parse_datetime,
+    _select_interval_snapshots,
 )
 from time_agnostic_library.prov_entity import ProvEntity
 from time_agnostic_library.sparql import Sparql, _binding_to_n3, _n3_to_binding
@@ -333,32 +333,32 @@ def _reconstruct_at_time_as_sets(
     sorted_snaps = sorted(
         prov_snapshots, key=lambda x: _parse_datetime(x["time"]), reverse=True
     )
-    relevant = _filter_timestamps_by_interval(
-        on_time,
-        [{"time": {"value": s["time"]}} for s in sorted_snaps],
-        time_index="time",
+    snapshot_bindings = [
+        {"time": {"value": snapshot["time"]}} for snapshot in sorted_snaps
+    ]
+    relevant, start_timestamp_alias = _select_interval_snapshots(
+        on_time, snapshot_bindings, time_index="time"
     )
     if not relevant:
-        interval_start = _parse_datetime(on_time[0]) if on_time[0] else None
-        if interval_start:
-            earlier = [
-                s for s in sorted_snaps if _parse_datetime(s["time"]) <= interval_start
-            ]
-            if earlier:
-                best = max(earlier, key=lambda x: _parse_datetime(x["time"]))
-                relevant = [{"time": {"value": best["time"]}}]
-            else:
-                return []
-        else:
-            return []
+        return []
     relevant_times = {r["time"]["value"] for r in relevant}
     sorted_versions = [
         (snapshot["time"], snapshot["updateQuery"]) for snapshot in sorted_snaps
     ]
     quad_filter = _quad_filter_for_pattern(triple) if triple is not None else None
-    return _materialize_versions(
+    materialized = _materialize_versions(
         sorted_versions, dataset_quads, relevant_times, quad_filter
     )
+    return [
+        (
+            start_timestamp_alias[1]
+            if start_timestamp_alias is not None
+            and timestamp == start_timestamp_alias[0]
+            else timestamp,
+            quads,
+        )
+        for timestamp, quads in materialized
+    ]
 
 
 def _match_single_pattern(
@@ -1571,6 +1571,7 @@ class DeltaQuery(AgnosticQuery):
     def _rebuild_relevant_graphs(self) -> None:
         version_query = VersionQuery(
             self.query,
+            on_time=self.on_time,
             merge_aware=self.merge_aware,
             include_prov_metadata=False,
             config_dict=self.config,

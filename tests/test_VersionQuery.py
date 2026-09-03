@@ -35,6 +35,120 @@ def _run_query(query, **kwargs):
 
 
 class TestVersionQuery:
+    def test_interval_includes_start_state_for_an_isolated_pattern(self):
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            SELECT ?ar ?agent WHERE { ?ar pro:isHeldBy ?agent. }
+        """
+        interval = (
+            "2021-05-20T00:00:00+00:00",
+            "2021-06-01T20:00:00+00:00",
+        )
+
+        result, provenance, other_provenance = VersionQuery(
+            query, on_time=interval, config_dict=CONFIG
+        ).run_agnostic_query()
+
+        old_binding = {
+            "ar": {
+                "type": "uri",
+                "value": "https://github.com/arcangelo7/time_agnostic/ar/15519",
+            },
+            "agent": {
+                "type": "uri",
+                "value": "https://github.com/arcangelo7/time_agnostic/ra/15519",
+            },
+        }
+        new_binding = {
+            "ar": {
+                "type": "uri",
+                "value": "https://github.com/arcangelo7/time_agnostic/ar/15519",
+            },
+            "agent": {
+                "type": "uri",
+                "value": "https://github.com/arcangelo7/time_agnostic/ra/4",
+            },
+        }
+        assert result == {
+            "2021-05-20T00:00:00+00:00": [old_binding],
+            "2021-05-31T18:19:47+00:00": [old_binding],
+            "2021-06-01T18:46:41+00:00": [new_binding],
+        }
+        assert provenance is None
+        assert other_provenance is None
+
+    def test_interval_aligns_entity_states_for_a_join(self):
+        role = "https://github.com/arcangelo7/time_agnostic/ar/15519"
+        old_agent = "https://github.com/arcangelo7/time_agnostic/ra/15519"
+        new_agent = "https://github.com/arcangelo7/time_agnostic/ra/4"
+        query = """
+            PREFIX pro: <http://purl.org/spar/pro/>
+            PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+            SELECT ?agent ?name WHERE {
+                <https://github.com/arcangelo7/time_agnostic/ar/15519>
+                    pro:isHeldBy ?agent.
+                ?agent foaf:name ?name.
+            }
+        """
+        interval = (
+            "2021-05-20T00:00:00+00:00",
+            "2021-06-01T20:00:00+00:00",
+        )
+
+        result, provenance, other_provenance = VersionQuery(
+            query,
+            on_time=interval,
+            include_prov_metadata=True,
+            config_dict=CONFIG,
+        ).run_agnostic_query()
+
+        old_binding = {
+            "agent": {
+                "type": "uri",
+                "value": old_agent,
+            },
+            "name": {
+                "type": "literal",
+                "value": "Giulio Marini",
+                "datatype": "http://www.w3.org/2001/XMLSchema#string",
+            },
+        }
+        new_binding = {
+            "agent": {
+                "type": "uri",
+                "value": new_agent,
+            },
+            "name": {"type": "literal", "value": "Giulio Marini"},
+        }
+        assert result == {
+            "2021-05-20T00:00:00+00:00": [old_binding],
+            "2021-05-31T18:19:47+00:00": [old_binding],
+            "2021-06-01T18:46:41+00:00": [new_binding],
+        }
+        assert provenance is not None
+        assert {
+            entity: {
+                snapshot: metadata["generatedAtTime"]
+                for snapshot, metadata in snapshots.items()
+            }
+            for entity, snapshots in provenance.items()
+        } == {
+            role: {
+                f"{role}/prov/se/1": "2021-05-07T09:59:15+00:00",
+                f"{role}/prov/se/2": "2021-05-31T18:19:47+00:00",
+                f"{role}/prov/se/3": "2021-06-01T18:46:41+00:00",
+            },
+            old_agent: {
+                f"{old_agent}/prov/se/1": "2021-05-07T09:59:15+00:00",
+                f"{old_agent}/prov/se/2": "2021-06-01T18:46:41+00:00",
+            },
+            new_agent: {
+                f"{new_agent}/prov/se/1": "2021-05-07T09:59:15+00:00",
+                f"{new_agent}/prov/se/2": "2021-06-01T18:46:41+00:00",
+            },
+        }
+        assert other_provenance == {}
+
     def test__collect_patterns_no_optional(self):
         query = """
             prefix pro: <http://purl.org/spar/pro/>
