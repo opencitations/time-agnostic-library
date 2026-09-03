@@ -2241,7 +2241,7 @@ class TestVersionQuery:
         )
         output = _run_query(agnostic_query)
         expected_output = (
-            {},
+            {"2021-05-06T00:00:00+00:00": []},
             {
                 "2021-06-01T18:46:41+00:00",
                 "2021-05-31T18:19:47+00:00",
@@ -2557,7 +2557,7 @@ class TestVersionQuery:
             config_dict=CONFIG,
         )
         result, other = _run_query(vq)
-        assert result == {}
+        assert result == {"2021-05-31T18:19:47+00:00": []}
         assert other == set()
 
     def test_run_agnostic_query_vm_batch_non_quadstore(self):

@@ -29,11 +29,13 @@ from time_agnostic_library.agnostic_query import DeltaQuery, VersionQuery
 
 sys.path.insert(0, str(Path(__file__).parent))
 import corpora
+from answer_sets import binding_signature, digest_solutions
 from parse_queries import generate
 from protocol import (
     DEFAULT_REPLICATIONS,
     DEFAULT_TIMEOUT_S,
     build_manifest,
+    fuseki_info,
     hardware_info,
     manifest_hash,
     protocol_metadata,
@@ -44,7 +46,7 @@ sys.setrecursionlimit(5000)
 console = Console()
 
 NUM_RUNS = DEFAULT_REPLICATIONS
-ALL_QUERY_TYPES = ["vm", "dm", "vq"]
+ALL_QUERY_TYPES = ["vm", "sd", "cv"]
 
 SAVE_EVERY = 200
 
@@ -79,8 +81,17 @@ def _measure_query(fn: Callable[[], dict], measurement: str | None) -> dict:
         tracemalloc.stop()
 
 
+def _digest(bindings: list[dict], variables: list[str]) -> str:
+    signatures = [binding_signature(binding, variables) for binding in bindings]
+    return digest_solutions(signatures)
+
+
 def run_vm_query(
-    sparql: str, on_time: tuple, config: dict, measurement: str | None
+    sparql: str,
+    variables: list[str],
+    on_time: tuple,
+    config: dict,
+    measurement: str | None,
 ) -> dict:
     def fn() -> dict:
         vq = VersionQuery(
@@ -91,13 +102,30 @@ def run_vm_query(
             config_dict=config,
         )
         result, _, _ = vq.run_agnostic_query()
-        return {"num_results": sum(len(v) for v in result.values())}
+        return {"result": result}
 
-    return _measure_query(fn, measurement)
+    measured = _measure_query(fn, measurement)
+    result = measured.pop("result")
+    buckets = list(result)
+    if buckets != [on_time[0]]:
+        message = f"VM returned buckets {buckets} for {on_time[0]}"
+        raise ValueError(message)
+    bindings = result[on_time[0]]
+    measured.update(
+        {
+            "num_results": len(bindings),
+            "digest": _digest(bindings, variables),
+        }
+    )
+    return measured
 
 
-def run_dm_query(
-    sparql: str, on_time: tuple, config: dict, measurement: str | None
+def run_sd_query(
+    sparql: str,
+    variables: list[str],
+    on_time: tuple,
+    config: dict,
+    measurement: str | None,
 ) -> dict:
     def fn() -> dict:
         dq = DeltaQuery(
@@ -108,18 +136,31 @@ def run_dm_query(
             config_dict=config,
         )
         result, _, _ = dq.run_agnostic_query()
-        total_additions = sum(len(v["additions"]) for v in result.values())
-        total_deletions = sum(len(v["deletions"]) for v in result.values())
-        return {
-            "num_entities": len(result),
-            "additions": total_additions,
-            "deletions": total_deletions,
+        return result
+
+    measured = _measure_query(fn, measurement)
+    additions = measured.pop("additions")
+    deletions = measured.pop("deletions")
+    measured.pop("changes")
+    measured.pop("merges")
+    measured.update(
+        {
+            "additions": len(additions),
+            "deletions": len(deletions),
+            "additions_digest": _digest(additions, variables),
+            "deletions_digest": _digest(deletions, variables),
         }
+    )
+    return measured
 
-    return _measure_query(fn, measurement)
 
-
-def run_vq_query(sparql: str, config: dict, measurement: str | None) -> dict:
+def run_cv_query(
+    sparql: str,
+    variables: list[str],
+    timestamps: Sequence[str],
+    config: dict,
+    measurement: str | None,
+) -> dict:
     def fn() -> dict:
         vq = VersionQuery(
             sparql,
@@ -128,47 +169,80 @@ def run_vq_query(sparql: str, config: dict, measurement: str | None) -> dict:
             config_dict=config,
         )
         result, _, _ = vq.run_agnostic_query()
-        return {
-            "num_results": sum(len(v) for v in result.values()),
-            "num_versions": len(result),
-        }
+        return {"history": result}
 
-    return _measure_query(fn, measurement)
+    measured = _measure_query(fn, measurement)
+    history = sorted(measured.pop("history").items())
+    state: list[dict] = []
+    position = 0
+    versions = {}
+    for timestamp in timestamps:
+        while position < len(history) and history[position][0] <= timestamp:
+            state = history[position][1]
+            position += 1
+        versions[timestamp] = {
+            "count": len(state),
+            "digest": _digest(state, variables),
+        }
+    measured.update(
+        {
+            "num_results": sum(version["count"] for version in versions.values()),
+            "num_versions": len(versions),
+            "versions": versions,
+        }
+    )
+    return measured
 
 
 def _dispatch_query(
     qt: str,
     sparql: str,
+    variables: list[str],
     on_time: Sequence[str] | None,
     config: dict,
     measurement: str | None,
+    timestamps: Sequence[str] | None = None,
 ) -> dict | None:
-    if qt == "vq":
-        return run_vq_query(sparql, config, measurement)
+    if qt == "cv":
+        if timestamps is None:
+            message = "CV requires the corpus timestamps"
+            raise ValueError(message)
+        return run_cv_query(sparql, variables, timestamps, config, measurement)
     assert on_time is not None
     if qt == "vm":
-        return run_vm_query(sparql, tuple(on_time), config, measurement)
-    if qt == "dm":
-        return run_dm_query(sparql, tuple(on_time), config, measurement)
+        return run_vm_query(sparql, variables, tuple(on_time), config, measurement)
+    if qt == "sd":
+        return run_sd_query(sparql, variables, tuple(on_time), config, measurement)
     return None
 
 
 def _try_query(
     qt: str,
     sparql: str,
+    variables: list[str],
     on_time: Sequence[str] | None,
     config: dict,
     label: str,
     measurement: str | None,
+    expected: dict | None = None,
+    timestamps: Sequence[str] | None = None,
 ) -> tuple[dict | None, dict | None]:
     try:
-        return _dispatch_query(qt, sparql, on_time, config, measurement), None
+        result = _dispatch_query(
+            qt, sparql, variables, on_time, config, measurement, timestamps
+        )
     except (SPARQLError, ValueError) as error:
         console.print(f"    {label} error: {error}")
         return None, {
             "type": type(error).__name__,
             "message": str(error),
         }
+    if result is not None and expected is not None:
+        actual = _correctness_summary(result)
+        if actual != expected:
+            message = f"{label} answer mismatch: expected={expected}, actual={actual}"
+            raise ValueError(message)
+    return result, None
 
 
 def query_key(spec: dict) -> tuple:
@@ -191,6 +265,14 @@ def pending_queries(queries: list[dict], completed: list[dict]) -> list[dict]:
 def _result_summary(result: dict, measurement: str) -> dict:
     metric = "time_s" if measurement == "time" else "memory_peak_bytes"
     return {key: value for key, value in result.items() if key != metric}
+
+
+def _correctness_summary(result: dict) -> dict:
+    return {
+        key: value
+        for key, value in result.items()
+        if key not in {"time_s", "memory_peak_bytes"}
+    }
 
 
 def _entry_status(errors: list[dict | None], summaries: list[dict | None]) -> str:
@@ -257,15 +339,23 @@ def benchmark_queries(
         for position, query_spec in enumerate(queries, start=1):
             qt = query_spec["type"]
             sparql = query_spec["sparql"]
+            variables = query_spec["variables"]
             on_time = query_spec["on_time"]
+            expected = query_spec["expected"]
+            timestamps = (
+                query_spec["timestamps"] if "timestamps" in query_spec else None
+            )
 
             _try_query(
                 qt,
                 sparql,
+                variables,
                 on_time,
                 config,
                 "[yellow]Warmup",
                 None,
+                expected,
+                timestamps,
             )
 
             times = []
@@ -276,10 +366,13 @@ def benchmark_queries(
                 result, error = _try_query(
                     qt,
                     sparql,
+                    variables,
                     on_time,
                     config,
                     f"[red]Run {run_idx + 1}",
                     measurement,
+                    expected,
+                    timestamps,
                 )
                 errors.append(error)
                 if result is None:
@@ -337,8 +430,6 @@ def benchmark_queries(
                     )
                 elif "num_results" in last_summary:
                     entry["num_results"] = last_summary["num_results"]
-                else:
-                    entry["num_results"] = last_summary["num_entities"]
             all_results["results"][query_type].append(entry)
             append_journal(journal_file, query_type, entry)
             if position % SAVE_EVERY == 0:
@@ -466,7 +557,7 @@ def main():
         "--only",
         choices=ALL_QUERY_TYPES,
         nargs="+",
-        help="Run only specified query types (e.g. --only vq)",
+        help="Run only specified query types (e.g. --only cv)",
     )
     parser.add_argument(
         "--runs",
@@ -512,10 +603,10 @@ def main():
         manifest,
         num_runs,
         measurement=args.measurement,
-        timeout_s=args.timeout,
+        sparql_request_timeout_s=args.timeout,
     )
     protocol["system"] = "tal"
-    protocol["store"] = "Apache Jena Fuseki 6.2.0"
+    protocol["store"] = fuseki_info(corpus)
 
     query_types = args.only or ALL_QUERY_TYPES
 

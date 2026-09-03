@@ -4,12 +4,10 @@
 # SPDX-License-Identifier: ISC
 
 title: Delta queries
-description: Inspect net and per-snapshot deltas between versions
+description: Compare SPARQL solution mappings between versions
 ---
 
-Delta queries return the changes to each matching entity over a time interval. They include the chronological snapshot changes, their net delta, creation and deletion times, and merge events.
-
-The graph pattern follows the same restrictions as `VersionQuery`: basic graph patterns, OPTIONAL clauses, DISTINCT, and the inverse of one predicate are supported.
+Delta queries compare the bags of solution mappings that a SPARQL query returns at different times. They follow the same rules as `VersionQuery`, which supports basic graph patterns, OPTIONAL clauses, DISTINCT, and the inverse of one predicate.
 
 ```python
 from time_agnostic_library.agnostic_query import DeltaQuery
@@ -17,7 +15,6 @@ from time_agnostic_library.agnostic_query import DeltaQuery
 delta = DeltaQuery(
     query=QUERY_STRING,
     on_time=(START, END),
-    changed_properties=PROPERTIES_SET,
     merge_aware=True,
     include_prov_metadata=True,
     config_path=CONFIG_PATH,
@@ -25,38 +22,33 @@ delta = DeltaQuery(
 results, provenance, other_provenance = delta.run_agnostic_query()
 ```
 
-Omit `on_time` to cover the full history. Either interval bound may be `None`. `changed_properties` filters additions and deletions by predicate.
+Omit `on_time` to cover the full history, or set either bound to `None` when the interval has one open end. With `merge_aware=True`, the query also reads entity histories connected by merges, while the `merges` field records how their IRIs are connected to the IRI used in the query.
 
-`merge_aware` follows merges in both directions.
-
-Each result record has this form:
+Use a closed range when you need the net change between two known dates. Use the full history when you need to see every recorded step.
 
 ```python
 {
-    ENTITY_IRI: {
-        "created": TIMESTAMP_OR_NONE,
-        "deleted": TIMESTAMP_OR_NONE,
-        "changes": [
-            {
-                "time": TIMESTAMP,
-                "additions": {(subject, predicate, object, graph), ...},
-                "deletions": {(subject, predicate, object, graph), ...},
-            }
-        ],
-        "additions": {(subject, predicate, object, graph), ...},
-        "deletions": {(subject, predicate, object, graph), ...},
-        "merges": [
-            {
-                "time": TIMESTAMP,
-                "snapshot": SNAPSHOT_IRI,
-                "survivor": ENTITY_IRI,
-                "absorbed": [ENTITY_IRI, ...],
-            }
-        ],
-    }
+    "additions": [SOLUTION_MAPPING, ...],
+    "deletions": [SOLUTION_MAPPING, ...],
+    "merges": [
+        {
+            "time": TIMESTAMP,
+            "snapshot": SNAPSHOT_IRI,
+            "survivor": ENTITY_IRI,
+            "absorbed": [ENTITY_IRI, ...],
+        }
+    ],
+    "changes": [
+        {
+            "start": TIMESTAMP,
+            "end": TIMESTAMP,
+            "additions": [SOLUTION_MAPPING, ...],
+            "deletions": [SOLUTION_MAPPING, ...],
+        }
+    ],
 }
 ```
 
-Quad terms use N3 strings. `changes` is chronological. The top-level additions and deletions contain the composed net delta for the interval. Creation and deletion times are `None` when the corresponding event falls outside the interval.
+The top-level lists contain the multiset difference between the interval endpoints, so duplicate mappings keep their count unless the query uses DISTINCT. If the same row occurs twice, the bag records both copies. Each item in `changes` compares two consecutive states, identifies both timestamps, and appears in time order. Because the output uses normal query rows, you can read each value in the same way as a `VersionQuery` result.
 
-`merges` is `None` when merge support is disabled. It is `[]` when merge support is enabled and the entity has no merge event in the interval. A merge event appears in the records of its survivor and directly absorbed entities.
+When `merge_aware` is enabled, `merges` contains every merge event used to connect the query IRIs to the entity histories that were evaluated. This includes events before the requested interval because they can explain why a different historical IRI contributed a solution. The field is `[]` when no merge was found and `None` when merge handling is disabled.

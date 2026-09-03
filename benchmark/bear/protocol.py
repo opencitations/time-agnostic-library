@@ -50,6 +50,7 @@ def build_manifest(corpus: Corpus) -> dict:
         query_sets.append({"name": query_set.name, "patterns": patterns})
 
     return {
+        "schema": "mat-solution-bags-v1",
         "corpus": corpus.name,
         "query_sets": query_sets,
     }
@@ -109,19 +110,31 @@ def docker_image_id(image_name: str) -> str | None:
     return result.stdout.strip()
 
 
+def fuseki_info(corpus: Corpus) -> dict[str, str]:
+    path = corpus.dir.parent / f"fuseki_ingestion_time_{corpus.name}.json"
+    with path.open(encoding="utf-8") as file:
+        metadata = json.load(file)
+    return {
+        "name": "Apache Jena Fuseki",
+        "version": metadata["jena_version"],
+        "java_image": metadata["java_image"],
+        "java_image_id": metadata["java_image_id"],
+    }
+
+
 def protocol_metadata(
     manifest: dict,
     replications: int,
     *,
     measurement: str,
-    timeout_s: int | None,
+    sparql_request_timeout_s: int | None,
 ) -> dict:
     return {
         "measurement": measurement,
         "replications": replications,
         "per_case_statistic": "median",
         "warmup": "one untimed execution per case",
-        "timeout_s": timeout_s,
+        "sparql_request_timeout_s": sparql_request_timeout_s,
         "git_revision": git_revision(),
         "git_dirty": git_dirty(),
         "manifest_hash": manifest_hash(manifest),

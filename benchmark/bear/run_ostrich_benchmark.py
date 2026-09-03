@@ -313,7 +313,7 @@ def main():
         manifest,
         args.replications,
         measurement="time",
-        timeout_s=args.timeout,
+        sparql_request_timeout_s=args.timeout,
     )
     protocol["system"] = "ostrich"
     protocol["engine_image_id"] = docker_image_id(IMAGE_NAME)

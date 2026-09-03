@@ -7,11 +7,12 @@ import atexit
 import json
 import os
 import re
+from collections import Counter
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from itertools import product
+from itertools import pairwise, product
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, cast
 
 from rdflib import URIRef
 from rdflib.paths import InvPath
@@ -21,7 +22,6 @@ from rdflib.plugins.sparql.processor import prepareQuery
 
 from time_agnostic_library.agnostic_entity import (
     AgnosticEntity,
-    _apply_update_ops,
     _fast_parse_update,
     _filter_timestamps_by_interval,
     _iter_working_states,
@@ -78,6 +78,16 @@ def _reject_unsupported(node_name: str) -> None:
     if node_name in _SUPPORTED_ALGEBRA_NODES:
         return
     _reject(_SPARQL_CONSTRUCT_NAMES.get(node_name, node_name))
+
+
+def _contains_algebra_node(node: CompValue, name: str) -> bool:
+    if node.name == name:
+        return True
+    return any(
+        _contains_algebra_node(value, name)
+        for value in node.values()
+        if isinstance(value, CompValue)
+    )
 
 
 def _is_unsupported_path(term: object) -> bool:
@@ -174,6 +184,16 @@ def _pattern_constants(triple: tuple) -> set[str]:
 
 def _pattern_search_terms(triple: tuple) -> set[str]:
     return {el[1:-1] for el in triple[:3] if el.startswith("<") and el.endswith(">")}
+
+
+def _fuseki_search_phrases(triple: tuple) -> list[str]:
+    predicate = _normalize_constant(triple[1])
+    obj = _normalize_constant(triple[2])
+    if obj is not None and obj.startswith("<"):
+        if predicate is not None:
+            return [f"{predicate} {obj} ."]
+        return [f"{obj} ."]
+    return [f"<{term}>" for term in sorted(_pattern_search_terms(triple))]
 
 
 def _escape_search_term(text: str, *quotes: str) -> str:
@@ -401,128 +421,83 @@ def _merge_entity_bindings(
     return result
 
 
-def _batch_query_dm_provenance(
-    entity_uris: set[str], config: dict
-) -> dict[str, list[dict]]:
-    values = _sparql_values(entity_uris)
-    query = f"""
-        SELECT ?entity ?time ?updateQuery ?invalidatedAtTime
-        WHERE {{
-            ?se <{ProvEntity.iri_specialization_of}> ?entity;
-                <{ProvEntity.iri_generated_at_time}> ?time.
-            OPTIONAL {{
-                ?se <{ProvEntity.iri_has_update_query}> ?updateQuery.
-            }}
-            OPTIONAL {{
-                ?se <{ProvEntity.iri_invalidated_at_time}> ?invalidatedAtTime.
-            }}
-            VALUES ?entity {{ {values} }}
-        }}
-    """
-    results = Sparql(query, config).run_select_query()
-    output: dict[str, list[dict]] = {uri: [] for uri in entity_uris}
-    for binding in results["results"]["bindings"]:
-        entity_uri = binding["entity"]["value"]
-        entry = {
-            "time": binding["time"]["value"],
-            "updateQuery": binding["updateQuery"]["value"]
-            if "updateQuery" in binding
-            else None,
-            "invalidatedAtTime": binding["invalidatedAtTime"]["value"]
-            if "invalidatedAtTime" in binding
-            else None,
+def _binding_key(
+    binding: dict[str, dict[str, str]],
+) -> frozenset[tuple[str, frozenset[tuple[str, str]]]]:
+    return frozenset(
+        (variable, frozenset(value.items())) for variable, value in binding.items()
+    )
+
+
+def _bag_difference(left: list[dict], right: list[dict]) -> list[dict]:
+    remaining = Counter(_binding_key(binding) for binding in right)
+    difference = []
+    for binding in left:
+        key = _binding_key(binding)
+        if remaining[key] > 0:
+            remaining[key] -= 1
+        else:
+            difference.append(binding)
+    return difference
+
+
+def _states_at(
+    history: list[tuple[str, list[dict]]], timeline: list[str]
+) -> list[tuple[str, list[dict]]]:
+    history_position = 0
+    state: list[dict] = []
+    states = []
+    for timestamp in timeline:
+        requested = _parse_datetime(timestamp)
+        while (
+            history_position < len(history)
+            and _parse_datetime(history[history_position][0]) <= requested
+        ):
+            state = history[history_position][1]
+            history_position += 1
+        states.append((timestamp, state))
+    return states
+
+
+def _build_solution_delta(
+    results: dict[str, list[dict]],
+    on_time: tuple[str | None, str | None] | None,
+) -> dict[str, list | None]:
+    history = sorted(results.items(), key=lambda item: _parse_datetime(item[0]))
+    if not history:
+        return {"additions": [], "deletions": [], "changes": []}
+    start = on_time[0] if on_time and on_time[0] else history[0][0]
+    end = on_time[1] if on_time and on_time[1] else history[-1][0]
+    if _parse_datetime(start) > _parse_datetime(end):
+        message = "The start of the interval must not follow its end"
+        raise ValueError(message)
+    timeline = [start]
+    timeline.extend(
+        timestamp
+        for timestamp, _ in history
+        if _parse_datetime(start) < _parse_datetime(timestamp) < _parse_datetime(end)
+    )
+    if end != start:
+        timeline.append(end)
+    states = _states_at(history, timeline)
+    start_state = states[0][1]
+    end_state = states[-1][1]
+    changes = [
+        {
+            "start": previous_time,
+            "end": current_time,
+            "additions": _bag_difference(current_state, previous_state),
+            "deletions": _bag_difference(previous_state, current_state),
         }
-        output[entity_uri].append(entry)
-    return output
-
-
-def _keep_changed_properties(
-    quads: set[tuple[str, ...]], properties_n3: set[str]
-) -> set[tuple[str, ...]]:
-    if not properties_n3:
-        return quads
-    return {q for q in quads if q[1] in properties_n3}
-
-
-def _is_in_interval(
-    timestamp,
-    on_time: tuple[str | None, str | None] | None,
-) -> bool:
-    if on_time is None:
-        return True
-    after_dt = _parse_datetime(on_time[0]) if on_time[0] else None
-    before_dt = _parse_datetime(on_time[1]) if on_time[1] else None
-    return (after_dt is None or timestamp >= after_dt) and (
-        before_dt is None or timestamp <= before_dt
-    )
-
-
-def _build_delta_result(
-    entity_str: str,
-    snapshots: list[dict],
-    on_time: tuple[str | None, str | None] | None,
-    changed_properties: set[str],
-    merge_events: list[dict] | None = None,
-) -> dict:
-    output: dict[str, dict] = {}
-    parsed_snaps = [(snap, _parse_datetime(snap["time"])) for snap in snapshots]
-    parsed_snaps.sort(key=lambda x: x[1])
-    after_dt = _parse_datetime(on_time[0]) if on_time and on_time[0] else None
-    before_dt = _parse_datetime(on_time[1]) if on_time and on_time[1] else None
-    creation_dt = parsed_snaps[0][1]
-    properties_n3 = {f"<{p}>" for p in changed_properties}
-    # The net delta and the per-snapshot sequence fold the same operations, so
-    # each update query is parsed once and replayed twice.
-    additions: set[tuple[str, ...]] = set()
-    deletions: set[tuple[str, ...]] = set()
-    changes: list[dict] = []
-    created = None
-    has_relevant = False
-    for snap, snap_dt in parsed_snaps:
-        if after_dt and snap_dt < after_dt:
-            continue
-        if before_dt and snap_dt > before_dt:
-            break
-        has_relevant = True
-        if snap_dt == creation_dt:
-            created = creation_dt.isoformat()
-            continue
-        if not snap["updateQuery"]:
-            continue
-        operations = _fast_parse_update(snap["updateQuery"])
-        snap_additions: set[tuple[str, ...]] = set()
-        snap_deletions: set[tuple[str, ...]] = set()
-        _apply_update_ops(operations, snap_additions, snap_deletions)
-        _apply_update_ops(operations, additions, deletions)
-        changes.append(
-            {
-                "time": snap_dt.isoformat(),
-                "additions": _keep_changed_properties(snap_additions, properties_n3),
-                "deletions": _keep_changed_properties(snap_deletions, properties_n3),
-            }
+        for (previous_time, previous_state), (current_time, current_state) in pairwise(
+            states
         )
-    invalidated = parsed_snaps[-1][0]["invalidatedAtTime"]
-    invalidated_dt = _parse_datetime(invalidated) if invalidated else None
-    deleted = (
-        invalidated_dt.isoformat()
-        if invalidated_dt is not None and _is_in_interval(invalidated_dt, on_time)
-        else None
-    )
-    if merge_events:
-        has_relevant = True
-    if deleted is not None:
-        has_relevant = True
-    if not has_relevant:
-        return output
-    output[entity_str] = {
-        "created": created,
-        "deleted": deleted,
+    ]
+    return {
+        "additions": _bag_difference(end_state, start_state),
+        "deletions": _bag_difference(start_state, end_state),
         "changes": changes,
-        "additions": _keep_changed_properties(additions, properties_n3),
-        "deletions": _keep_changed_properties(deletions, properties_n3),
-        "merges": merge_events,
     }
-    return output
 
 
 class AgnosticQuery:
@@ -761,6 +736,7 @@ class AgnosticQuery:
             )
             raise ValueError(msg)
         self._select_vars = [str(v) for v in algebra["PV"]]
+        self._distinct = _contains_algebra_node(algebra, "Distinct")
         self._mandatory_triples = mandatory
         return all_triples
 
@@ -922,6 +898,18 @@ class AgnosticQuery:
         return True
 
     def _get_query_to_update_queries(self, triple: tuple) -> str:
+        if self.fuseki_full_text_search:
+            phrases = _fuseki_search_phrases(triple)
+            query_obj = '\\" AND \\"'.join(
+                _escape_search_term(phrase, '"') for phrase in phrases
+            )
+            return f"""
+                PREFIX text: <http://jena.apache.org/text#>
+                SELECT ?updateQuery WHERE {{
+                    ?se text:query ("\\"{query_obj}\\"" {_FUSEKI_TEXT_SEARCH_LIMIT});
+                        <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                }}
+            """
         return self.get_full_text_search(_pattern_search_terms(triple))
 
     def get_full_text_search(self, terms: set) -> str:
@@ -1340,6 +1328,11 @@ class VersionQuery(AgnosticQuery):
         )
         prov_data = fut_prov.result()
         dataset_data = fut_data.result()
+        point_time = (
+            str(convert_to_datetime(on_time[0], stringify=True))
+            if on_time[0] is not None and on_time[0] == on_time[1]
+            else None
+        )
         entity_bindings: dict[str, dict[str, list[dict]]] = {}
         for entity_str in all_entity_strs:
             per_ts: dict[str, list[dict]] = {}
@@ -1349,7 +1342,8 @@ class VersionQuery(AgnosticQuery):
                 on_time,
                 triple,
             ):
-                per_ts[ts] = _match_single_pattern(triple, quad_set)
+                result_time = point_time if point_time is not None else ts
+                per_ts[result_time] = _match_single_pattern(triple, quad_set)
             entity_bindings[entity_str] = per_ts
         self._streaming_results = _merge_entity_bindings(entity_bindings)
 
@@ -1381,7 +1375,7 @@ class VersionQuery(AgnosticQuery):
                 if key in b:
                     projected_n3[var] = b[key]
             frozen = frozenset(projected_n3.items())
-            if frozen not in seen:
+            if not self._distinct or frozen not in seen:
                 seen.add(frozen)
                 result.append(
                     {var: _n3_to_binding(val) for var, val in projected_n3.items()}
@@ -1506,7 +1500,21 @@ class VersionQuery(AgnosticQuery):
     def run_agnostic_query(
         self,
     ) -> tuple[dict[str, list[dict]], dict | None, dict | None]:
-        if self.on_time is None or self._streaming_results:
+        is_point_query = (
+            self.on_time is not None
+            and self.on_time[0] is not None
+            and self.on_time[0] == self.on_time[1]
+        )
+        if self._streaming_results:
+            agnostic_result = self._streaming_results
+        elif is_point_query:
+            point_graph: set[tuple[str, ...]] = set()
+            for graph in self.relevant_graphs.values():
+                point_graph.update(graph)
+            point_interval = cast("tuple[str | None, str | None]", self.on_time)
+            point_time = cast("str", point_interval[0])
+            agnostic_result = {point_time: self._extract_bindings(point_graph)}
+        elif self.on_time is None:
             agnostic_result = self._streaming_results
         else:
             agnostic_result = {}
@@ -1522,21 +1530,17 @@ class VersionQuery(AgnosticQuery):
 class DeltaQuery(AgnosticQuery):
     """Delta structured query over a temporal interval.
 
-    The result contains the chronological sequence of snapshot changes in the
-    interval and their composed net delta. If ``on_time`` is ``None``, the
-    interval spans the entire dataset history.
+    The result contains the multiset difference between the solution mappings
+    at the interval endpoints and the difference for each consecutive state.
+    If ``on_time`` is ``None``, the interval spans the entire dataset history.
 
-    :param query: A SPARQL query string. It is useful to identify the entities
-        whose change you want to investigate.
+    :param query: A SPARQL query string.
     :type query: str
     :param on_time: The time interval in the format (START, END). If one of the
         two values is None, only the other is considered. If the interval is
         None, the entire dataset history is considered. Dates must be in ISO
         8601 format.
     :type on_time: Tuple[Union[str, None]], optional
-    :param changed_properties: A set of properties. It narrows the field to those
-        entities where the properties specified in the set have changed.
-    :type changed_properties: Set[str], optional
     :param merge_aware: Follow entity histories connected by merges.
     :type merge_aware: bool, optional
     :param include_prov_metadata: Return snapshot metadata with the query results.
@@ -1549,15 +1553,12 @@ class DeltaQuery(AgnosticQuery):
         self,
         query: str,
         on_time: tuple[str | None, str | None] | None = None,
-        changed_properties: set[str] | None = None,
         *,
         merge_aware: bool = False,
         include_prov_metadata: bool = False,
         config_path: str = CONFIG_PATH,
         config_dict: dict | None = None,
     ):
-        if changed_properties is None:
-            changed_properties = set()
         super().__init__(
             query=query,
             on_time=on_time,
@@ -1566,80 +1567,39 @@ class DeltaQuery(AgnosticQuery):
             config_path=config_path,
             config_dict=config_dict,
         )
-        self.changed_properties = changed_properties
 
     def _rebuild_relevant_graphs(self) -> None:
-        triples_checked = set()
-        self.triples = self._process_query()
-        needs_graph_alignment = False
-        for triple in self.triples:
-            if self._is_isolated(triple) and self._is_a_new_triple(
-                triple, triples_checked
-            ):
-                present_entities = self._get_present_entities(triple)
-                self.reconstructed_entities.update(
-                    self._expand_entities_with_merges(present_entities)
-                )
-                prov_entities: set = set()
-                self._find_entity_uris_in_update_queries(triple, prov_entities)
-                self.reconstructed_entities.update(
-                    self._expand_entities_with_merges(prov_entities)
-                )
-            else:
-                needs_graph_alignment = True
-                self._rebuild_relevant_entity(triple[0])
-            triples_checked.add(triple)
-        if needs_graph_alignment:
-            self._align_snapshots()
-            self._solve_variables()
-        self.reconstructed_entities = self._expand_entities_with_merges(
-            self.reconstructed_entities
+        version_query = VersionQuery(
+            self.query,
+            merge_aware=self.merge_aware,
+            include_prov_metadata=False,
+            config_dict=self.config,
         )
+        self._version_results, _, _ = version_query.run_agnostic_query()
+        self.reconstructed_entities = version_query.reconstructed_entities
+        self._merge_events = version_query._merge_events  # noqa: SLF001
+        self.triples = version_query.triples
 
-    def _merge_events_for_entity(self, entity_uri: str) -> list[dict] | None:
+    def _reported_merge_events(self) -> list[dict] | None:
         if not self.merge_aware:
             return None
-        events = []
-        for event in self._merge_events.values():
-            if entity_uri != event["survivor"] and entity_uri not in event["absorbed"]:
-                continue
-            event_dt = _parse_datetime(event["time"])
-            if not _is_in_interval(event_dt, self.on_time):
-                continue
-            events.append(
-                {
-                    "time": event["time"],
-                    "snapshot": event["snapshot"],
-                    "survivor": event["survivor"],
-                    "absorbed": sorted(event["absorbed"]),
-                }
-            )
-        return sorted(
-            events,
-            key=lambda event: (_parse_datetime(event["time"]), event["snapshot"]),
-        )
+        return [
+            {
+                "time": event["time"],
+                "snapshot": event["snapshot"],
+                "survivor": event["survivor"],
+                "absorbed": list(event["absorbed"]),
+            }
+            for event in self._merge_events.values()
+        ]
 
     def run_agnostic_query(self) -> tuple[dict, dict | None, dict | None]:
-        entity_uris = set(self.reconstructed_entities)
-        if not entity_uris:
-            provenance, other_provenance = self._load_provenance(set())
-            return {}, provenance, other_provenance
-        prov_data = _batch_query_dm_provenance(entity_uris, self.config)
-        output = {}
-        for entity_str in entity_uris:
-            snapshots = prov_data[entity_str]
-            if not snapshots:
-                continue
-            result = _build_delta_result(
-                entity_str,
-                snapshots,
-                self.on_time,
-                self.changed_properties,
-                self._merge_events_for_entity(entity_str),
-            )
-            output.update(result)
-        provenance, other_provenance = self._load_provenance(set(output))
-        return output, provenance, other_provenance
+        result = _build_solution_delta(self._version_results, self.on_time)
+        result["merges"] = self._reported_merge_events()
+        provenance, other_provenance = self._load_provenance(
+            self.reconstructed_entities
+        )
+        return result, provenance, other_provenance
 
 
 def get_insert_query(graph_iri: str, data: set[tuple[str, ...]]) -> tuple[str, int]:

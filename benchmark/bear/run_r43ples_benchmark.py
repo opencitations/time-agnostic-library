@@ -598,7 +598,7 @@ def main():
         manifest,
         args.replications,
         measurement="time",
-        timeout_s=args.timeout,
+        sparql_request_timeout_s=args.timeout,
     )
     protocol["system"] = "r43ples"
     protocol["engine_image_id"] = docker_image_id("plttud/r43ples:latest")

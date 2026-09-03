@@ -8,10 +8,8 @@ import pytest
 from triplestore_config import CONFIG
 
 from time_agnostic_library.agnostic_query import (
-    DeltaQuery,
     VersionQuery,
     _batch_query_dataset_triples,
-    _build_delta_result,
     _escape_search_term,
     _match_single_pattern,
     _pattern_constants,
@@ -203,33 +201,6 @@ class TestAgnosticQueryEdgeCases:
         assert "INSERT" in result.upper()
         assert num_statements == 1
 
-    @patch("time_agnostic_library.agnostic_query.Sparql")
-    def test_update_query_parsing_error(self, mock_sparql_class):
-        query = """
-            SELECT ?entity
-            WHERE {
-                ?entity a <http://xmlns.com/foaf/0.1/Agent> .
-            }
-        """
-
-        DeltaQuery(query, config_dict=CONFIG, changed_properties=set())
-
-        mock_sparql_instance = MagicMock()
-        mock_sparql_class.return_value = mock_sparql_instance
-        mock_sparql_instance.run_select_query.return_value = {
-            "results": {
-                "bindings": [
-                    {
-                        "se": {"value": "http://example.com/se1"},
-                        "generatedAtTime": {"value": "2021-05-07T09:59:15.000Z"},
-                        "updateQuery": {
-                            "value": "MALFORMED SPARQL UPDATE QUERY { NOT VALID }"
-                        },
-                    }
-                ]
-            }
-        }
-
     def test_reconstruct_at_time_as_sets_empty_prov(self):
         result = _reconstruct_at_time_as_sets(
             [], set(), ("2021-05-20T00:00:00+00:00", "2021-05-20T00:00:00+00:00")
@@ -376,37 +347,6 @@ class TestAgnosticQueryEdgeCases:
         query = "SELECT ?value WHERE { ?value ^<http://ex.com/p> ?o }"
         vq = VersionQuery(query, config_dict=CONFIG)
         assert vq.triples == [("?o", "<http://ex.com/p>", "?value")]
-
-    def test_build_delta_result_break_after_before_dt(self):
-        snapshots = [
-            {
-                "time": "2021-01-01T00:00:00+00:00",
-                "updateQuery": None,
-                "invalidatedAtTime": None,
-            },
-            {
-                "time": "2021-06-01T00:00:00+00:00",
-                "updateQuery": "INSERT DATA { GRAPH <http://g/> { <http://s> "
-                '<http://p> "v" . } }',
-                "invalidatedAtTime": None,
-            },
-            {
-                "time": "2021-12-01T00:00:00+00:00",
-                "updateQuery": "INSERT DATA { GRAPH <http://g/> { <http://s> "
-                '<http://p> "late" . } }',
-                "invalidatedAtTime": None,
-            },
-        ]
-        result = _build_delta_result(
-            "http://ex.com/e",
-            snapshots,
-            ("2021-01-01T00:00:00+00:00", "2021-07-01T00:00:00+00:00"),
-            set(),
-        )
-        assert "http://ex.com/e" in result
-        assert result["http://ex.com/e"]["additions"] == {
-            ("<http://s>", "<http://p>", '"v"', "<http://g/>")
-        }
 
     @patch("time_agnostic_library.agnostic_query.Sparql")
     def test_find_entity_uris_in_update_queries_with_full_text_search(
@@ -623,6 +563,26 @@ class TestEntityDiscoverySearchTerms:
         vq = VersionQuery(_LITERAL_QUERY, config_dict=config_fts)
         query = vq.get_full_text_search({"http://www.w3.org/"})
         assert '"\\"<http://www.w3.org/>\\""' in query
+
+    @patch("time_agnostic_library.agnostic_query.Sparql", new=MagicMock())
+    def test_fuseki_search_uses_predicate_object_position(self):
+        config_fts = {**CONFIG, "fuseki_full_text_search": "yes"}
+        vq = VersionQuery(_LITERAL_QUERY, config_dict=config_fts)
+
+        query = vq._get_query_to_update_queries(
+            ("?s", "<http://ex.com/p>", "<http://ex.com/o>")
+        )
+
+        assert '\\"<http://ex.com/p> <http://ex.com/o> .\\"' in query
+
+    @patch("time_agnostic_library.agnostic_query.Sparql", new=MagicMock())
+    def test_fuseki_search_uses_object_position(self):
+        config_fts = {**CONFIG, "fuseki_full_text_search": "yes"}
+        vq = VersionQuery(_LITERAL_QUERY, config_dict=config_fts)
+
+        query = vq._get_query_to_update_queries(("?s", "?p", "<http://ex.com/o>"))
+
+        assert '\\"<http://ex.com/o> .\\"' in query
 
     @patch("time_agnostic_library.agnostic_query._FUSEKI_TEXT_SEARCH_LIMIT", 2)
     @patch("time_agnostic_library.agnostic_query.Sparql")

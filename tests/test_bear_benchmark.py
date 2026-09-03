@@ -16,8 +16,10 @@ BEAR_DIR = Path(__file__).parents[1] / "benchmark" / "bear"
 sys.path.insert(0, str(BEAR_DIR))
 
 import analyze_results
+import answer_sets
 import corpora
 import ingest_r43ples
+import render_tal_campaign
 import run_benchmark
 import run_ostrich_benchmark
 import run_r43ples_benchmark
@@ -56,12 +58,25 @@ def test_time_and_memory_measurements_are_separate(monkeypatch):
 def test_each_case_has_one_unmeasured_warmup(tmp_path, monkeypatch):
     measurements = []
 
-    def try_query(_qt, _sparql, _on_time, _config, _label, measurement):
+    def try_query(
+        _qt,
+        _sparql,
+        _variables,
+        _on_time,
+        _config,
+        _label,
+        measurement,
+        _expected,
+        _timestamps,
+    ):
         measurements.append(measurement)
         if measurement is None:
             return {"num_results": 1}, None
         elapsed = 0.1 if len(measurements) == 2 else 0.2
-        return {"num_results": 1, "time_s": elapsed}, None
+        return {
+            "num_results": 1,
+            "time_s": elapsed,
+        }, None
 
     monkeypatch.setattr(run_benchmark, "_try_query", try_query)
     query = {
@@ -70,7 +85,9 @@ def test_each_case_has_one_unmeasured_warmup(tmp_path, monkeypatch):
         "pattern_index": 0,
         "version_index": 0,
         "sparql": "SELECT ?s WHERE { ?s <p> <o> . }",
+        "variables": ["s"],
         "on_time": ["start", "end"],
+        "expected": {"num_results": 1},
     }
     results = {"results": {"vm": []}}
 
@@ -92,6 +109,152 @@ def test_each_case_has_one_unmeasured_warmup(tmp_path, monkeypatch):
         {"num_results": 1},
         {"num_results": 1},
     ]
+
+
+def test_mat_answers_drive_counts_digests_and_multiset_deltas(tmp_path):
+    answers_file = tmp_path / "mat.txt"
+    answers_file.write_text(
+        "[Solution in version 0]<https://example.org/a> value\n"
+        "[Solution in version 0]<https://example.org/a> value\n"
+        "[Solution in version 1]<https://example.org/a> value\n"
+        "[Solution in version 1]<https://example.org/b> value\n",
+        encoding="utf-8",
+    )
+
+    answers = answer_sets.parse_mat_answers(answers_file)
+
+    assert answer_sets.expected_summary(answers, 0) == {
+        "count": 2,
+        "digest": answer_sets.digest_solutions(
+            ["<https://example.org/a> value", "<https://example.org/a> value"]
+        ),
+    }
+    assert answer_sets.expected_delta(answers, 0, 1) == {
+        "additions": 1,
+        "deletions": 1,
+        "additions_digest": answer_sets.digest_solutions(
+            ["<https://example.org/b> value"]
+        ),
+        "deletions_digest": answer_sets.digest_solutions(
+            ["<https://example.org/a> value"]
+        ),
+    }
+
+
+def test_runner_digest_matches_bear_solution_format():
+    bindings = [
+        {
+            "s": {"type": "uri", "value": "https://example.org/resource"},
+            "o": {"type": "literal", "value": "A label", "xml:lang": "en"},
+        }
+    ]
+
+    assert run_benchmark._digest(bindings, ["s", "o"]) == (
+        answer_sets.digest_solutions(["<https://example.org/resource> A label"])
+    )
+    assert run_benchmark._digest([{}], []) == answer_sets.digest_solutions(["true"])
+
+
+def test_runner_validates_result_after_timing(monkeypatch):
+    events = []
+    ticks = iter([10.0, 10.5])
+    binding = {"s": {"type": "uri", "value": "https://example.org/resource"}}
+
+    class ObservedResult(dict):
+        def __iter__(self):
+            events.append("verify")
+            return super().__iter__()
+
+    class FakeVersionQuery:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def run_agnostic_query(self):
+            return ObservedResult({"start": [binding]}), {}, {}
+
+    def clock():
+        events.append("clock")
+        return next(ticks)
+
+    def digest(_bindings, _variables):
+        events.append("digest")
+        return "answer-digest"
+
+    monkeypatch.setattr(run_benchmark, "VersionQuery", FakeVersionQuery)
+    monkeypatch.setattr(run_benchmark.time, "perf_counter", clock)
+    monkeypatch.setattr(run_benchmark, "_digest", digest)
+
+    result = run_benchmark.run_vm_query(
+        "SELECT ?s WHERE { ?s <p> <o> . }",
+        ["s"],
+        ("start", "start"),
+        {},
+        "time",
+    )
+
+    assert events == ["clock", "clock", "verify", "digest"]
+    assert result == {
+        "time_s": 0.5,
+        "num_results": 1,
+        "digest": "answer-digest",
+    }
+
+
+def test_campaign_memory_table_includes_count_and_mean():
+    timed_entries = [
+        {"status": "ok", "median_s": 0.1},
+        {"status": "ok", "median_s": 0.3},
+    ]
+    memory_entries = [
+        {"status": "ok", "median_memory_bytes": 1_000_000},
+        {"status": "ok", "median_memory_bytes": 3_000_000},
+    ]
+    datasets = {"bear-a": {"results": dict.fromkeys(("vm", "sd", "cv"), timed_entries)}}
+    memory = {"bear-a": {"results": dict.fromkeys(("vm", "sd", "cv"), memory_entries)}}
+
+    lines = render_tal_campaign._latex_table(datasets, memory).splitlines()
+    start = lines.index(r"\label{tab:memory}")
+
+    assert lines[start : start + 11] == [
+        r"\label{tab:memory}",
+        r"\begin{tabular}{llrrrrr}",
+        r"\toprule",
+        r"Dataset & Query & Count & Mean (MB) & Median (MB) & p95 (MB) & Max (MB) \\",
+        r"\midrule",
+        r"BEAR-A & SV & 2 & 2.0 & 2.0 & 2.9 & 3.0 \\",
+        r"BEAR-A & SD & 2 & 2.0 & 2.0 & 2.9 & 3.0 \\",
+        r"BEAR-A & CV & 2 & 2.0 & 2.0 & 2.9 & 3.0 \\",
+        r"\bottomrule",
+        r"\end{tabular}",
+        r"\end{table*}",
+    ]
+
+
+def test_campaign_rejects_different_time_and_memory_revisions():
+    timed = {
+        "hardware": {"cpu": "same"},
+        "protocol": {
+            "manifest_hash": "same",
+            "git_dirty": False,
+            "git_revision": "time",
+            "store": {"name": "same"},
+        },
+    }
+    traced = {
+        "hardware": {"cpu": "same"},
+        "protocol": {
+            "manifest_hash": "same",
+            "git_dirty": False,
+            "git_revision": "memory",
+            "store": {"name": "same"},
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="Time and memory revisions differ for bear-a",
+    ):
+        render_tal_campaign._validate({"bear-a": timed}, {"bear-a": traced})
 
 
 def test_journal_replaces_snapshot_entry_and_ignores_truncated_tail(tmp_path):

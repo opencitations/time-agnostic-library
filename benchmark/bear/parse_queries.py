@@ -4,6 +4,7 @@
 
 import re
 
+from answer_sets import expected_delta, expected_summary, parse_mat_answers
 from corpora import Corpus, QuerySet
 from rich.console import Console
 
@@ -63,7 +64,7 @@ def diff_versions(num_versions: int, dm_step: int) -> list[int]:
 
 def generate(corpus: Corpus) -> dict[str, list[dict]]:
     timestamps = corpus.timestamps()
-    all_queries: dict[str, list[dict]] = {"vm": [], "dm": [], "vq": []}
+    all_queries: dict[str, list[dict]] = {"vm": [], "sd": [], "cv": []}
 
     for query_set in corpus.queries:
         if not query_set.path.exists():
@@ -78,10 +79,21 @@ def generate(corpus: Corpus) -> dict[str, list[dict]]:
 
         for index, query in enumerate(queries):
             sparql = to_sparql(query)
+            variables = [term[1:] for term in query if term.startswith("?")]
+            answer_path = corpus.expected_results(query_set, "mat", index + 1)
+            if not answer_path.exists():
+                message = f"Missing Mat answer set: {answer_path}"
+                raise FileNotFoundError(message)
+            answers = parse_mat_answers(answer_path)
+            summaries = [
+                expected_summary(answers, version)
+                for version in range(corpus.num_versions)
+            ]
             common = {
                 "pattern_type": query_set.name,
                 "pattern_index": index,
                 "sparql": sparql,
+                "variables": variables,
             }
             all_queries["vm"].extend(
                 {
@@ -90,21 +102,44 @@ def generate(corpus: Corpus) -> dict[str, list[dict]]:
                     "version_index": version,
                     "timestamp": timestamps[version],
                     "on_time": (timestamps[version], timestamps[version]),
+                    "expected": {
+                        "num_results": summaries[version]["count"],
+                        "digest": summaries[version]["digest"],
+                    },
                 }
                 for version in vm_versions
             )
-            all_queries["dm"].extend(
+            all_queries["sd"].extend(
                 {
                     **common,
-                    "type": "dm",
+                    "type": "sd",
                     "version_start": 0,
                     "version_end": version,
                     "timestamp_start": timestamps[0],
                     "timestamp_end": timestamps[version],
                     "on_time": (timestamps[0], timestamps[version]),
+                    "expected": expected_delta(answers, 0, version),
                 }
                 for version in diff_versions(corpus.num_versions, corpus.dm_step)
             )
-            all_queries["vq"].append({**common, "type": "vq", "on_time": None})
+            all_queries["cv"].append(
+                {
+                    **common,
+                    "type": "cv",
+                    "on_time": None,
+                    "timestamps": timestamps,
+                    "expected": {
+                        "num_results": sum(
+                            len(answers[version]) if version in answers else 0
+                            for version in range(corpus.num_versions)
+                        ),
+                        "num_versions": corpus.num_versions,
+                        "versions": {
+                            timestamps[version]: summaries[version]
+                            for version in range(corpus.num_versions)
+                        },
+                    },
+                }
+            )
 
     return all_queries

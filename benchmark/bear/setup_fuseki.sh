@@ -59,6 +59,7 @@ echo "=== Fuseki setup (${CORPUS}${SUFFIX}, port ${PORT}) ==="
 download_distribution "apache-jena-${JENA_VERSION}.tar.gz"
 download_distribution "apache-jena-fuseki-${JENA_VERSION}.tar.gz"
 docker pull "${JAVA_IMAGE}" > /dev/null
+JAVA_IMAGE_ID="$(docker image inspect "${JAVA_IMAGE}" --format '{{.Id}}')"
 
 docker rm -f "${CONTAINER_NAME}" "${CONTAINER_NAME}-indexer" 2>/dev/null || true
 rm -rf "${DATABASE_DIR}"
@@ -173,6 +174,8 @@ cat > "${DATA_DIR}/fuseki_ingestion_time_${CORPUS}${SUFFIX}.json" <<EOF
   "quads": ${QUADS},
   "load_threads": ${LOAD_THREADS},
   "jena_version": "${JENA_VERSION}",
+  "java_image": "${JAVA_IMAGE}",
+  "java_image_id": "${JAVA_IMAGE_ID}",
   "jena_heap": "${JENA_HEAP}",
   "fuseki_heap": "${FUSEKI_HEAP}",
   "store_bytes": ${STORE_BYTES}

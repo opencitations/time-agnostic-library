@@ -49,6 +49,13 @@ def _merge_event(time, snapshot, survivor, absorbed):
     }
 
 
+def _sorted_merge_events(events):
+    return sorted(
+        ({**event, "absorbed": sorted(event["absorbed"])} for event in events),
+        key=lambda event: (event["time"], event["snapshot"]),
+    )
+
+
 def _deletions(entity, label):
     entity_n3 = f"<{_uri(entity)}>"
     return {
@@ -228,6 +235,30 @@ def test_provenance_channels_are_independent_from_merge_support():
         }
     }
 
+
+def test_point_version_query_combines_entities_with_staggered_snapshots():
+    query = f"SELECT ?entity ?label WHERE {{ ?entity <{_BASE}label> ?label. }}"
+
+    results, provenance, other_provenance = VersionQuery(
+        query,
+        on_time=(_T2, _T2),
+        config_dict=CONFIG_PROV_IN_TRIPLESTORE,
+    ).run_agnostic_query()
+
+    assert list(results) == [_T2]
+    assert sorted(results[_T2], key=lambda binding: binding["entity"]["value"]) == [
+        {
+            "entity": {"type": "uri", "value": _uri("c")},
+            "label": {"type": "literal", "value": "C"},
+        },
+        {
+            "entity": {"type": "uri", "value": _uri("d")},
+            "label": {"type": "literal", "value": "D"},
+        },
+    ]
+    assert provenance is None
+    assert other_provenance is None
+
     empty_results, empty_provenance, empty_other_provenance = VersionQuery(
         "SELECT ?o WHERE { <https://example.org/missing> ?p ?o. }",
         include_prov_metadata=True,
@@ -238,100 +269,78 @@ def test_provenance_channels_are_independent_from_merge_support():
     assert empty_other_provenance == {}
 
 
-def test_delta_merge_events_and_deletions_follow_interval_boundaries():
-    query = f"SELECT ?p ?o WHERE {{ <{_uri('a')}> ?p ?o. }}"
-    before_results, _, _ = DeltaQuery(
+def test_delta_merge_aware_compares_solution_mappings():
+    query = f"SELECT ?label WHERE {{ <{_uri('a')}> <{_BASE}label> ?label. }}"
+    result, provenance, other_provenance = DeltaQuery(
         query,
-        on_time=(_T1, _T1),
+        on_time=(_T1, _T3),
         merge_aware=True,
         config_dict=CONFIG_PROV_IN_TRIPLESTORE,
     ).run_agnostic_query()
-    assert before_results == {
-        _uri(entity): {
-            "created": _T1,
-            "deleted": None,
-            "changes": [],
-            "additions": set(),
-            "deletions": set(),
-            "merges": [],
-        }
-        for entity in ("a", "b", "c", "d")
-    }
 
-    first_merge = _merge_event(_T2, "c", "c", ["a", "b"])
-    results, provenance, other_provenance = DeltaQuery(
-        query,
-        on_time=(_T2, _T2),
-        merge_aware=True,
-        include_prov_metadata=True,
-        config_dict=CONFIG_PROV_IN_TRIPLESTORE,
-    ).run_agnostic_query()
-    assert results == {
-        _uri("a"): {
-            "created": None,
-            "deleted": _T2,
-            "changes": [
-                {
-                    "time": _T2,
-                    "additions": set(),
-                    "deletions": _deletions("a", "A"),
-                }
-            ],
-            "additions": set(),
-            "deletions": _deletions("a", "A"),
-            "merges": [first_merge],
-        },
-        _uri("b"): {
-            "created": None,
-            "deleted": _T2,
-            "changes": [
-                {
-                    "time": _T2,
-                    "additions": set(),
-                    "deletions": _deletions("b", "B"),
-                }
-            ],
-            "additions": set(),
-            "deletions": _deletions("b", "B"),
-            "merges": [first_merge],
-        },
-        _uri("c"): {
-            "created": None,
-            "deleted": None,
-            "changes": [],
-            "additions": set(),
-            "deletions": set(),
-            "merges": [first_merge],
-        },
-    }
-    assert provenance is not None
-    assert other_provenance is not None
-    assert {entity: set(snapshots) for entity, snapshots in provenance.items()} == {
-        _uri("a"): {f"{_uri('a')}/prov/se/2"},
-        _uri("b"): {f"{_uri('b')}/prov/se/2"},
-        _uri("c"): {f"{_uri('c')}/prov/se/2"},
-    }
-    assert {
-        entity: set(snapshots) for entity, snapshots in other_provenance.items()
-    } == {
-        _uri("a"): {f"{_uri('a')}/prov/se/1"},
-        _uri("b"): {f"{_uri('b')}/prov/se/1"},
-        _uri("c"): {
-            f"{_uri('c')}/prov/se/1",
-            f"{_uri('c')}/prov/se/3",
-        },
-    }
+    def label(value):
+        return {"label": {"type": "literal", "value": value}}
 
-    second_results, _, _ = DeltaQuery(
+    def ordered(bindings):
+        return sorted(bindings, key=lambda binding: binding["label"]["value"])
+
+    normalized_result = {
+        **result,
+        "additions": ordered(result["additions"]),
+        "deletions": ordered(result["deletions"]),
+        "merges": _sorted_merge_events(result["merges"]),
+        "changes": [
+            {
+                **change,
+                "additions": ordered(change["additions"]),
+                "deletions": ordered(change["deletions"]),
+            }
+            for change in result["changes"]
+        ],
+    }
+    assert normalized_result == {
+        "additions": [],
+        "deletions": [label("A"), label("B"), label("C")],
+        "merges": [
+            _merge_event(_T2, "c", "c", ["a", "b"]),
+            _merge_event(_T3, "d", "d", ["c"]),
+        ],
+        "changes": [
+            {
+                "start": _T1,
+                "end": _T2,
+                "additions": [],
+                "deletions": [label("A"), label("B")],
+            },
+            {
+                "start": _T2,
+                "end": _T3,
+                "additions": [],
+                "deletions": [label("C")],
+            },
+        ],
+    }
+    assert provenance is None
+    assert other_provenance is None
+
+    point_result, _, _ = DeltaQuery(
         query,
         on_time=(_T3, _T3),
         merge_aware=True,
         config_dict=CONFIG_PROV_IN_TRIPLESTORE,
     ).run_agnostic_query()
-    assert second_results[_uri("c")]["deleted"] == _T3
-    assert second_results[_uri("d")]["deleted"] is None
-    assert second_results[_uri("c")]["merges"] == [_merge_event(_T3, "d", "d", ["c"])]
-    assert second_results[_uri("d")]["merges"] == [_merge_event(_T3, "d", "d", ["c"])]
+    assert {
+        **point_result,
+        "merges": _sorted_merge_events(point_result["merges"]),
+    } == {
+        "additions": [],
+        "deletions": [],
+        "changes": [],
+        "merges": [
+            _merge_event(_T2, "c", "c", ["a", "b"]),
+            _merge_event(_T3, "d", "d", ["c"]),
+        ],
+    }
 
 
 def test_disabled_merge_support_issues_no_merge_queries():
@@ -351,7 +360,19 @@ def test_disabled_merge_support_issues_no_merge_queries():
     }
     assert version_provenance is None
     assert version_other_provenance is None
-    assert delta_results[_uri("d")]["merges"] is None
+    assert delta_results == {
+        "additions": [],
+        "deletions": [],
+        "merges": None,
+        "changes": [
+            {
+                "start": _T1,
+                "end": _T3,
+                "additions": [],
+                "deletions": [],
+            }
+        ],
+    }
     assert delta_provenance is None
     assert delta_other_provenance is None
     merge_query.assert_not_called()
