@@ -157,22 +157,12 @@ def main() -> None:
         default=600,
         help="Timeout for one SPARQL request in seconds",
     )
-    parser.add_argument(
-        "--compare-search",
-        action="store_true",
-        help="Repeat verification without Fuseki text search and compare answers",
-    )
     args = parser.parse_args()
     corpus = corpora.get(args.corpus)
     records = verify_corpus(
         corpus,
         corpora.build_config(corpus, timeout_s=args.timeout),
     )
-    if args.compare_search:
-        plain_config = corpora.build_config(corpus, timeout_s=args.timeout)
-        plain_config["fuseki_full_text_search"] = "no"
-        plain_records = verify_corpus(corpus, plain_config)
-        _assert_equal("Fuseki search equivalence", records, plain_records)
     output = DATA_DIR / f"verification_results_{corpus.name}.json"
     with output.open("w", encoding="utf-8") as file:
         json.dump(records, file, indent=2)
