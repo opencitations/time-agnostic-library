@@ -10,6 +10,7 @@ from triplestore_config import CONFIG
 from time_agnostic_library.agnostic_query import (
     VersionQuery,
     _batch_query_dataset_triples,
+    _batch_query_provenance_snapshots,
     _escape_search_term,
     _match_single_pattern,
     _pattern_constants,
@@ -20,6 +21,54 @@ from time_agnostic_library.agnostic_query import (
 
 
 class TestAgnosticQueryEdgeCases:
+    @patch("time_agnostic_library.agnostic_query.Sparql")
+    def test_batch_provenance_filters_only_optional_updates(self, mock_sparql_class):
+        mock_sparql_class.return_value.run_select_query.return_value = {
+            "results": {
+                "bindings": [
+                    {
+                        "snapshot": {"value": "http://example.com/s1"},
+                        "entity": {"value": "http://example.com/e"},
+                        "time": {
+                            "value": "2026-01-01T00:00:00+00:00",
+                        },
+                    },
+                    {
+                        "snapshot": {"value": "http://example.com/s2"},
+                        "entity": {"value": "http://example.com/e"},
+                        "time": {
+                            "value": "2026-02-01T00:00:00+00:00",
+                        },
+                        "updateQuery": {"value": "INSERT DATA {}"},
+                    },
+                ]
+            }
+        }
+
+        result = _batch_query_provenance_snapshots(
+            {"http://example.com/e"}, CONFIG, "2026-01-15T00:00:00+00:00"
+        )
+
+        query = mock_sparql_class.call_args.args[0]
+        assert "SELECT ?entity ?time ?updateQuery" in query
+        assert "OPTIONAL" in query
+        assert (
+            'FILTER(?time > "2026-01-15T00:00:00+00:00"'
+            "^^<http://www.w3.org/2001/XMLSchema#dateTime>)" in query
+        )
+        assert result == {
+            "http://example.com/e": [
+                {
+                    "time": "2026-01-01T00:00:00+00:00",
+                    "updateQuery": None,
+                },
+                {
+                    "time": "2026-02-01T00:00:00+00:00",
+                    "updateQuery": "INSERT DATA {}",
+                },
+            ]
+        }
+
     @patch("time_agnostic_library.agnostic_query.Sparql")
     def test_batch_dataset_query_filters_the_isolated_pattern(self, mock_sparql_class):
         mock_sparql_class.return_value.run_select_query.return_value = {

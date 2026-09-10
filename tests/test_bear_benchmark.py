@@ -278,6 +278,65 @@ def test_journal_replaces_snapshot_entry_and_ignores_truncated_tail(tmp_path):
     assert results == {"results": {"vq": [replacement], "dm": [dm]}}
 
 
+def test_complete_campaign_replaces_incompatible_canonical(tmp_path):
+    canonical_file = tmp_path / "benchmark_results.json"
+    canonical_file.write_text(
+        json.dumps(
+            {
+                "hardware": {"cpu": "old"},
+                "protocol": {"git_revision": "old"},
+                "results": {"vm": [{"status": "old"}]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    results = {
+        "hardware": {"cpu": "current"},
+        "protocol": {"git_revision": "current"},
+        "results": {
+            "vm": [{"status": "ok"}],
+            "sd": [{"status": "ok"}],
+            "cv": [{"status": "ok"}],
+        },
+    }
+
+    run_benchmark.update_canonical(
+        results,
+        canonical_file,
+        run_benchmark.ALL_QUERY_TYPES,
+        merge_existing=False,
+    )
+
+    assert json.loads(canonical_file.read_text(encoding="utf-8")) == results
+
+
+def test_partial_campaign_rejects_incompatible_canonical(tmp_path):
+    canonical_file = tmp_path / "benchmark_results.json"
+    canonical_file.write_text(
+        json.dumps(
+            {
+                "hardware": {"cpu": "old"},
+                "protocol": {"git_revision": "old"},
+                "results": {"vm": [{"status": "ok"}]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    results = {
+        "hardware": {"cpu": "current"},
+        "protocol": {"git_revision": "current"},
+        "results": {"sd": [{"status": "ok"}]},
+    }
+
+    with pytest.raises(ValueError, match="Canonical results use a different setup"):
+        run_benchmark.update_canonical(
+            results,
+            canonical_file,
+            ["sd"],
+            merge_existing=True,
+        )
+
+
 def test_analysis_merges_matching_memory_and_excludes_invalid_cases():
     time_entry = {
         "type": "vq",

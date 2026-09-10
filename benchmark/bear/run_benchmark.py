@@ -500,12 +500,24 @@ def load_compatible_canonical(
 
 
 def update_canonical(
-    all_results: dict, canonical_file: Path, query_types: list[str]
+    all_results: dict,
+    canonical_file: Path,
+    query_types: list[str],
+    *,
+    merge_existing: bool,
 ) -> None:
-    canonical = load_compatible_canonical(
-        canonical_file,
-        all_results["hardware"],
-        all_results["protocol"],
+    canonical = (
+        load_compatible_canonical(
+            canonical_file,
+            all_results["hardware"],
+            all_results["protocol"],
+        )
+        if merge_existing
+        else {
+            "hardware": all_results["hardware"],
+            "protocol": all_results["protocol"],
+            "results": {},
+        }
     )
     for query_type in query_types:
         results = all_results["results"].get(query_type)
@@ -621,6 +633,7 @@ def main():
     protocol["store"] = fuseki_info(corpus)
 
     query_types = args.only or ALL_QUERY_TYPES
+    merge_existing = set(query_types) != set(ALL_QUERY_TYPES)
 
     all_queries = load_or_generate_queries(
         corpus,
@@ -630,7 +643,8 @@ def main():
     config = corpora.build_config(corpus, timeout_s=args.timeout)
 
     hardware = hardware_info()
-    load_compatible_canonical(canonical_file, hardware, protocol)
+    if merge_existing:
+        load_compatible_canonical(canonical_file, hardware, protocol)
     console.print(f"[bold]Hardware:[/bold] {hardware}")
     console.print(
         "[bold]Protocol:[/bold] "
@@ -698,7 +712,12 @@ def main():
             f"[green]Saved {query_type.upper()} results to {run_file}[/green]"
         )
 
-    update_canonical(all_results, canonical_file, query_types)
+    update_canonical(
+        all_results,
+        canonical_file,
+        query_types,
+        merge_existing=merge_existing,
+    )
     console.print(f"\nAll results saved to {canonical_file}")
     print_summary_table(all_results, args.measurement)
 

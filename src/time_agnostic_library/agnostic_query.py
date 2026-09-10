@@ -14,7 +14,8 @@ from itertools import pairwise, product
 from pathlib import Path
 from typing import NoReturn, cast
 
-from rdflib import URIRef
+from rdflib import Literal, URIRef
+from rdflib.namespace import XSD
 from rdflib.paths import InvPath
 from rdflib.paths import Path as PropertyPath
 from rdflib.plugins.sparql.parserutils import CompValue
@@ -253,13 +254,20 @@ def _wrap_in_graph(body: str, *, is_quadstore: bool) -> str:
 
 
 def _batch_query_provenance_snapshots(
-    entity_uris: set[str], config: dict
+    entity_uris: set[str], config: dict, start_time: str | None = None
 ) -> dict[str, list[dict]]:
     values = _sparql_values(entity_uris)
+    update_filter = ""
+    if start_time is not None:
+        start_literal = Literal(start_time, datatype=XSD.dateTime).n3()
+        update_filter = f"FILTER(?time > {start_literal})"
     body = f"""
         ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
             <{ProvEntity.iri_generated_at_time}> ?time.
-        OPTIONAL {{ ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery. }}
+        OPTIONAL {{
+            ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+            {update_filter}
+        }}
         VALUES ?entity {{ {values} }}
     """
     wrapped = _wrap_in_graph(body, is_quadstore=config["provenance"]["is_quadstore"])
@@ -1317,7 +1325,10 @@ class VersionQuery(AgnosticQuery):
             return
         self.reconstructed_entities.update(all_entity_strs)
         fut_prov = _IO_EXECUTOR.submit(
-            _batch_query_provenance_snapshots, all_entity_strs, self.config
+            _batch_query_provenance_snapshots,
+            all_entity_strs,
+            self.config,
+            on_time[0],
         )
         fut_data = _IO_EXECUTOR.submit(
             _batch_query_dataset_triples,
