@@ -8,11 +8,21 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="${SCRIPT_DIR}/data"
-CORPUS="${1:-bear-b-daily}"
-INFIX="${2:-}"
+REBUILD=false
+POSITIONAL_ARGS=()
+for arg in "$@"; do
+    if [ "${arg}" = "--rebuild" ]; then
+        REBUILD=true
+    else
+        POSITIONAL_ARGS+=("${arg}")
+    fi
+done
+CORPUS="${POSITIONAL_ARGS[0]:-bear-b-daily}"
+INFIX="${POSITIONAL_ARGS[1]:-}"
 SUFFIX="${INFIX:+.${INFIX}}"
 CONTAINER_NAME="fuseki-${CORPUS}${SUFFIX}"
 DATABASE_DIR="${DATA_DIR}/${CORPUS}/fuseki-data${SUFFIX}"
+INGESTION_FILE="${DATA_DIR}/fuseki_ingestion_time_${CORPUS}${SUFFIX}.json"
 JENA_VERSION="6.2.0"
 JAVA_IMAGE="eclipse-temurin:21.0.8_9-jre-jammy"
 TOOLS_DIR="${DATA_DIR}/jena-${JENA_VERSION}"
@@ -26,16 +36,6 @@ PORT="$(cd "${SCRIPT_DIR}" && uv run python -c "import corpora; print(corpora.ge
     echo "Error: unknown corpus '${CORPUS}'"
     exit 1
 }
-
-DATASET_NQ="${DATA_DIR}/${CORPUS}/dataset${SUFFIX}.nq.gz"
-PROVENANCE_NQ="${DATA_DIR}/${CORPUS}/provenance${SUFFIX}.nq.gz"
-
-for required in "${DATASET_NQ}" "${PROVENANCE_NQ}"; do
-    if [ ! -f "${required}" ]; then
-        echo "Error: ${required} not found. Run convert_to_ocdm.py --corpus ${CORPUS} first."
-        exit 1
-    fi
-done
 
 download_distribution() {
     local archive_name="$1"
@@ -61,11 +61,36 @@ download_distribution "apache-jena-fuseki-${JENA_VERSION}.tar.gz"
 docker pull "${JAVA_IMAGE}" > /dev/null
 JAVA_IMAGE_ID="$(docker image inspect "${JAVA_IMAGE}" --format '{{.Id}}')"
 
-docker rm -f "${CONTAINER_NAME}" "${CONTAINER_NAME}-indexer" 2>/dev/null || true
-rm -rf "${DATABASE_DIR}"
-mkdir -p "${DATABASE_DIR}/tmp" "${DATABASE_DIR}/run"
+DATABASE_READY=false
+if [ -f "${DATABASE_DIR}/config.ttl" ] \
+    && [ -n "$(find "${DATABASE_DIR}/TDB2" -type f -print -quit 2>/dev/null)" ] \
+    && [ -n "$(find "${DATABASE_DIR}/Lucene" -type f -print -quit 2>/dev/null)" ] \
+    && jq -e '.quads > 0 and .store_bytes > 0' "${INGESTION_FILE}" > /dev/null 2>&1; then
+    DATABASE_READY=true
+fi
 
-cat > "${DATABASE_DIR}/config.ttl" <<'EOF'
+if [ -d "${DATABASE_DIR}" ] && [ "${DATABASE_READY}" = false ] && [ "${REBUILD}" = false ]; then
+    echo "Error: ${DATABASE_DIR} does not contain a complete TDB2 database and Lucene index."
+    echo "Run $0 ${CORPUS}${INFIX:+ ${INFIX}} --rebuild to replace it."
+    exit 1
+fi
+
+if [ "${DATABASE_READY}" = false ] || [ "${REBUILD}" = true ]; then
+    DATASET_NQ="${DATA_DIR}/${CORPUS}/dataset${SUFFIX}.nq.gz"
+    PROVENANCE_NQ="${DATA_DIR}/${CORPUS}/provenance${SUFFIX}.nq.gz"
+
+    for required in "${DATASET_NQ}" "${PROVENANCE_NQ}"; do
+        if [ ! -f "${required}" ]; then
+            echo "Error: ${required} not found. Run convert_to_ocdm.py --corpus ${CORPUS} first."
+            exit 1
+        fi
+    done
+
+    docker rm -f "${CONTAINER_NAME}" "${CONTAINER_NAME}-indexer" 2>/dev/null || true
+    rm -rf "${DATABASE_DIR}"
+    mkdir -p "${DATABASE_DIR}/tmp" "${DATABASE_DIR}/run"
+
+    cat > "${DATABASE_DIR}/config.ttl" <<'EOF'
 @prefix : <#> .
 @prefix fuseki: <http://jena.apache.org/fuseki#> .
 @prefix text: <http://jena.apache.org/text#> .
@@ -103,50 +128,74 @@ cat > "${DATABASE_DIR}/config.ttl" <<'EOF'
     ) .
 EOF
 
-echo "Bulk loading N-Quads into TDB2..."
-LOAD_START=$(date +%s)
-JVM_ARGS="-Xmx${JENA_HEAP}" "${JENA_HOME}/bin/tdb2.xloader" \
-    --loc="${DATABASE_DIR}/TDB2" \
-    --tmpdir="${DATABASE_DIR}/tmp" \
-    --threads="${LOAD_THREADS}" \
-    "${DATASET_NQ}" "${PROVENANCE_NQ}" \
-    | tee "${DATABASE_DIR}/xloader.log"
-LOAD_ELAPSED=$(($(date +%s) - LOAD_START))
-QUADS="$(awk '/Quads loaded/ { value = $NF } END { print value }' "${DATABASE_DIR}/xloader.log")"
-if [ -z "${QUADS}" ]; then
-    echo "Error: tdb2.xloader did not report the number of loaded quads."
-    exit 1
+    echo "Bulk loading N-Quads into TDB2..."
+    LOAD_START=$(date +%s)
+    JVM_ARGS="-Xmx${JENA_HEAP}" "${JENA_HOME}/bin/tdb2.xloader" \
+        --loc="${DATABASE_DIR}/TDB2" \
+        --tmpdir="${DATABASE_DIR}/tmp" \
+        --threads="${LOAD_THREADS}" \
+        "${DATASET_NQ}" "${PROVENANCE_NQ}" \
+        | tee "${DATABASE_DIR}/xloader.log"
+    LOAD_ELAPSED=$(($(date +%s) - LOAD_START))
+    QUADS="$(awk '/Quads loaded/ { value = $NF; gsub(/,/, "", value) } END { print value }' "${DATABASE_DIR}/xloader.log")"
+    if [ -z "${QUADS}" ]; then
+        echo "Error: tdb2.xloader did not report the number of loaded quads."
+        exit 1
+    fi
+    rm -rf "${DATABASE_DIR}/tmp"
+    echo "  Load time: ${LOAD_ELAPSED}s"
+    echo "  Quads loaded: ${QUADS}"
+
+    echo "Building the Lucene index over hasUpdateQuery..."
+    FT_START=$(date +%s)
+    docker run --rm --name "${CONTAINER_NAME}-indexer" \
+        --user "$(id -u):$(id -g)" \
+        --entrypoint java \
+        -v "${DATABASE_DIR}:/database" \
+        -v "${FUSEKI_HOME}:/fuseki:ro" \
+        "${JAVA_IMAGE}" \
+        "-Xmx${FUSEKI_HEAP}" \
+        -cp /fuseki/fuseki-server.jar \
+        jena.textindexer --desc=/database/config.ttl \
+        | tee "${DATABASE_DIR}/textindexer.log"
+    FT_ELAPSED=$(($(date +%s) - FT_START))
+    echo "  Full-text index time: ${FT_ELAPSED}s"
+
+    STORE_BYTES="$(du -sb "${DATABASE_DIR}" | cut -f1)"
+
+    cat > "${INGESTION_FILE}" <<EOF
+{
+  "fuseki_load_s": ${LOAD_ELAPSED},
+  "fuseki_full_text_index_s": ${FT_ELAPSED},
+  "quads": ${QUADS},
+  "load_threads": ${LOAD_THREADS},
+  "jena_version": "${JENA_VERSION}",
+  "java_image": "${JAVA_IMAGE}",
+  "java_image_id": "${JAVA_IMAGE_ID}",
+  "jena_heap": "${JENA_HEAP}",
+  "fuseki_heap": "${FUSEKI_HEAP}",
+  "store_bytes": ${STORE_BYTES}
+}
+EOF
+else
+    echo "Reusing existing TDB2 database and Lucene index in ${DATABASE_DIR}"
 fi
-rm -rf "${DATABASE_DIR}/tmp"
-echo "  Load time: ${LOAD_ELAPSED}s"
-echo "  Quads loaded: ${QUADS}"
 
-echo "Building the Lucene index over hasUpdateQuery..."
-FT_START=$(date +%s)
-docker run --rm --name "${CONTAINER_NAME}-indexer" \
-    --user "$(id -u):$(id -g)" \
-    --entrypoint java \
-    -v "${DATABASE_DIR}:/database" \
-    -v "${FUSEKI_HOME}:/fuseki:ro" \
-    "${JAVA_IMAGE}" \
-    "-Xmx${FUSEKI_HEAP}" \
-    -cp /fuseki/fuseki-server.jar \
-    jena.textindexer --desc=/database/config.ttl \
-    | tee "${DATABASE_DIR}/textindexer.log"
-FT_ELAPSED=$(($(date +%s) - FT_START))
-echo "  Full-text index time: ${FT_ELAPSED}s"
-
-docker run -d --name "${CONTAINER_NAME}" \
-    --user "$(id -u):$(id -g)" \
-    --entrypoint java \
-    -p "${PORT}:3030" \
-    -e FUSEKI_BASE=/database/run \
-    -v "${DATABASE_DIR}:/database" \
-    -v "${FUSEKI_HOME}:/fuseki:ro" \
-    "${JAVA_IMAGE}" \
-    "-Xmx${FUSEKI_HEAP}" \
-    -jar /fuseki/fuseki-server.jar \
-    --config=/database/config.ttl --port=3030 > /dev/null
+if docker container inspect "${CONTAINER_NAME}" > /dev/null 2>&1; then
+    docker start "${CONTAINER_NAME}" > /dev/null
+else
+    docker run -d --name "${CONTAINER_NAME}" \
+        --user "$(id -u):$(id -g)" \
+        --entrypoint java \
+        -p "${PORT}:3030" \
+        -e FUSEKI_BASE=/database/run \
+        -v "${DATABASE_DIR}:/database" \
+        -v "${FUSEKI_HOME}:/fuseki:ro" \
+        "${JAVA_IMAGE}" \
+        "-Xmx${FUSEKI_HEAP}" \
+        -jar /fuseki/fuseki-server.jar \
+        --config=/database/config.ttl --port=3030 > /dev/null
+fi
 
 echo "Waiting for Fuseki to accept connections..."
 until curl -fs "http://127.0.0.1:${PORT}/\$/ping" > /dev/null; do
@@ -165,24 +214,8 @@ if ! curl -fsG "http://127.0.0.1:${PORT}/sparql" \
     exit 1
 fi
 
-STORE_BYTES="$(du -sb "${DATABASE_DIR}" | cut -f1)"
-
-cat > "${DATA_DIR}/fuseki_ingestion_time_${CORPUS}${SUFFIX}.json" <<EOF
-{
-  "fuseki_load_s": ${LOAD_ELAPSED},
-  "fuseki_full_text_index_s": ${FT_ELAPSED},
-  "quads": ${QUADS},
-  "load_threads": ${LOAD_THREADS},
-  "jena_version": "${JENA_VERSION}",
-  "java_image": "${JAVA_IMAGE}",
-  "java_image_id": "${JAVA_IMAGE_ID}",
-  "jena_heap": "${JENA_HEAP}",
-  "fuseki_heap": "${FUSEKI_HEAP}",
-  "store_bytes": ${STORE_BYTES}
-}
-EOF
-
 echo ""
 echo "Fuseki is running at http://localhost:${PORT}/sparql"
-echo "To stop: docker rm -f ${CONTAINER_NAME}"
+echo "To stop: docker stop ${CONTAINER_NAME}"
+echo "To rebuild: $0 ${CORPUS}${INFIX:+ ${INFIX}} --rebuild"
 echo "Next: uv run --group benchmark python benchmark/bear/verify_results.py --corpus ${CORPUS}"

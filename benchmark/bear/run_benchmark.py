@@ -476,25 +476,37 @@ def load_or_generate_queries(
     return queries
 
 
+def load_compatible_canonical(
+    canonical_file: Path, hardware: dict, protocol: dict
+) -> dict:
+    canonical: dict = {
+        "hardware": hardware,
+        "protocol": protocol,
+        "results": {},
+    }
+    if not canonical_file.exists():
+        return canonical
+
+    with canonical_file.open(encoding="utf-8") as f:
+        canonical = json.load(f)
+    if (
+        "protocol" not in canonical
+        or canonical["protocol"] != protocol
+        or canonical["hardware"] != hardware
+    ):
+        msg = f"Canonical results use a different setup: {canonical_file}"
+        raise ValueError(msg)
+    return canonical
+
+
 def update_canonical(
     all_results: dict, canonical_file: Path, query_types: list[str]
 ) -> None:
-    canonical: dict = {
-        "hardware": all_results["hardware"],
-        "protocol": all_results["protocol"],
-        "results": {},
-    }
-    if canonical_file.exists():
-        with canonical_file.open(encoding="utf-8") as f:
-            canonical = json.load(f)
-        if (
-            "protocol" not in canonical
-            or canonical["protocol"] != all_results["protocol"]
-            or canonical["hardware"] != all_results["hardware"]
-        ):
-            msg = f"Canonical results use a different setup: {canonical_file}"
-            raise ValueError(msg)
-        canonical["hardware"] = all_results["hardware"]
+    canonical = load_compatible_canonical(
+        canonical_file,
+        all_results["hardware"],
+        all_results["protocol"],
+    )
     for query_type in query_types:
         results = all_results["results"].get(query_type)
         if results:
@@ -618,6 +630,7 @@ def main():
     config = corpora.build_config(corpus, timeout_s=args.timeout)
 
     hardware = hardware_info()
+    load_compatible_canonical(canonical_file, hardware, protocol)
     console.print(f"[bold]Hardware:[/bold] {hardware}")
     console.print(
         "[bold]Protocol:[/bold] "
