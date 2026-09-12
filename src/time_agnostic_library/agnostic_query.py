@@ -30,6 +30,7 @@ from time_agnostic_library.agnostic_entity import (
     _select_interval_snapshots,
 )
 from time_agnostic_library.prov_entity import ProvEntity
+from time_agnostic_library.qlever import QLEVER_HAS_WORD
 from time_agnostic_library.sparql import Sparql, _binding_to_n3, _n3_to_binding
 from time_agnostic_library.support import convert_to_datetime
 
@@ -265,7 +266,8 @@ def _batch_query_provenance_snapshots(
         ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
             <{ProvEntity.iri_generated_at_time}> ?time.
         OPTIONAL {{
-            ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+            ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery;
+                <{ProvEntity.iri_generated_at_time}> ?time.
             {update_filter}
         }}
         VALUES ?entity {{ {values} }}
@@ -512,6 +514,7 @@ class AgnosticQuery:
     blazegraph_full_text_search: bool
     fuseki_full_text_search: bool
     virtuoso_full_text_search: bool
+    qlever_full_text_search: bool
     graphdb_connector_name: str
 
     def __init__(
@@ -677,10 +680,19 @@ class AgnosticQuery:
         return provenance, other_provenance
 
     def __init_text_index(self, config: dict):
+        config = {
+            "blazegraph_full_text_search": "no",
+            "fuseki_full_text_search": "no",
+            "virtuoso_full_text_search": "no",
+            "qlever_full_text_search": "no",
+            "graphdb_connector_name": "",
+            **config,
+        }
         for full_text_search in (
             "blazegraph_full_text_search",
             "fuseki_full_text_search",
             "virtuoso_full_text_search",
+            "qlever_full_text_search",
         ):
             ts_full_text_search: str = config[full_text_search]
             if ts_full_text_search.lower() in {"true", "1", 1, "t", "y", "yes", "ok"}:
@@ -705,6 +717,7 @@ class AgnosticQuery:
                         self.blazegraph_full_text_search,
                         self.fuseki_full_text_search,
                         self.virtuoso_full_text_search,
+                        self.qlever_full_text_search,
                         self.graphdb_connector_name,
                     ]
                     if index
@@ -920,6 +933,13 @@ class AgnosticQuery:
             """
         return self.get_full_text_search(_pattern_search_terms(triple))
 
+    def _use_qlever_index(self) -> bool:
+        return (
+            self.qlever_full_text_search
+            and bool(self.config["provenance"]["triplestore_urls"])
+            and not self.config["provenance"]["file_paths"]
+        )
+
     def get_full_text_search(self, terms: set) -> str:
         if not terms:
             query_to_identify = f"""
@@ -927,6 +947,17 @@ class AgnosticQuery:
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
             }}
+            """
+        elif self._use_qlever_index():
+            associations = "\n".join(
+                f"?snapshot <{QLEVER_HAS_WORD}> {Literal(term).n3()}."
+                for term in sorted(terms)
+            )
+            query_to_identify = f"""
+                SELECT ?updateQuery WHERE {{
+                    ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                    {associations}
+                }}
             """
         elif self.blazegraph_full_text_search:
             query_obj = " ".join(_escape_search_term(term, '"') for term in terms)
@@ -1011,6 +1042,7 @@ class AgnosticQuery:
                 self.blazegraph_full_text_search,
                 self.fuseki_full_text_search,
                 self.virtuoso_full_text_search,
+                (self._use_qlever_index() and _pattern_search_terms(triple)),
                 self.graphdb_connector_name,
             ]
         ):

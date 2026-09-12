@@ -31,7 +31,7 @@ uv build
 
 ## Running the tests
 
-Tests require Docker to be running. The test suite runs against multiple SPARQL triplestores using a matrix strategy. Set the `TRIPLESTORE` environment variable to select the backend:
+Tests require Docker to be running. The test suite runs against multiple SPARQL triplestores using a matrix strategy. Set the `TRIPLESTORE` environment variable to select the backend. The test session starts the selected triplestore in Docker, creates its dataset or repository, loads the test data, and removes the container at the end.
 
 | Value | Triplestore | Port | Endpoint |
 |---|---|---|---|
@@ -41,15 +41,13 @@ Tests require Docker to be running. The test suite runs against multiple SPARQL 
 | `graphdb` | GraphDB Free Edition | 41750 | `http://127.0.0.1:41750/repositories/tal` |
 | `qlever` | QLever | 41760 | `http://127.0.0.1:41760` |
 
-### Start a triplestore
+### Run the tests
 
 ```bash
-TRIPLESTORE=virtuoso ./tests/setup-triplestore.sh
+TRIPLESTORE=virtuoso uv run pytest
 ```
 
-The setup script starts the Docker container, creates the dataset or repository, and loads test data.
-
-### Run the tests
+### Run the tests with coverage
 
 ```bash
 TRIPLESTORE=virtuoso uv run coverage run --rcfile=tests/coverage/.coveragerc
@@ -60,12 +58,6 @@ uv run coverage report
 
 ```bash
 uv run coverage html -d htmlcov
-```
-
-### Stop the triplestore
-
-```bash
-TRIPLESTORE=virtuoso ./tests/teardown-triplestore.sh
 ```
 
 ### CI matrix

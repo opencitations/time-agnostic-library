@@ -16,5 +16,6 @@
     "cache_triplestore_url": {
         "endpoint": "",
         "update_endpoint": ""
-    }
+    },
+    "qlever_full_text_search": "no"
 }

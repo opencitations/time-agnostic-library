@@ -2,7 +2,11 @@
 #
 # SPDX-License-Identifier: ISC
 
-import sys
-from pathlib import Path
+import pytest
+from triplestore_service import start_triplestore, stop_triplestore
 
-sys.path.insert(0, str(Path(__file__).parent))
+
+@pytest.fixture(scope="session", autouse=True)
+def triplestore(request: pytest.FixtureRequest) -> None:
+    request.addfinalizer(stop_triplestore)  # noqa: PT021
+    start_triplestore()

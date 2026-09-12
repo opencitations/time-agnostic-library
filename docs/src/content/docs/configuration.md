@@ -22,6 +22,7 @@ The configuration tells the library where to find data and provenance. `Agnostic
 - **blazegraph_full_text_search** (optional): set to an affirmative value if Blazegraph was used and a textual index was built. Allowed values: `"true"`, `"1"`, `1`, `"t"`, `"y"`, `"yes"`, `"ok"`, or `"false"`, `"0"`, `0`, `"n"`, `"f"`, `"no"`
 - **fuseki_full_text_search** (optional): same as above, for Apache Jena Fuseki
 - **virtuoso_full_text_search** (optional): same as above, for OpenLink Virtuoso
+- **qlever_full_text_search** (optional): disabled by default; set to `"yes"` after preparing the URI index described below.
 - **graphdb_connector_name** (optional): name of the Lucene connector if GraphDB was used. See [GraphDB full-text search documentation](https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html)
 
 ## Example configuration file
@@ -41,6 +42,7 @@ The configuration tells the library where to find data and provenance. `Agnostic
     "blazegraph_full_text_search": "no",
     "fuseki_full_text_search": "no",
     "virtuoso_full_text_search": "no",
+    "qlever_full_text_search": "no",
     "graphdb_connector_name": "CONNECTOR_NAME"
 }
 ```
@@ -119,7 +121,43 @@ SPARQL endpoint example: `http://127.0.0.1:8890/sparql`
 
 ### QLever
 
-QLever works with the library out of the box. Full-text search optimization is not currently supported for QLever: the token-based text index (`ql:contains-word`) produces false negatives when matching URI substrings, resulting in incorrect query results. This is a work in progress.
+A QLever index built directly from the dataset and provenance lacks the URI associations required by this search. The setup script extracts URIs from the provenance update queries and links them to their snapshots before indexing.
+
+Install the QLever extra and make sure Docker is running before starting the setup:
+
+```sh
+uv add "time-agnostic-library[qlever]"
+```
+
+From this repository, `uv sync --dev` also installs the required tools. Run the setup with your current dataset and OCDM provenance files:
+
+```sh
+uv run python -m time_agnostic_library.qlever_setup \
+    --dataset dataset.nq \
+    --provenance provenance.nq \
+    --output-dir qlever_index \
+    --port 7000
+```
+
+Both input options accept several N-Quads files, so you can pass separate shards without joining them yourself. The provenance must contain the snapshots and SPARQL updates that describe the dataset history.
+
+The setup builds the QLever index through Docker, starts the server, and checks that its endpoint answers a query. Docker downloads the QLever image if it is missing. Once the server responds, the setup writes `qlever_index/config.json` with both endpoints and URI search enabled. Pass that file to `VersionQuery` or `DeltaQuery`:
+
+```python
+from time_agnostic_library.agnostic_query import VersionQuery
+
+query = VersionQuery(
+    "SELECT ?s WHERE { ?s <https://example.org/p> <https://example.org/o> }",
+    config_path="qlever_index/config.json",
+)
+results = query.run_agnostic_query()
+```
+
+The server remains running after the command finishes. For the port in this example, stop its container with:
+
+```sh
+docker stop tal-qlever-7000
+```
 
 SPARQL endpoint example: `http://127.0.0.1:7001`
 

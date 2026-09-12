@@ -124,14 +124,22 @@ class TestSparql:
                             "type": "uri",
                             "value": "http://www.w3.org/ns/prov#generatedAtTime",
                         },
-                        "o": {"type": "literal", "value": "2021-05-07T09:59:15+00:00"},
+                        "o": {
+                            "type": "literal",
+                            "value": "2021-05-07T09:59:15+00:00",
+                            "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+                        },
                     },
                     {
                         "p": {
                             "type": "uri",
                             "value": "http://www.w3.org/ns/prov#invalidatedAtTime",
                         },
-                        "o": {"type": "literal", "value": "2021-06-01T18:46:41+00:00"},
+                        "o": {
+                            "type": "literal",
+                            "value": "2021-06-01T18:46:41+00:00",
+                            "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+                        },
                     },
                     {
                         "p": {

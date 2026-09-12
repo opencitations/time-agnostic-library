@@ -34,6 +34,7 @@ class TestSupport:
             "blazegraph_full_text_search": "no",
             "fuseki_full_text_search": "no",
             "virtuoso_full_text_search": "no",
+            "qlever_full_text_search": "false",
             "graphdb_connector_name": "",
         }
         with Path(self.config_path).open("w", encoding="utf-8") as f:
@@ -63,6 +64,7 @@ class TestSupport:
             "blazegraph_full_text_search": "false",
             "fuseki_full_text_search": "false",
             "virtuoso_full_text_search": "false",
+            "qlever_full_text_search": "false",
             "graphdb_connector_name": "",
         }
         config = generate_config_file(self.config_path)
@@ -88,6 +90,7 @@ class TestSupport:
             "blazegraph_full_text_search": "true",
             "fuseki_full_text_search": "false",
             "virtuoso_full_text_search": "true",
+            "qlever_full_text_search": "false",
             "graphdb_connector_name": "test_connector",
         }
         config = generate_config_file(
@@ -121,6 +124,7 @@ class TestSupport:
             "blazegraph_full_text_search": "false",
             "fuseki_full_text_search": "true",
             "virtuoso_full_text_search": "false",
+            "qlever_full_text_search": "false",
             "graphdb_connector_name": "",
         }
         config = generate_config_file(

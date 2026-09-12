@@ -31,6 +31,7 @@ CONFIG = {
     "fuseki_full_text_search": "no",
     "virtuoso_full_text_search": "no",
     "graphdb_connector_name": "",
+    "qlever_full_text_search": "no",
 }
 
 CONFIG_PROV_IN_TRIPLESTORE = {
@@ -48,9 +49,11 @@ CONFIG_PROV_IN_TRIPLESTORE = {
     "fuseki_full_text_search": "no",
     "virtuoso_full_text_search": "no",
     "graphdb_connector_name": "",
+    "qlever_full_text_search": "no",
 }
 
 _FTS_KEY = {
+    "qlever": "qlever_full_text_search",
     "virtuoso": "virtuoso_full_text_search",
     "blazegraph": "blazegraph_full_text_search",
     "fuseki": "fuseki_full_text_search",
@@ -58,6 +61,7 @@ _FTS_KEY = {
 }
 
 _FTS_VALUE = {
+    "qlever": "yes",
     "virtuoso": "yes",
     "blazegraph": "yes",
     "fuseki": "yes",

@@ -48,6 +48,7 @@ def generate_config_file(
     fuseki_full_text_search: bool = False,
     virtuoso_full_text_search: bool = False,
     graphdb_connector_name: str = "",
+    qlever_full_text_search: bool = False,
 ) -> dict:
     if provenance_dirs is None:
         provenance_dirs = []
@@ -72,6 +73,7 @@ def generate_config_file(
         "fuseki_full_text_search": str(fuseki_full_text_search).lower(),
         "virtuoso_full_text_search": str(virtuoso_full_text_search).lower(),
         "graphdb_connector_name": graphdb_connector_name,
+        "qlever_full_text_search": str(qlever_full_text_search).lower(),
     }
     with Path(config_path).open("w", encoding="utf-8") as f:
         json.dump(config, f)
