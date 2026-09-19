@@ -94,16 +94,6 @@ def main():
         "--corpus", choices=corpora.CORPUS_NAMES, default="bear-b-daily"
     )
     parser.add_argument("--strategy", choices=["ic", "cb"], default="ic")
-    parser.add_argument(
-        "--versions",
-        type=int,
-        default=None,
-        help=(
-            "Convert only the first N versions, for sizing a corpus before "
-            "committing to it. The outputs carry the count in their name, so a "
-            "partial conversion cannot be mistaken for a complete one."
-        ),
-    )
     args = parser.parse_args()
 
     corpus = corpora.get(args.corpus)
@@ -115,11 +105,10 @@ def main():
         term_normalizer=normalize_term,
     )
 
-    infix = f".{args.versions}v" if args.versions else ""
     # Compressed: the provenance of a large corpus is hundreds of gigabytes of
-    # repetitive N-Quads, and both bulk loaders read gzip directly.
-    dataset_output = data_dir / f"dataset{infix}.nq.gz"
-    provenance_output = data_dir / f"provenance{infix}.nq.gz"
+    # repetitive N-Quads, and the loader reads gzip directly.
+    dataset_output = data_dir / "dataset.nq.gz"
+    provenance_output = data_dir / "provenance.nq.gz"
 
     start = time.perf_counter()
 
@@ -128,7 +117,7 @@ def main():
         if not ic_dir.exists():
             msg = f"IC directory not found: {ic_dir}. Run download.py first."
             raise FileNotFoundError(msg)
-        ic_files = find_ic_files(ic_dir)[: args.versions]
+        ic_files = find_ic_files(ic_dir)
         num_versions = len(ic_files)
         console.print(f"Found {num_versions} IC versions")
         converter.convert_from_ic(
@@ -173,7 +162,7 @@ def main():
         f"({provenance_output.stat().st_size / 1024:.1f} KB)"
     )
 
-    timing_file = corpora.DATA_DIR / f"ocdm_conversion_time_{corpus.name}{infix}.json"
+    timing_file = corpora.DATA_DIR / f"ocdm_conversion_time_{corpus.name}.json"
     timing_file.parent.mkdir(parents=True, exist_ok=True)
     timing_data = {
         "ocdm_conversion_s": round(elapsed_s, 2),

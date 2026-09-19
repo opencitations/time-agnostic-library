@@ -110,15 +110,15 @@ def docker_image_id(image_name: str) -> str | None:
     return result.stdout.strip()
 
 
-def fuseki_info(corpus: Corpus) -> dict[str, str]:
-    path = corpus.dir.parent / f"fuseki_ingestion_time_{corpus.name}.json"
+def qlever_info(corpus: Corpus) -> dict[str, str]:
+    path = corpus.dir.parent / f"qlever_ingestion_time_{corpus.name}.json"
     with path.open(encoding="utf-8") as file:
         metadata = json.load(file)
     return {
-        "name": "Apache Jena Fuseki",
-        "version": metadata["jena_version"],
-        "java_image": metadata["java_image"],
-        "java_image_id": metadata["java_image_id"],
+        "name": "QLever",
+        "image": metadata["qlever_image"],
+        "image_id": metadata["qlever_image_id"],
+        "cli_version": metadata["qlever_cli_version"],
     }
 
 

@@ -48,13 +48,32 @@ def binding_signature(binding: dict, variables: list[str]) -> str:
         else:
             terms.append(value["value"])
     # An empty literal leaves a trailing separator that BEAR drops in some of
-    # its answer files and keeps in others.
-    return " ".join(terms).rstrip()
+    # its answer files and keeps in others. The answer files are ASCII, with a
+    # question mark in place of every other character.
+    return " ".join(terms).rstrip().encode("ascii", "replace").decode("ascii")
 
 
 def summarize(bindings: list[dict], variables: list[str]) -> dict[str, int | str]:
     solutions = [binding_signature(binding, variables) for binding in bindings]
     return {"count": len(solutions), "digest": digest_solutions(solutions)}
+
+
+def summarize_delta(
+    additions: list[dict], deletions: list[dict], variables: list[str]
+) -> dict[str, int | str]:
+    # BEAR keeps only the lexical form of a literal, so a change of datatype or
+    # language leaves the solution in place, while the library reports the old
+    # mapping as deleted and the new one as added.
+    added = Counter(binding_signature(binding, variables) for binding in additions)
+    deleted = Counter(binding_signature(binding, variables) for binding in deletions)
+    net_additions = list((added - deleted).elements())
+    net_deletions = list((deleted - added).elements())
+    return {
+        "additions": len(net_additions),
+        "deletions": len(net_deletions),
+        "additions_digest": digest_solutions(net_additions),
+        "deletions_digest": digest_solutions(net_deletions),
+    }
 
 
 def expected_summary(

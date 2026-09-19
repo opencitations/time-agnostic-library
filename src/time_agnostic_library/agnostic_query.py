@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import NoReturn, cast
 
 from rdflib import Literal, URIRef
-from rdflib.namespace import XSD
 from rdflib.paths import InvPath
 from rdflib.paths import Path as PropertyPath
 from rdflib.plugins.sparql.parserutils import CompValue
@@ -257,34 +256,45 @@ def _wrap_in_graph(body: str, *, is_quadstore: bool) -> str:
 def _batch_query_provenance_snapshots(
     entity_uris: set[str], config: dict, start_time: str | None = None
 ) -> dict[str, list[dict]]:
-    values = _sparql_values(entity_uris)
-    update_filter = ""
-    if start_time is not None:
-        start_literal = Literal(start_time, datatype=XSD.dateTime).n3()
-        update_filter = f"FILTER(?time > {start_literal})"
-    body = f"""
+    # Two joins instead of one OPTIONAL, no GRAPH around them, and the time
+    # bound applied here: QLever evaluates an OPTIONAL or a FILTER over the
+    # whole provenance before it joins the VALUES, and two patterns under the
+    # same GRAPH variable join on the graph too, which sorts every snapshot.
+    # The union default graph answers the query, as for the other provenance
+    # queries.
+    snapshots = f"""
         ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
             <{ProvEntity.iri_generated_at_time}> ?time.
-        OPTIONAL {{
-            ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery;
-                <{ProvEntity.iri_generated_at_time}> ?time.
-            {update_filter}
-        }}
-        VALUES ?entity {{ {values} }}
+        VALUES ?entity {{ {_sparql_values(entity_uris)} }}
     """
-    wrapped = _wrap_in_graph(body, is_quadstore=config["provenance"]["is_quadstore"])
-    query = f"SELECT ?entity ?time ?updateQuery WHERE {{ {wrapped} }}"
-    results = Sparql(query, config).run_select_query()
+    updates = f"""
+        ?snapshot <{ProvEntity.iri_specialization_of}> ?entity;
+            <{ProvEntity.iri_has_update_query}> ?updateQuery.
+        VALUES ?entity {{ {_sparql_values(entity_uris)} }}
+    """
+    snapshot_rows = Sparql(
+        f"SELECT ?snapshot ?entity ?time WHERE {{ {snapshots} }}", config
+    ).run_select_query()
+    update_rows = Sparql(
+        f"SELECT ?snapshot ?updateQuery WHERE {{ {updates} }}", config
+    ).run_select_query()
+    update_queries = {
+        binding["snapshot"]["value"]: binding["updateQuery"]["value"]
+        for binding in update_rows["results"]["bindings"]
+    }
+    start = _parse_datetime(start_time) if start_time is not None else None
     output: dict[str, list[dict]] = {uri: [] for uri in entity_uris}
-    for binding in results["results"]["bindings"]:
-        entity_uri = binding["entity"]["value"]
+    for binding in snapshot_rows["results"]["bindings"]:
+        snapshot = binding["snapshot"]["value"]
+        time = binding["time"]["value"]
+        after_start = start is None or _parse_datetime(time) > start
         entry = {
-            "time": binding["time"]["value"],
-            "updateQuery": binding["updateQuery"]["value"]
-            if "updateQuery" in binding
+            "time": time,
+            "updateQuery": update_queries[snapshot]
+            if snapshot in update_queries and after_start
             else None,
         }
-        output[entity_uri].append(entry)
+        output[binding["entity"]["value"]].append(entry)
     return output
 
 

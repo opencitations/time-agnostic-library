@@ -29,16 +29,16 @@ from time_agnostic_library.agnostic_query import DeltaQuery, VersionQuery
 
 sys.path.insert(0, str(Path(__file__).parent))
 import corpora
-from answer_sets import binding_signature, digest_solutions
+from answer_sets import binding_signature, digest_solutions, summarize_delta
 from parse_queries import generate
 from protocol import (
     DEFAULT_REPLICATIONS,
     DEFAULT_TIMEOUT_S,
     build_manifest,
-    fuseki_info,
     hardware_info,
     manifest_hash,
     protocol_metadata,
+    qlever_info,
 )
 
 sys.setrecursionlimit(5000)
@@ -143,14 +143,7 @@ def run_sd_query(
     deletions = measured.pop("deletions")
     measured.pop("changes")
     measured.pop("merges")
-    measured.update(
-        {
-            "additions": len(additions),
-            "deletions": len(deletions),
-            "additions_digest": _digest(additions, variables),
-            "deletions_digest": _digest(deletions, variables),
-        }
-    )
+    measured.update(summarize_delta(additions, deletions, variables))
     return measured
 
 
@@ -630,7 +623,7 @@ def main():
         sparql_request_timeout_s=args.timeout,
     )
     protocol["system"] = "tal"
-    protocol["store"] = fuseki_info(corpus)
+    protocol["store"] = qlever_info(corpus)
 
     query_types = args.only or ALL_QUERY_TYPES
     merge_existing = set(query_types) != set(ALL_QUERY_TYPES)

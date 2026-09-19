@@ -42,6 +42,7 @@ lint = [
 ]
 benchmark = [
     "matplotlib>=3.10.8",
+    "pyoxigraph>=0.5.11",
     "qlever>=0.5.45",
     "requests>=2.32.5",
     "rich>=14.3.2",

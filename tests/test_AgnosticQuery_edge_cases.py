@@ -22,40 +22,56 @@ from time_agnostic_library.agnostic_query import (
 
 class TestAgnosticQueryEdgeCases:
     @patch("time_agnostic_library.agnostic_query.Sparql")
-    def test_batch_provenance_filters_only_optional_updates(self, mock_sparql_class):
-        mock_sparql_class.return_value.run_select_query.return_value = {
-            "results": {
-                "bindings": [
-                    {
-                        "snapshot": {"value": "http://example.com/s1"},
-                        "entity": {"value": "http://example.com/e"},
-                        "time": {
-                            "value": "2026-01-01T00:00:00+00:00",
+    def test_batch_provenance_joins_snapshots_with_filtered_updates(
+        self, mock_sparql_class
+    ):
+        mock_sparql_class.return_value.run_select_query.side_effect = [
+            {
+                "results": {
+                    "bindings": [
+                        {
+                            "snapshot": {"value": "http://example.com/s1"},
+                            "entity": {"value": "http://example.com/e"},
+                            "time": {"value": "2026-01-01T00:00:00+00:00"},
                         },
-                    },
-                    {
-                        "snapshot": {"value": "http://example.com/s2"},
-                        "entity": {"value": "http://example.com/e"},
-                        "time": {
-                            "value": "2026-02-01T00:00:00+00:00",
+                        {
+                            "snapshot": {"value": "http://example.com/s2"},
+                            "entity": {"value": "http://example.com/e"},
+                            "time": {"value": "2026-02-01T00:00:00+00:00"},
                         },
-                        "updateQuery": {"value": "INSERT DATA {}"},
-                    },
-                ]
-            }
-        }
+                    ]
+                }
+            },
+            {
+                "results": {
+                    "bindings": [
+                        {
+                            "snapshot": {"value": "http://example.com/s1"},
+                            "updateQuery": {"value": "INSERT DATA { <before> }"},
+                        },
+                        {
+                            "snapshot": {"value": "http://example.com/s2"},
+                            "updateQuery": {"value": "INSERT DATA {}"},
+                        },
+                    ]
+                }
+            },
+        ]
 
         result = _batch_query_provenance_snapshots(
             {"http://example.com/e"}, CONFIG, "2026-01-15T00:00:00+00:00"
         )
 
-        query = mock_sparql_class.call_args.args[0]
-        assert "SELECT ?entity ?time ?updateQuery" in query
-        assert "OPTIONAL" in query
-        assert (
-            'FILTER(?time > "2026-01-15T00:00:00+00:00"'
-            "^^<http://www.w3.org/2001/XMLSchema#dateTime>)" in query
+        snapshots_query, updates_query = (
+            call.args[0] for call in mock_sparql_class.call_args_list
         )
+        assert "SELECT ?snapshot ?entity ?time WHERE" in snapshots_query
+        assert "OPTIONAL" not in snapshots_query
+        assert "GRAPH" not in snapshots_query
+        assert "FILTER" not in snapshots_query
+        assert "SELECT ?snapshot ?updateQuery WHERE" in updates_query
+        assert "FILTER" not in updates_query
+        assert "OPTIONAL" not in updates_query
         assert result == {
             "http://example.com/e": [
                 {

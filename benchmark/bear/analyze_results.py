@@ -249,7 +249,7 @@ def load_disk_usage(corpus_name: str) -> dict[str, int | None]:
     usage: dict[str, int | None] = {
         "ocdm_dataset_bytes": None,
         "ocdm_provenance_bytes": None,
-        "fuseki_store_bytes": None,
+        "qlever_store_bytes": None,
         "ostrich_store_bytes": None,
         "r43ples_store_bytes": None,
     }
@@ -259,11 +259,11 @@ def load_disk_usage(corpus_name: str) -> dict[str, int | None]:
             data = json.load(f)
         usage["ocdm_dataset_bytes"] = data.get("dataset_bytes")
         usage["ocdm_provenance_bytes"] = data.get("provenance_bytes")
-    fuseki_file = DATA_DIR / f"fuseki_ingestion_time_{corpus_name}.json"
-    if fuseki_file.exists():
-        with fuseki_file.open(encoding="utf-8") as f:
+    qlever_file = DATA_DIR / f"qlever_ingestion_time_{corpus_name}.json"
+    if qlever_file.exists():
+        with qlever_file.open(encoding="utf-8") as f:
             data = json.load(f)
-        usage["fuseki_store_bytes"] = data.get("store_bytes")
+        usage["qlever_store_bytes"] = data.get("store_bytes")
     ostrich_file = DATA_DIR / f"ostrich_store_size_{corpus_name}.json"
     if ostrich_file.exists():
         with ostrich_file.open(encoding="utf-8") as f:
@@ -298,19 +298,19 @@ def print_disk_usage_table(usage: dict[str, int | None]) -> None:
     ocdm_ds = usage["ocdm_dataset_bytes"]
     ocdm_prov = usage["ocdm_provenance_bytes"]
     ocdm_total = (ocdm_ds or 0) + (ocdm_prov or 0) if ocdm_ds is not None else None
-    fuseki = usage["fuseki_store_bytes"]
+    qlever = usage["qlever_store_bytes"]
     tal_total = (
-        (ocdm_total or 0) + (fuseki or 0)
-        if ocdm_total is not None or fuseki is not None
+        (ocdm_total or 0) + (qlever or 0)
+        if ocdm_total is not None or qlever is not None
         else None
     )
 
     table.add_row("OCDM dataset", _format_bytes(ocdm_ds), str(ocdm_ds or "---"))
     table.add_row("OCDM provenance", _format_bytes(ocdm_prov), str(ocdm_prov or "---"))
     table.add_row("OCDM total", _format_bytes(ocdm_total), str(ocdm_total or "---"))
-    table.add_row("Fuseki store", _format_bytes(fuseki), str(fuseki or "---"))
+    table.add_row("QLever index", _format_bytes(qlever), str(qlever or "---"))
     table.add_row(
-        "TAL total (OCDM + Fuseki)",
+        "TAL total (OCDM + QLever)",
         _format_bytes(tal_total),
         str(tal_total or "---"),
         style="bold green",
@@ -606,7 +606,7 @@ def _save_plot(fig: Figure, plot_dir: Path, name: str) -> None:
 
 
 def generate_comparison_table(
-    tal_results: dict, ocdm_timing_file: Path, fuseki_timing_file: Path
+    tal_results: dict, ocdm_timing_file: Path, qlever_timing_file: Path
 ) -> list[dict]:
     rows = []
     for system_name, published in PUBLISHED_RESULTS.items():
@@ -651,7 +651,7 @@ def generate_comparison_table(
 
         rows.append(row)
 
-    tal_ingestion = load_tal_ingestion_time(ocdm_timing_file, fuseki_timing_file)
+    tal_ingestion = load_tal_ingestion_time(ocdm_timing_file, qlever_timing_file)
     tal_row = {
         "system": "TAL (ours)",
         "source": "this work",
@@ -661,7 +661,7 @@ def generate_comparison_table(
         "ingestion_s": tal_ingestion or 0,
         "break_even_vm": None,
         "break_even_vq": None,
-        "notes": "OCDM conversion + Fuseki load + free-text index",
+        "notes": "OCDM conversion + URI associations + QLever index",
     }
     rows.append(tal_row)
     return rows
@@ -946,11 +946,11 @@ def load_measured_ostrich_results(ostrich_results_file: Path) -> None:
 
 
 def load_tal_ingestion_time(
-    ocdm_timing_file: Path, fuseki_timing_file: Path
+    ocdm_timing_file: Path, qlever_timing_file: Path
 ) -> float | None:
     """Time to go from the BEAR files to a queryable store.
 
-    The free-text index is part of it.
+    The URI associations and the QLever index are part of it.
     """
     total = 0.0
     found = False
@@ -958,10 +958,10 @@ def load_tal_ingestion_time(
         with ocdm_timing_file.open(encoding="utf-8") as f:
             total += json.load(f)["ocdm_conversion_s"]
             found = True
-    if fuseki_timing_file.exists():
-        with fuseki_timing_file.open(encoding="utf-8") as f:
+    if qlever_timing_file.exists():
+        with qlever_timing_file.open(encoding="utf-8") as f:
             data = json.load(f)
-        total += data["fuseki_load_s"] + data["fuseki_full_text_index_s"]
+        total += data["qlever_association_s"] + data["qlever_index_s"]
         found = True
     return total if found else None
 
@@ -977,7 +977,7 @@ def main():
     memory_results_file = DATA_DIR / f"benchmark_memory_results_{args.corpus}.json"
     ostrich_results_file = DATA_DIR / f"ostrich_benchmark_results_{args.corpus}.json"
     ocdm_timing_file = DATA_DIR / f"ocdm_conversion_time_{args.corpus}.json"
-    fuseki_timing_file = DATA_DIR / f"fuseki_ingestion_time_{args.corpus}.json"
+    qlever_timing_file = DATA_DIR / f"qlever_ingestion_time_{args.corpus}.json"
     output_dir = DATA_DIR / "analysis" / args.corpus
     r43ples_results_file = DATA_DIR / f"r43ples_benchmark_results_{args.corpus}.json"
 
@@ -1008,7 +1008,7 @@ def main():
 
     console.rule("[bold]Generating output files")
     comparison = generate_comparison_table(
-        tal_aggregates, ocdm_timing_file, fuseki_timing_file
+        tal_aggregates, ocdm_timing_file, qlever_timing_file
     )
     write_csv(comparison, output_dir / "comparison.csv")
     generate_latex_comparison(comparison, output_dir / "comparison.tex")

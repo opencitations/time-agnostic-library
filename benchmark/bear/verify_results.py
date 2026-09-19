@@ -14,12 +14,11 @@ from time_agnostic_library.agnostic_query import DeltaQuery, VersionQuery
 sys.path.insert(0, str(Path(__file__).parent))
 import corpora
 from answer_sets import (
-    binding_signature,
-    digest_solutions,
     expected_delta,
     expected_summary,
     parse_mat_answers,
     summarize,
+    summarize_delta,
 )
 from parse_queries import load_query_set, to_sparql
 
@@ -76,18 +75,7 @@ def _verify_sd(
         on_time=(timestamps[0], timestamps[-1]),
         config_dict=config,
     ).run_agnostic_query()
-    additions = [
-        binding_signature(binding, variables) for binding in result["additions"]
-    ]
-    deletions = [
-        binding_signature(binding, variables) for binding in result["deletions"]
-    ]
-    actual = {
-        "additions": len(additions),
-        "deletions": len(deletions),
-        "additions_digest": digest_solutions(additions),
-        "deletions_digest": digest_solutions(deletions),
-    }
+    actual = summarize_delta(result["additions"], result["deletions"], variables)
     expected = expected_delta(answers, 0, corpus.num_versions - 1)
     _assert_equal("SD", actual, expected)
     return {"query_type": "sd", **actual}

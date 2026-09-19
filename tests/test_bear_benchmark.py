@@ -4,13 +4,17 @@
 # ruff: noqa: E402
 # pyright: reportMissingImports=false
 
+import gzip
 import json
+import subprocess
 import sys
 from datetime import timedelta
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pyoxigraph import Literal, NamedNode, Quad, RdfFormat, parse, serialize
 
 BEAR_DIR = Path(__file__).parents[1] / "benchmark" / "bear"
 sys.path.insert(0, str(BEAR_DIR))
@@ -19,11 +23,15 @@ import analyze_results
 import answer_sets
 import corpora
 import ingest_r43ples
+import protocol
 import render_tal_campaign
 import run_benchmark
 import run_ostrich_benchmark
 import run_r43ples_benchmark
+import setup_qlever
 
+from time_agnostic_library.prov_entity import ProvEntity
+from time_agnostic_library.qlever import QLEVER_HAS_WORD
 from time_agnostic_library.sparql import Sparql
 
 
@@ -153,6 +161,37 @@ def test_runner_digest_matches_bear_solution_format():
         answer_sets.digest_solutions(["<https://example.org/resource> A label"])
     )
     assert run_benchmark._digest([{}], []) == answer_sets.digest_solutions(["true"])
+
+
+def test_delta_summary_ignores_datatype_and_language_changes():
+    subject = {"type": "uri", "value": "https://example.org/film"}
+    plain = {"type": "literal", "value": "Spectre"}
+    tagged = {"type": "literal", "value": "Spectre", "xml:lang": "en"}
+    other = {"type": "literal", "value": "Skyfall"}
+
+    assert answer_sets.summarize_delta(
+        [{"s": subject, "o": tagged}, {"s": subject, "o": other}],
+        [{"s": subject, "o": plain}],
+        ["s", "o"],
+    ) == {
+        "additions": 1,
+        "deletions": 0,
+        "additions_digest": answer_sets.digest_solutions(
+            ["<https://example.org/film> Skyfall"]
+        ),
+        "deletions_digest": answer_sets.digest_solutions([]),
+    }
+
+
+def test_binding_signature_matches_the_ascii_answer_files():
+    binding = {
+        "s": {"type": "uri", "value": "https://example.org/2015%E2%80%9316_La_Liga"},
+        "o": {"type": "literal", "value": "2015\u201316 La Liga (Sporting Gij\u00f3n)"},
+    }
+
+    assert answer_sets.binding_signature(binding, ["s", "o"]) == (
+        "<https://example.org/2015%E2%80%9316_La_Liga> 2015?16 La Liga (Sporting Gij?n)"
+    )
 
 
 def test_runner_validates_result_after_timing(monkeypatch):
@@ -709,3 +748,125 @@ def test_sparql_client_uses_benchmark_request_policy():
         "results": {"bindings": [{"s": {"type": "uri", "value": "urn:s"}}]},
     }
     get.assert_called_once_with("http://example.org/sparql", 0, 0.5, 12)
+
+
+def test_associations_link_each_snapshot_to_the_uris_of_its_update_query(tmp_path):
+    update_query = NamedNode(ProvEntity.iri_has_update_query)
+    prov = NamedNode("urn:prov")
+    provenance = tmp_path / "provenance.nq.gz"
+    quads = serialize(
+        [
+            Quad(
+                NamedNode("urn:se/1"),
+                update_query,
+                Literal(
+                    'INSERT DATA { GRAPH <urn:g> { <urn:s> <urn:p> "literal" .'
+                    " <urn:s> <urn:q> <urn:o> . } }"
+                ),
+                prov,
+            ),
+            Quad(
+                NamedNode("urn:se/1"),
+                NamedNode(ProvEntity.iri_specialization_of),
+                NamedNode("urn:s"),
+                prov,
+            ),
+            Quad(
+                NamedNode("urn:se/2"),
+                update_query,
+                Literal("DELETE DATA { GRAPH <urn:g> { <urn:s> <urn:q> <urn:o> . } }"),
+                prov,
+            ),
+        ],
+        format=RdfFormat.N_QUADS,
+    )
+    malformed = (
+        '<urn:se/3#a#b> <https://w3id.org/oc/ontology/hasUpdateQuery> "INSERT DATA {'
+        ' GRAPH <urn:g> { <urn:s#a#b> <urn:q> \\"' + "x" * 20_000_000 + '\\" . } }"'
+        " <urn:prov> .\n"
+    )
+    provenance.write_bytes(gzip.compress(cast("bytes", quads) + malformed.encode()))
+    output = tmp_path / "associations.nq.gz"
+
+    setup_qlever.write_associations(provenance, output, batch_bytes=1)
+
+    with gzip.open(output, "rb") as file:
+        associations = set(parse(file.read(), format=RdfFormat.N_QUADS, lenient=True))
+    has_word = NamedNode(str(QLEVER_HAS_WORD))
+    graph = NamedNode("urn:tal:qlever:prov/")
+    assert {(quad.predicate, quad.graph_name) for quad in associations} == {
+        (has_word, graph)
+    }
+    assert {
+        (cast("NamedNode", quad.subject).value, cast("Literal", quad.object).value)
+        for quad in associations
+    } == {
+        ("urn:se/1", "urn:s"),
+        ("urn:se/1", "urn:p"),
+        ("urn:se/1", "urn:q"),
+        ("urn:se/1", "urn:o"),
+        ("urn:se/2", "urn:s"),
+        ("urn:se/2", "urn:q"),
+        ("urn:se/2", "urn:o"),
+        ("urn:se/3#a#b", "urn:s#a#b"),
+        ("urn:se/3#a#b", "urn:q"),
+    }
+
+
+def test_loader_strips_xsd_datatypes_but_keeps_provenance_timestamps(tmp_path):
+    setup_qlever.write_strip_scripts(tmp_path)
+    dataset = (
+        '<urn:s> <urn:p> "647500"^^<http://www.w3.org/2001/XMLSchema#double>'
+        " <urn:g> .\n"
+        '<urn:s> <urn:q> "a\\"b"^^<http://example.org/custom> <urn:g> .\n'
+    )
+    provenance = (
+        '<urn:se/1> <https://w3id.org/oc/ontology/hasUpdateQuery> "INSERT DATA {'
+        ' GRAPH <urn:g> { <urn:s> <urn:p> \\"2015-08-01T00:00:00+00:00\\"^^'
+        '<http://www.w3.org/2001/XMLSchema#dateTime> . } }" <urn:prov> .\n'
+        '<urn:se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2015-08-01T00:00:00'
+        '+00:00"^^<http://www.w3.org/2001/XMLSchema#dateTime> <urn:prov> .\n'
+    )
+
+    def strip(script: str, text: str) -> str:
+        return subprocess.run(  # noqa: S603
+            ["/usr/bin/sed", "-E", "-f", tmp_path / script],
+            input=text,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+
+    assert strip("strip_dataset.sed", dataset) == (
+        '<urn:s> <urn:p> "647500" <urn:g> .\n'
+        '<urn:s> <urn:q> "a\\"b"^^<http://example.org/custom> <urn:g> .\n'
+    )
+    assert strip("strip_provenance.sed", provenance) == (
+        '<urn:se/1> <https://w3id.org/oc/ontology/hasUpdateQuery> "INSERT DATA {'
+        ' GRAPH <urn:g> { <urn:s> <urn:p> \\"2015-08-01T00:00:00+00:00\\" . } }"'
+        " <urn:prov> .\n"
+        '<urn:se/1> <http://www.w3.org/ns/prov#generatedAtTime> "2015-08-01T00:00:00'
+        '+00:00"^^<http://www.w3.org/2001/XMLSchema#dateTime> <urn:prov> .\n'
+    )
+
+
+def test_store_record_identifies_the_qlever_build(tmp_path, monkeypatch):
+    monkeypatch.setattr(corpora, "DATA_DIR", tmp_path)
+    metadata = {
+        "qlever_association_s": 1.5,
+        "qlever_index_s": 4.0,
+        "store_bytes": 13021608,
+        "qlever_cli_version": "0.5.50",
+        "qlever_image": "docker.io/adfreiburg/qlever",
+        "qlever_image_id": "sha256:bb4828c70863",
+    }
+    (tmp_path / "qlever_ingestion_time_bear-b-daily.json").write_text(
+        json.dumps(metadata), encoding="utf-8"
+    )
+
+    assert protocol.qlever_info(corpora.get("bear-b-daily")) == {
+        "name": "QLever",
+        "image": "docker.io/adfreiburg/qlever",
+        "image_id": "sha256:bb4828c70863",
+        "cli_version": "0.5.50",
+    }

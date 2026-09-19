@@ -54,7 +54,7 @@ class Corpus:
         return DATA_DIR / self.name
 
     def endpoint(self) -> str:
-        return f"http://localhost:{self.port}/sparql"
+        return f"http://localhost:{self.port}"
 
     def expected_results(self, query_set: QuerySet, atom: str, index: int) -> Path:
         stem = query_set.results_stem(atom)
@@ -180,7 +180,7 @@ def get(name: str) -> Corpus:
     return CORPORA[name]
 
 
-# Every corpus is served by Fuseki with its free-text index enabled.
+# Every corpus is served by QLever with the URI index of the update queries.
 def build_config(corpus: Corpus, timeout_s: int | None = None) -> dict:
     source = {
         "triplestore_urls": [corpus.endpoint()],
@@ -191,8 +191,9 @@ def build_config(corpus: Corpus, timeout_s: int | None = None) -> dict:
         "dataset": source,
         "provenance": source,
         "blazegraph_full_text_search": "no",
-        "fuseki_full_text_search": "yes",
+        "fuseki_full_text_search": "no",
         "virtuoso_full_text_search": "no",
+        "qlever_full_text_search": "yes",
         "graphdb_connector_name": "",
     }
     if timeout_s is not None:
