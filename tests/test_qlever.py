@@ -41,7 +41,11 @@ def test_generate_index_preserves_rdf_uri_terms():
     ) == {
         (URIRef(BASE + snapshot), QLEVER_HAS_WORD, Literal(term))
         for snapshot in ("snapshot1", "snapshot2")
-        for term in (BASE + "S", PREDICATE, OBJECT)
+        for term in (
+            "subject|" + BASE + "S",
+            "predicate|" + PREDICATE,
+            "object|" + OBJECT,
+        )
     }
 
 
@@ -72,18 +76,21 @@ def test_qlever_rejects_other_adapters(adapter):
 
 
 @pytest.mark.parametrize(
-    ("terms", "names"),
+    ("triple", "names"),
     [
-        ({PREDICATE, OBJECT}, ["match", "split", "wrong-position"]),
-        ({BASE + "match", PREDICATE, OBJECT}, ["match"]),
+        (("?s", f"<{PREDICATE}>", f"<{OBJECT}>"), ["match", "split"]),
+        (("?s", "?p", f"<{OBJECT}>"), ["match", "lower", "split"]),
+        ((f"<{BASE}match>", f"<{PREDICATE}>", f"<{OBJECT}>"), ["match"]),
     ],
 )
-def test_remote_index_selects_whole_uri_candidates(terms, names):
+def test_remote_index_selects_positioned_uri_candidates(triple, names):
     config = {**CONFIG_PROV_IN_TRIPLESTORE, "qlever_full_text_search": "yes"}
     query = VersionQuery(
         f"SELECT ?s WHERE {{ ?s <{PREDICATE}> <{OBJECT}> }}", config_dict=config
     )
-    candidates = Sparql(query.get_full_text_search(terms), config).run_select_query()
+    candidates = Sparql(
+        query._get_query_to_update_queries(triple), config
+    ).run_select_query()
     provenance = fixture_provenance()
     expected = [
         str(update)

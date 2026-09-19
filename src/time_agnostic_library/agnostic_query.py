@@ -29,7 +29,7 @@ from time_agnostic_library.agnostic_entity import (
     _select_interval_snapshots,
 )
 from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.qlever import QLEVER_HAS_WORD
+from time_agnostic_library.qlever import QLEVER_HAS_WORD, qlever_search_tokens
 from time_agnostic_library.sparql import Sparql, _binding_to_n3, _n3_to_binding
 from time_agnostic_library.support import convert_to_datetime
 
@@ -929,6 +929,17 @@ class AgnosticQuery:
         return True
 
     def _get_query_to_update_queries(self, triple: tuple) -> str:
+        if self._use_qlever_index():
+            associations = "\n".join(
+                f"?snapshot <{QLEVER_HAS_WORD}> {Literal(token).n3()}."
+                for token in sorted(qlever_search_tokens(triple))
+            )
+            return f"""
+                SELECT ?updateQuery WHERE {{
+                    ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
+                    {associations}
+                }}
+            """
         if self.fuseki_full_text_search:
             phrases = _fuseki_search_phrases(triple)
             query_obj = '\\" AND \\"'.join(
@@ -957,17 +968,6 @@ class AgnosticQuery:
             WHERE {{
                 ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
             }}
-            """
-        elif self._use_qlever_index():
-            associations = "\n".join(
-                f"?snapshot <{QLEVER_HAS_WORD}> {Literal(term).n3()}."
-                for term in sorted(terms)
-            )
-            query_to_identify = f"""
-                SELECT ?updateQuery WHERE {{
-                    ?snapshot <{ProvEntity.iri_has_update_query}> ?updateQuery.
-                    {associations}
-                }}
             """
         elif self.blazegraph_full_text_search:
             query_obj = " ".join(_escape_search_term(term, '"') for term in terms)

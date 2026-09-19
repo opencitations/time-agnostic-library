@@ -801,15 +801,15 @@ def test_associations_link_each_snapshot_to_the_uris_of_its_update_query(tmp_pat
         (cast("NamedNode", quad.subject).value, cast("Literal", quad.object).value)
         for quad in associations
     } == {
-        ("urn:se/1", "urn:s"),
-        ("urn:se/1", "urn:p"),
-        ("urn:se/1", "urn:q"),
-        ("urn:se/1", "urn:o"),
-        ("urn:se/2", "urn:s"),
-        ("urn:se/2", "urn:q"),
-        ("urn:se/2", "urn:o"),
-        ("urn:se/3#a#b", "urn:s#a#b"),
-        ("urn:se/3#a#b", "urn:q"),
+        ("urn:se/1", "subject|urn:s"),
+        ("urn:se/1", "predicate|urn:p"),
+        ("urn:se/1", "predicate|urn:q"),
+        ("urn:se/1", "object|urn:o"),
+        ("urn:se/2", "subject|urn:s"),
+        ("urn:se/2", "predicate|urn:q"),
+        ("urn:se/2", "object|urn:o"),
+        ("urn:se/3#a#b", "subject|urn:s#a#b"),
+        ("urn:se/3#a#b", "predicate|urn:q"),
     }
 
 
