@@ -1,3 +1,10 @@
+## [8.0.1](https://github.com/opencitations/time-agnostic-library/compare/8.0.0...8.0.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **ci:** keep project tables contiguous [release] ([86ef01b](https://github.com/opencitations/time-agnostic-library/commit/86ef01b0cb80f3a6644f628f5ddfae9c9474f3ef))
+
 # [8.0.0](https://github.com/opencitations/time-agnostic-library/compare/7.2.0...8.0.0) (2026-09-22)
 
 
