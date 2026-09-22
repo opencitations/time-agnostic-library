@@ -1,3 +1,47 @@
+# [8.0.0](https://github.com/opencitations/time-agnostic-library/compare/7.2.0...8.0.0) (2026-09-22)
+
+
+* feat!: compare delta query solution mappings across versions ([a14f83d](https://github.com/opencitations/time-agnostic-library/commit/a14f83dc4cec25e3f8637816256304c9e146d8d3))
+
+
+### Bug Fixes
+
+* **benchmark:** handle BEAR-A ingestion anomalies ([d1e5cb3](https://github.com/opencitations/time-agnostic-library/commit/d1e5cb3cdeac00bbda12fbbcfeddff49f1f0d016))
+* bound temporal reconstruction ([996d83c](https://github.com/opencitations/time-agnostic-library/commit/996d83c2cfc6e0932e85c3d72af56d1359be479a))
+* **delta:** use provenance invalidation timestamp ([e9cd4f7](https://github.com/opencitations/time-agnostic-library/commit/e9cd4f7877656913fb6063a3644de2464058bca1))
+* drop include_all_timestamps from VersionQuery ([8021543](https://github.com/opencitations/time-agnostic-library/commit/802154317a0d58534cb65bc254271f53e6bcc33d))
+* ignore operation keywords inside SPARQL literals and comments ([9cb4699](https://github.com/opencitations/time-agnostic-library/commit/9cb4699579334279b7f7c52f0f4915b36823e908))
+* match IRIs as whole tokens in Fuseki when parsing and searching update queries ([59212aa](https://github.com/opencitations/time-agnostic-library/commit/59212aaf70b7a9b30760efa17d9f23356ceffca2))
+* **query:** avoid repeated graph scans ([f581f5b](https://github.com/opencitations/time-agnostic-library/commit/f581f5bdc55234c395bde3cff69260bc718101aa))
+* **query:** honor interval boundaries in temporal results ([bb72e32](https://github.com/opencitations/time-agnostic-library/commit/bb72e325777bf68a9b12ca59eb2635eb24195e19))
+* **query:** match archived quads by pattern position ([ea2b5ce](https://github.com/opencitations/time-agnostic-library/commit/ea2b5cec1b858ae7a3bfbfd3a524517617601b70))
+* **query:** read inverse property paths in direct orientation ([1b0ea26](https://github.com/opencitations/time-agnostic-library/commit/1b0ea2632d461cc2acf2d9b1e4e5c00933164027))
+* **query:** stop dropping entities on large full-text searches ([1884bc7](https://github.com/opencitations/time-agnostic-library/commit/1884bc77851a97eca1c799ed98e3cc3e46e82f0c))
+
+
+### Features
+
+* **delta:** expose per-snapshot changes ([66957f2](https://github.com/opencitations/time-agnostic-library/commit/66957f23cfd6ce56ce9093b4ada9e4a75aa73b36))
+* **qlever:** filter update candidates by iri position ([b971a1d](https://github.com/opencitations/time-agnostic-library/commit/b971a1d623d4f23da813b4a114dc1752deca4ab3))
+* **query:** discover entities from literal patterns ([5dcae1d](https://github.com/opencitations/time-agnostic-library/commit/5dcae1d6120db572284b264c2aff93d231736165))
+* **query:** support merge-aware entity histories ([6a96568](https://github.com/opencitations/time-agnostic-library/commit/6a965689f6f2e17a71e92eec9af3cd26dcf37aca))
+* reject the SPARQL constructs the algebra walk cannot resolve ([78f60d2](https://github.com/opencitations/time-agnostic-library/commit/78f60d29ca794511913dcbf84d06c6a746cc625e))
+* search provenance through a custom QLever URI index ([582f345](https://github.com/opencitations/time-agnostic-library/commit/582f3451cd87a729d8a89c40bcef19c451dff3f6))
+* support Python 3.14 ([de65c49](https://github.com/opencitations/time-agnostic-library/commit/de65c49d3372bd590cba87f248bc5616a9f6f279))
+
+
+### Performance Improvements
+
+* add version materialization early exit ([a5732a2](https://github.com/opencitations/time-agnostic-library/commit/a5732a2798ca8247dfe830f0fca41cf0bec9583a))
+* **query:** filter quads before isolated version reconstruction ([f3c430c](https://github.com/opencitations/time-agnostic-library/commit/f3c430ca47bb8b77ead7cdc54286a0e02a04b584))
+* **query:** move BEAR from Fuseki to QLever ([fcc0ba9](https://github.com/opencitations/time-agnostic-library/commit/fcc0ba9554d950f94f569f278a85c08b3ea65db0))
+* **query:** stream version states during pattern matching ([3d1ae80](https://github.com/opencitations/time-agnostic-library/commit/3d1ae8076b0803027b3f4427f6ffc9f8dd457f09))
+
+
+### BREAKING CHANGES
+
+* DeltaQuery removes changed_properties and returns additions, deletions, changes, and merges as solution mappings instead of per-entity quad records.
+
 # [7.2.0](https://github.com/opencitations/time-agnostic-library/compare/7.1.0...7.2.0) (2026-07-25)
 
 
