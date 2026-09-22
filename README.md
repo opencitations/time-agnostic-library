@@ -89,14 +89,14 @@ If you use the Time Agnostic Library, please cite both the preprint and the soft
 ```
 
 <!-- software-citation-action:start -->
-To cite the latest version of this software (7.2.0), use this BibTeX entry:
+To cite the latest version of this software (8.0.1), use this BibTeX entry:
 
 ```bibtex
-@software{Time-Agnostic-Library-7.2.0,
+@software{Time-Agnostic-Library-8.0.1,
 author = {Massari, Arcangelo},
 title = {Time Agnostic Library},
-url = {https://archive.softwareheritage.org/swh:1:snp:ab87ee579fc2631f2702ec6ec1ad0450c17c6bae;origin=https://github.com/opencitations/time-agnostic-library},
-version = {7.2.0},
+url = {https://archive.softwareheritage.org/swh:1:snp:897bd6683fa5d326178f519316d4faf9d3a7b08d;origin=https://github.com/opencitations/time-agnostic-library},
+version = {8.0.1},
 year = {2026}
 }
 ```

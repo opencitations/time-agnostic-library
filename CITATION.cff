@@ -12,11 +12,11 @@ authors:
     orcid: https://orcid.org/0000-0002-8420-0696
 repository-code: https://github.com/opencitations/time-agnostic-library
 license: ISC
-version: 7.2.0
-date-released: '2026-07-25'
+version: 8.0.1
+date-released: '2026-09-22'
 preferred-citation:
   type: article
-  title: "Time travel for knowledge graphs: live queries over RDF change histories"
+  title: 'Time travel for knowledge graphs: live queries over RDF change histories'
   authors:
     - family-names: Massari
       given-names: Arcangelo
@@ -28,4 +28,4 @@ preferred-citation:
     name: arXiv
   year: 2026
   doi: 10.48550/arXiv.2210.02534
-url: https://archive.softwareheritage.org/swh:1:snp:ab87ee579fc2631f2702ec6ec1ad0450c17c6bae;origin=https://github.com/opencitations/time-agnostic-library
+url: https://archive.softwareheritage.org/swh:1:snp:897bd6683fa5d326178f519316d4faf9d3a7b08d;origin=https://github.com/opencitations/time-agnostic-library
