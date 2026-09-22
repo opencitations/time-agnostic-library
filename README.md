@@ -71,3 +71,33 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and relea
 ## Changelog
 
 All notable changes are documented in [CHANGELOG.md](CHANGELOG.md).
+
+## How to cite
+
+If you use the Time Agnostic Library, please cite both the preprint and the software:
+
+> Massari, A., Peroni, S. (2026). Time travel for knowledge graphs: live queries over RDF change histories. *arXiv*. https://doi.org/10.48550/arXiv.2210.02534
+
+```bibtex
+@misc{massari2026timetravelknowledgegraphs,
+  title = {Time travel for knowledge graphs: live queries over RDF change histories},
+  author = {Arcangelo Massari and Silvio Peroni},
+  year = {2026},
+  publisher = {arXiv},
+  doi = {10.48550/arXiv.2210.02534}
+}
+```
+
+<!-- software-citation-action:start -->
+To cite the latest version of this software (7.2.0), use this BibTeX entry:
+
+```bibtex
+@software{Time-Agnostic-Library-7.2.0,
+author = {Massari, Arcangelo},
+title = {Time Agnostic Library},
+url = {https://archive.softwareheritage.org/swh:1:snp:ab87ee579fc2631f2702ec6ec1ad0450c17c6bae;origin=https://github.com/opencitations/time-agnostic-library},
+version = {7.2.0},
+year = {2026}
+}
+```
+<!-- software-citation-action:end -->

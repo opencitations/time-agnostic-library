@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: NONE
+# SPDX-License-Identifier: CC0-1.0
+
+cff-version: 1.2.0
+title: Time Agnostic Library
+message: If you use this software, please cite the preprint and the software.
+type: software
+authors:
+  - family-names: Massari
+    given-names: Arcangelo
+    email: arcangelo.massari@unibo.it
+    orcid: https://orcid.org/0000-0002-8420-0696
+repository-code: https://github.com/opencitations/time-agnostic-library
+license: ISC
+version: 7.2.0
+date-released: '2026-07-25'
+preferred-citation:
+  type: article
+  title: "Time travel for knowledge graphs: live queries over RDF change histories"
+  authors:
+    - family-names: Massari
+      given-names: Arcangelo
+      orcid: https://orcid.org/0000-0002-8420-0696
+    - family-names: Peroni
+      given-names: Silvio
+      orcid: https://orcid.org/0000-0003-0530-4305
+  publisher:
+    name: arXiv
+  year: 2026
+  doi: 10.48550/arXiv.2210.02534
+url: https://archive.softwareheritage.org/swh:1:snp:ab87ee579fc2631f2702ec6ec1ad0450c17c6bae;origin=https://github.com/opencitations/time-agnostic-library
