@@ -26,6 +26,20 @@ dependencies = [
     "sparqlite>=1.1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/opencitations/time-agnostic-library"
+Repository = "https://github.com/opencitations/time-agnostic-library"
+Documentation = "https://opencitations.github.io/time-agnostic-library"
+
+[project.scripts]
+test = "tests.run_all_tests:main"
+
+[project.optional-dependencies]
+qlever = [
+    "pyoxigraph>=0.5.11",
+    "qlever>=0.5.45",
+]
+
 [dependency-groups]
 test = [
     "coverage>=7.13.3",
@@ -51,20 +65,6 @@ dev = [
     {include-group = "test"},
     {include-group = "lint"},
     {include-group = "benchmark"},
-]
-
-[project.urls]
-Homepage = "https://github.com/opencitations/time-agnostic-library"
-Repository = "https://github.com/opencitations/time-agnostic-library"
-Documentation = "https://opencitations.github.io/time-agnostic-library"
-
-[project.scripts]
-test = "tests.run_all_tests:main"
-
-[project.optional-dependencies]
-qlever = [
-    "pyoxigraph>=0.5.11",
-    "qlever>=0.5.45",
 ]
 
 [tool.pyright]
