@@ -203,7 +203,7 @@ def _start_qlever() -> None:
         "--host-name",
         "localhost",
         "--port",
-        "41760",
+        "17600",
         "--access-token",
         "",
         "--kill-existing-with-same-port",

@@ -242,7 +242,7 @@ def test_setup_qlever_serves_history(tmp_path):
     provenance = tmp_path / "provenance.nq"
     fixture_provenance().serialize(provenance, format="nquads")
     try:
-        config = setup_qlever([dataset], [provenance], tmp_path / "index", port=41761)
+        config = setup_qlever([dataset], [provenance], tmp_path / "index", port=17601)
         query = f"SELECT ?s WHERE {{ ?s <{PREDICATE}> <{OBJECT}> }}"
         binding = {"s": {"type": "uri", "value": BASE + "match"}}
         assert VersionQuery(query, config_path=str(config)).run_agnostic_query() == (
@@ -277,9 +277,9 @@ def test_setup_qlever_serves_history(tmp_path):
         ]
         assert settings["qlever_full_text_search"] == "true"
         assert settings["provenance"] == {
-            "triplestore_urls": ["http://localhost:41761"],
+            "triplestore_urls": ["http://localhost:17601"],
             "file_paths": [],
             "is_quadstore": True,
         }
     finally:
-        subprocess.run(["docker", "rm", "-f", "tal-qlever-41761"], check=True)  # noqa: S607
+        subprocess.run(["docker", "rm", "-f", "tal-qlever-17601"], check=True)  # noqa: S607

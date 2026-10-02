@@ -34,7 +34,6 @@ export default defineConfig({
 						{ label: 'Delta queries', slug: 'delta_queries' },
 						{ label: 'OCDM conversion', slug: 'ocdm_conversion' },
 						{ label: 'Configuration', slug: 'configuration' },
-						{ label: 'Contributing', slug: 'contributing' },
 					],
 				},
 			],
