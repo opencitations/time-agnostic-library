@@ -95,7 +95,9 @@ docker stop "$CONTAINER_NAME" 2>/dev/null || true
 docker rm "$CONTAINER_NAME" 2>/dev/null || true
 
 # Pull image if needed
-docker pull "$IMAGE_NAME" 2>/dev/null || true
+if [ -z "${BEAR_BUILD_ID:-}" ]; then
+    docker pull "$IMAGE_NAME"
+fi
 
 # Start R43ples container with a named volume for persistence
 docker volume rm "$VOLUME_NAME" 2>/dev/null || true
@@ -115,7 +117,7 @@ INGESTION_NS=$((INGESTION_END - INGESTION_START))
 INGESTION_S=$(awk "BEGIN {printf \"%.2f\", ${INGESTION_NS}/1000000000}")
 
 # Measure store size
-STORE_BYTES=$(docker exec "$CONTAINER_NAME" du -sb /r43ples/database 2>/dev/null | cut -f1 || echo "0")
+STORE_BYTES=$(docker exec "$CONTAINER_NAME" du -sb /r43ples/database | cut -f1)
 STORE_MB=$(awk "BEGIN {printf \"%.1f\", ${STORE_BYTES}/1048576}")
 echo "Store size: ${STORE_BYTES} bytes (${STORE_MB} MB)"
 

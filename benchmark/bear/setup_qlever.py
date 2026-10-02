@@ -167,6 +167,8 @@ def build_index(name: str, index_dir: Path, container: str) -> None:
             f"{container}-index",
             "--system",
             "docker",
+            "--image",
+            QLEVER_IMAGE,
             "--overwrite-existing",
         ],
         cwd=index_dir,
@@ -186,7 +188,13 @@ def start_server(corpus: corpora.Corpus, index_dir: Path, container: str) -> Non
     # The CLI option --kill-existing-with-same-port matches every process whose
     # command line carries the port, including QLever servers of other Docker
     # networks, so only the container of this corpus is replaced.
-    subprocess.run(["docker", "rm", "-f", container], check=True, capture_output=True)
+    existing = subprocess.check_output(
+        ["docker", "ps", "-a", "--format", "{{.Names}}"], text=True
+    ).splitlines()
+    if container in existing:
+        subprocess.run(
+            ["docker", "rm", "-f", container], check=True, capture_output=True
+        )
     subprocess.run(
         [
             "qlever",
@@ -212,6 +220,8 @@ def start_server(corpus: corpora.Corpus, index_dir: Path, container: str) -> Non
             "--no-warmup",
             "--system",
             "docker",
+            "--image",
+            QLEVER_IMAGE,
         ],
         cwd=index_dir,
         check=True,

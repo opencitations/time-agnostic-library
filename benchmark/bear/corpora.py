@@ -191,8 +191,6 @@ def build_config(corpus: Corpus, timeout_s: int | None = None) -> dict:
         "dataset": source,
         "provenance": source,
         "blazegraph_full_text_search": "no",
-        "fuseki_full_text_search": "no",
-        "virtuoso_full_text_search": "no",
         "qlever_full_text_search": "yes",
         "graphdb_connector_name": "",
     }

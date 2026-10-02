@@ -289,6 +289,37 @@ def _format_bytes(b: int | None) -> str:
     return f"{b} B"
 
 
+def load_store_builds(corpus_name: str) -> list[dict]:
+    builds = []
+    for system in ("ostrich", "tal-qlever", "r43ples"):
+        path = DATA_DIR / f"store_build_{system}_{corpus_name}.json"
+        if path.is_file():
+            with path.open(encoding="utf-8") as file:
+                builds.append(json.load(file))
+    return builds
+
+
+def print_store_builds(builds: list[dict]) -> None:
+    table = Table(title="Store construction (cgroup memory includes file cache)")
+    for title in (
+        "System",
+        "Status",
+        "Time (s)",
+        "Peak memory (bytes)",
+        "Store (bytes)",
+    ):
+        table.add_column(title)
+    for build in builds:
+        table.add_row(
+            build["system"],
+            build["status"],
+            str(build["elapsed_s"]),
+            str(build["memory_peak_bytes"]),
+            str(build["store_bytes"]),
+        )
+    console.print(table)
+
+
 def print_disk_usage_table(usage: dict[str, int | None]) -> None:
     table = Table(title="Disk usage")
     table.add_column("Component", style="bold")
@@ -991,6 +1022,9 @@ def main():
 
     # Disk usage
     disk_usage = load_disk_usage(args.corpus)
+    store_builds = load_store_builds(args.corpus)
+    if store_builds:
+        print_store_builds(store_builds)
     console.rule("[bold]Disk usage")
     print_disk_usage_table(disk_usage)
 
@@ -1023,6 +1057,7 @@ def main():
         "hardware": data.get("hardware", {}),
         "protocol": data["protocol"],
         "disk_usage": disk_usage,
+        "store_builds": store_builds,
     }
     summary_path = output_dir / "summary.json"
     with summary_path.open("w", encoding="utf-8") as f:

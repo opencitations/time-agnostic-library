@@ -90,6 +90,11 @@ fi
 # Run OSTRICH ingestion
 INGESTION_LOG="$OSTRICH_DIR/ingestion_output_${CORPUS}.txt"
 if [ -d "$EVALRUN_DIR" ] && [ "$(ls -A "$EVALRUN_DIR" 2>/dev/null)" ]; then
+    if [ ! -f "$EVALRUN_DIR/.ingestion-complete" ]; then
+        echo "Error: $EVALRUN_DIR contains an unverified or incomplete store."
+        echo "Preserve or remove that directory before starting ingestion."
+        exit 1
+    fi
     echo "OSTRICH store already exists in $EVALRUN_DIR, skipping ingestion"
 else
     mkdir -p "$EVALRUN_DIR"
@@ -99,6 +104,7 @@ else
         -v "$EVALRUN_DIR":/var/evalrun \
         -v "$PATCHES_DIR":/var/patches \
         "$IMAGE_NAME" ingest "$STRATEGY" "$STRATEGY_PARAM" /var/patches 1 "${NUM_VERSIONS}" 2>&1 | tee "$INGESTION_LOG"
+    touch "$EVALRUN_DIR/.ingestion-complete"
     echo "Ingestion complete (log saved to $INGESTION_LOG)"
 fi
 

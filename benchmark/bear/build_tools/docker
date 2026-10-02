@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Arcangelo Massari <arcangelo.massari@unibo.it>
+#
+# SPDX-License-Identifier: ISC
+
+set -euo pipefail
+
+if [ "$1" = run ]; then
+    shift
+    exec "$BEAR_DOCKER" run --cgroup-parent "$BEAR_BUILD_SLICE" \
+        --label "bear.build=$BEAR_BUILD_ID" "$@"
+fi
+exec "$BEAR_DOCKER" "$@"
