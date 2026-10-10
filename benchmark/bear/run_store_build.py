@@ -16,14 +16,17 @@ from uuid import uuid4
 
 import corpora
 from build_resources import memory_usage, start_slice, stop_slice
-from protocol import docker_image_id, git_dirty, git_revision, hardware_info
+from protocol import git_dirty, git_revision, hardware_info
+from setup_qlever import start_server
+from store_builders import (
+    SYSTEM_IMAGES,
+    build_ostrich,
+    build_r43ples,
+    prepare_image,
+    start_r43ples,
+)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-SYSTEM_IMAGES = {
-    "ostrich": "ostrich-bear",
-    "tal-qlever": "docker.io/adfreiburg/qlever",
-    "r43ples": "plttud/r43ples:latest",
-}
 
 
 def build_plan(system: str, corpus: corpora.Corpus) -> list[tuple[str, list[str]]]:
@@ -42,7 +45,15 @@ def build_plan(system: str, corpus: corpora.Corpus) -> list[tuple[str, list[str]
         )
         command = [sys.executable, str(SCRIPT_DIR / "setup_qlever.py"), corpus.name]
     else:
-        command = ["bash", str(SCRIPT_DIR / f"setup_{system}.sh"), corpus.name]
+        command = [
+            sys.executable,
+            str(SCRIPT_DIR / "run_store_build.py"),
+            "--system",
+            system,
+            "--corpus",
+            corpus.name,
+            "--worker",
+        ]
     stages.append(("store", command))
     return stages
 
@@ -118,7 +129,6 @@ def run_stage(command: list[str], slice_name: str, run_id: str, docker: str) -> 
         "BEAR_DOCKER": docker,
         "BEAR_BUILD_SLICE": slice_name,
         "BEAR_BUILD_ID": run_id,
-        "UV_NO_SYNC": "1",
     }
     result = subprocess.run(
         [
@@ -173,10 +183,7 @@ def measure_build(system: str, corpus: corpora.Corpus, output: Path) -> dict:
         msg = "Build measurement requires Docker with cgroup v2 and the systemd driver."
         raise RuntimeError(msg)
     image = SYSTEM_IMAGES[system]
-    image_id = docker_image_id(image)
-    if image_id is None:
-        msg = f"Prepare the Docker image before measuring: {image}"
-        raise RuntimeError(msg)
+    image_id = prepare_image(system)
     run_id = uuid4().hex
     parent = f"bearbuild{run_id}.slice"
     record = {
@@ -255,6 +262,18 @@ def measure_build(system: str, corpus: corpora.Corpus, output: Path) -> dict:
                     text=True,
                 )
                 record.update(json.loads(usage))
+                if system == "ostrich":
+                    save_record(
+                        corpora.DATA_DIR / f"ostrich_store_size_{corpus.name}.json",
+                        {"store_bytes": record["store_bytes"]},
+                    )
+                elif system == "r43ples":
+                    metadata = (
+                        corpora.DATA_DIR / f"r43ples_ingestion_time_{corpus.name}.json"
+                    )
+                    details = json.loads(metadata.read_text(encoding="utf-8"))
+                    details["store_bytes"] = record["store_bytes"]
+                    save_record(metadata, details)
                 record["status"] = "complete"
         finally:
             if record["elapsed_s"] is None:
@@ -263,16 +282,48 @@ def measure_build(system: str, corpus: corpora.Corpus, output: Path) -> dict:
             if record["status"] == "running" or record["oom_kills"]:
                 record["status"] = "failed"
             save_record(output, record)
+    if record["status"] == "complete":
+        if system == "r43ples":
+            subprocess.run(["docker", "rm", f"r43ples-bear-{corpus.name}"], check=True)
+            start_r43ples(corpus)
+        elif system == "tal-qlever":
+            start_server(
+                corpus, store_directory(system, corpus), f"qlever-{corpus.name}"
+            )
     return record
+
+
+def build_store(system: str, corpus: corpora.Corpus) -> None:
+    if system == "ostrich":
+        build_ostrich(corpus)
+    elif system == "r43ples":
+        ingestion_s = build_r43ples(corpus)
+        save_record(
+            corpora.DATA_DIR / f"r43ples_ingestion_time_{corpus.name}.json",
+            {
+                "ingestion_s": ingestion_s,
+                "num_versions": corpus.num_versions,
+                "corpus": corpus.name,
+                "ingestion_filter": "r43ples_safe_triples",
+                "ingestion_stats_file": f"r43ples_ingestion_stats_{corpus.name}.json",
+            },
+        )
 
 
 def main() -> None:  # pragma: no cover
     parser = argparse.ArgumentParser()
     parser.add_argument("--system", choices=SYSTEM_IMAGES, required=True)
     parser.add_argument("--corpus", choices=corpora.CORPUS_NAMES, required=True)
+    parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
+    corpus = corpora.get(args.corpus)
+    if args.worker:
+        if "BEAR_BUILD_ID" not in os.environ:
+            parser.error("Build workers must be launched by the measured orchestrator.")
+        build_store(args.system, corpus)
+        return
     output = corpora.DATA_DIR / f"store_build_{args.system}_{args.corpus}.json"
-    result = measure_build(args.system, corpora.get(args.corpus), output)
+    result = measure_build(args.system, corpus, output)
     print(f"Build {result['status']}; measurements: {output}")
     if result["status"] != "complete":
         raise SystemExit(1)

@@ -32,6 +32,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 from rich.table import Table
+from store_builders import SYSTEM_IMAGES
 
 console = Console()
 
@@ -601,7 +602,7 @@ def main():
         sparql_request_timeout_s=args.timeout,
     )
     protocol["system"] = "r43ples"
-    protocol["engine_image_id"] = docker_image_id("plttud/r43ples:latest")
+    protocol["engine_image_id"] = docker_image_id(SYSTEM_IMAGES["r43ples"])
     protocol["query_rewriting"] = args.query_rewriting
     protocol["dm_execution"] = "symmetric difference of endpoint result sets"
     protocol["vq_execution"] = "one materialization request per revision"

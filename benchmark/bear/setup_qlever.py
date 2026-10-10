@@ -28,10 +28,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 import corpora
 from convert_to_ocdm import XSD_NS
 from protocol import DEFAULT_TIMEOUT_S, docker_image_id
+from store_builders import SYSTEM_IMAGES
 
 console = Console()
 
-QLEVER_IMAGE = "docker.io/adfreiburg/qlever"
+QLEVER_IMAGE = SYSTEM_IMAGES["tal-qlever"]
 # Same graph as time_agnostic_library.qlever_setup.
 ASSOCIATION_GRAPH = "<urn:tal:qlever:prov/>"
 UPDATE_QUERY_PREDICATE = f"<{ProvEntity.iri_has_update_query}> "

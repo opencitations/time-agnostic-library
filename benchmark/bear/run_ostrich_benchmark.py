@@ -22,6 +22,7 @@ from protocol import (
 )
 from rich.console import Console
 from rich.table import Table
+from store_builders import SYSTEM_IMAGES, ostrich_repository
 
 console = Console()
 
@@ -29,7 +30,7 @@ SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR / "data"
 OSTRICH_DIR = DATA_DIR / "ostrich"
 QUERIES_DIR = OSTRICH_DIR / "queries"
-IMAGE_NAME = "ostrich-bear"
+IMAGE_NAME = SYSTEM_IMAGES["ostrich"]
 
 DEFAULT_GROUP_TIMEOUT_S = 3600
 
@@ -46,6 +47,10 @@ def run_ostrich_queries(
     replications: int,
     timeout_s: int,
 ) -> str:
+    # The OSTRICH version used here skips the last stored version when measuring
+    # queries for individual versions and differences between versions. For
+    # BEAR-A, this leaves out version 57 and the difference from version 0 to 57.
+    # We keep this behavior so the results describe OSTRICH as distributed.
     cmd = [
         "docker",
         "run",
@@ -317,8 +322,8 @@ def main():
     )
     protocol["system"] = "ostrich"
     protocol["engine_image_id"] = docker_image_id(IMAGE_NAME)
-    protocol["engine_revision"] = git_revision(OSTRICH_DIR / "ostrich-repo")
-    protocol["engine_dirty"] = git_dirty(OSTRICH_DIR / "ostrich-repo")
+    protocol["engine_revision"] = git_revision(ostrich_repository())
+    protocol["engine_dirty"] = git_dirty(ostrich_repository())
     protocol["timeout_scope"] = "query group"
     protocol["warmup"] = "native untimed executions per case"
     evalrun_dir = OSTRICH_DIR / f"evalrun_{corpus.name}"
