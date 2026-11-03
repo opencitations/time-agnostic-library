@@ -157,7 +157,7 @@ def start_r43ples(corpus: corpora.Corpus) -> None:
             "-p",
             "9998:9998",
             "-v",
-            f"{volume}:/r43ples/database",
+            f"{volume}:/database",
             SYSTEM_IMAGES["r43ples"],
             "java",
             "-Xmx8g",
