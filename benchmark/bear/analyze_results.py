@@ -135,7 +135,18 @@ def merge_memory_results(time_data: dict, memory_data: dict) -> None:
                     entry[field] = memory_entry[field]
 
 
-def validate_manifest(results: dict, comparison_files: list[Path]) -> None:
+TAL_QUERY_TYPES = {"vm": "vm", "sd": "dm", "cv": "vq"}
+
+
+def _report(message: str, *, strict: bool) -> None:
+    if strict:
+        raise ValueError(message)
+    console.print(f"[yellow]{message}")
+
+
+def validate_manifest(
+    results: dict, comparison_files: list[Path], *, strict: bool = True
+) -> None:
     expected = results["protocol"]
     for comparison_file in comparison_files:
         if not comparison_file.exists():
@@ -145,23 +156,30 @@ def validate_manifest(results: dict, comparison_files: list[Path]) -> None:
         if comparison["hardware"] != results["hardware"]:
             msg = f"Benchmark hardware differs in {comparison_file}"
             raise ValueError(msg)
-        for field in (
-            "manifest_hash",
-            "replications",
-            "per_case_statistic",
-            "git_revision",
-        ):
+        for field in ("manifest_hash", "replications", "per_case_statistic"):
             if protocol[field] != expected[field]:
                 msg = f"Benchmark protocol field {field} differs in {comparison_file}"
                 raise ValueError(msg)
-        if expected["git_dirty"] or protocol["git_dirty"]:
-            msg = "Cross-system analysis requires results from a clean Git revision"
-            raise ValueError(msg)
+        unclean = [
+            f"{name} ({metadata['git_revision'][:7]}, dirty)"
+            if metadata["git_dirty"]
+            else f"{name} ({metadata['git_revision'][:7]})"
+            for name, metadata in (("TAL", expected), (comparison_file.name, protocol))
+            if metadata["git_dirty"]
+            or metadata["git_revision"] != expected["git_revision"]
+        ]
+        if unclean:
+            _report(
+                "Cross-system analysis requires results from one clean Git "
+                f"revision; found {', '.join(unclean)}",
+                strict=strict,
+            )
 
 
 def tal_result_counts(results: dict) -> dict[tuple, int]:
     counts = {}
-    for query_type, entries in results["results"].items():
+    for tal_query_type, entries in results["results"].items():
+        query_type = TAL_QUERY_TYPES[tal_query_type]
         for entry in entries:
             if entry["status"] != "ok":
                 continue
@@ -215,7 +233,9 @@ def comparison_result_counts(results: dict) -> dict[tuple, int]:
     return counts
 
 
-def validate_result_counts(results: dict, comparison_files: list[Path]) -> None:
+def validate_result_counts(
+    results: dict, comparison_files: list[Path], *, strict: bool = True
+) -> None:
     all_expected = tal_result_counts(results)
     for comparison_file in comparison_files:
         if not comparison_file.exists():
@@ -224,8 +244,13 @@ def validate_result_counts(results: dict, comparison_files: list[Path]) -> None:
         observed = comparison_result_counts(comparison)
         expected = all_expected
         if comparison["protocol"]["system"] == "ostrich":
+            # The OSTRICH evaluator never queries the last ingested version
+            # (https://github.com/rdfostrich/ostrich/issues/11).
+            last_version = max(key[3] for key in all_expected if key[0] == "vm")
             expected = {
-                key: count for key, count in all_expected.items() if key[0] != "vq"
+                key: count
+                for key, count in all_expected.items()
+                if key[0] != "vq" and key[3] != last_version
             }
             observed = {key: count for key, count in observed.items() if key[0] != "vq"}
         missing = expected.keys() - observed.keys()
@@ -238,11 +263,12 @@ def validate_result_counts(results: dict, comparison_files: list[Path]) -> None:
             raise ValueError(msg)
         mismatches = [key for key, count in expected.items() if observed[key] != count]
         if mismatches:
-            msg = (
+            _report(
                 f"Result counts differ in {comparison_file} for "
-                f"{len(mismatches)} cases; first mismatch: {mismatches[0]}"
+                f"{len(mismatches)} of {len(expected)} cases; "
+                f"first mismatch: {mismatches[0]}",
+                strict=strict,
             )
-            raise ValueError(msg)
 
 
 def load_disk_usage(corpus_name: str) -> dict[str, int | None]:
