@@ -1,3 +1,16 @@
+# [8.1.0](https://github.com/opencitations/time-agnostic-library/compare/8.0.1...8.1.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* **benchmark:** mount the R43ples database volume at /database ([d2edfc3](https://github.com/opencitations/time-agnostic-library/commit/d2edfc3d2174c1fc3f62bb84b0bfa34cb40660c3))
+
+
+### Features
+
+* **benchmark:** plot BEAR-A in the cross-system figures ([88d940f](https://github.com/opencitations/time-agnostic-library/commit/88d940fd8927d342850bfa2e6fb3878d4d178afd))
+* **sparql:** read Turtle, TriG, N-Triples and N-Quads files [release] ([2864ccd](https://github.com/opencitations/time-agnostic-library/commit/2864ccd44564e7732a5f0877e23580f7055664d9))
+
 ## [8.0.1](https://github.com/opencitations/time-agnostic-library/compare/8.0.0...8.0.1) (2026-09-22)
 
 
