@@ -189,7 +189,6 @@ def test_delta_query_evaluates_optional_patterns_at_each_endpoint():
             "name": {
                 "type": "literal",
                 "value": "Giulio Marini",
-                "datatype": "http://www.w3.org/2001/XMLSchema#string",
             },
         }
     ]

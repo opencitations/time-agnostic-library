@@ -25,6 +25,20 @@ The configuration tells the library where to find data and provenance. `Agnostic
 - **qlever_full_text_search** (optional): disabled by default; set to `"yes"` after preparing the URI index described below.
 - **graphdb_connector_name** (optional): name of the Lucene connector if GraphDB was used. See [GraphDB full-text search documentation](https://graphdb.ontotext.com/documentation/free/general-full-text-search-with-connectors.html)
 
+## Data files
+
+The library picks the RDF format of each file in `file_paths` from its extension:
+
+| Extension | Format |
+| --- | --- |
+| `.json`, `.jsonld` | JSON-LD |
+| `.nq` | N-Quads |
+| `.nt` | N-Triples |
+| `.trig` | TriG |
+| `.ttl` | Turtle |
+
+A `.zip` archive is read through its first file, whose extension must be one of the above. Any other extension raises an error.
+
 ## Example configuration file
 
 ```json

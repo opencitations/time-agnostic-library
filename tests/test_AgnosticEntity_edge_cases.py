@@ -370,10 +370,7 @@ class TestAgnosticEntityEdgeCases:
         )
         ops = _fast_parse_update(query)
         assert len(ops) == 1
-        assert (
-            ops[0][1][0][2]
-            == '"line1\\nline2"^^<http://www.w3.org/2001/XMLSchema#string>'
-        )
+        assert ops[0][1][0][2] == '"line1\\nline2"'
 
     def test_fast_parse_update_with_operation_keyword_inside_literal(self):
         query = (

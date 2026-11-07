@@ -107,11 +107,7 @@ class TestVersionQuery:
                 "type": "uri",
                 "value": old_agent,
             },
-            "name": {
-                "type": "literal",
-                "value": "Giulio Marini",
-                "datatype": "http://www.w3.org/2001/XMLSchema#string",
-            },
+            "name": {"type": "literal", "value": "Giulio Marini"},
         }
         new_binding = {
             "agent": {

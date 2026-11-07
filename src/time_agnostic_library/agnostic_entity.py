@@ -6,7 +6,7 @@ import re
 from collections.abc import Callable, Iterator
 
 from time_agnostic_library.prov_entity import ProvEntity
-from time_agnostic_library.sparql import Sparql, _n3_value
+from time_agnostic_library.sparql import Sparql, _n3_value, _typed_literal_n3
 from time_agnostic_library.support import _cached_parse as _parse_datetime
 from time_agnostic_library.support import convert_to_datetime
 
@@ -65,7 +65,7 @@ def _regex_match_to_n3(match: re.Match) -> str:
 
     typed = match.group("typed")
     if typed is not None:
-        return f'"{_normalize_literal(typed)}"^^<{match.group("datatype")}>'
+        return _typed_literal_n3(_normalize_literal(typed), match.group("datatype"))
 
     tagged = match.group("tagged")
     if tagged is not None:
@@ -106,26 +106,36 @@ def _find_matching_close_brace(text: str, start: int) -> int:
     return len(text)
 
 
-def _parse_graph_blocks(
-    text: str, start: int, end: int
-) -> list[tuple[str, str, str, str]]:
-    quads: list[tuple[str, str, str, str]] = []
+def _parse_triples(
+    text: str, start: int, end: int, graph_n3: str | None
+) -> list[tuple[str, ...]]:
+    statements: list[tuple[str, ...]] = []
+    terms: list[str] = []
+    for m in _RDF_TERM_RE.finditer(text, start, end):
+        terms.append(_regex_match_to_n3(m))
+        if len(terms) == _TRIPLE_LEN:
+            statements.append((*terms, graph_n3) if graph_n3 else tuple(terms))
+            terms.clear()
+    return statements
+
+
+# An update on a triplestore has no GRAPH blocks, and its statements are triples.
+def _parse_graph_blocks(text: str, start: int, end: int) -> list[tuple[str, ...]]:
+    if _GRAPH_BLOCK_RE.search(text, start, end) is None:
+        return _parse_triples(text, start, end, None)
+    quads: list[tuple[str, ...]] = []
     pos = start
     while pos < end:
         graph_match = _GRAPH_BLOCK_RE.search(text, pos, end)
         if graph_match is None:
             break
-        graph_n3 = f"<{graph_match.group(1)}>"
         triples_start = graph_match.end()
         triples_end = min(_find_matching_close_brace(text, triples_start), end)
-
-        terms: list[str] = []
-        for m in _RDF_TERM_RE.finditer(text, triples_start, triples_end):
-            terms.append(_regex_match_to_n3(m))
-            if len(terms) == _TRIPLE_LEN:
-                quads.append((terms[0], terms[1], terms[2], graph_n3))
-                terms.clear()
-
+        quads.extend(
+            _parse_triples(
+                text, triples_start, triples_end, f"<{graph_match.group(1)}>"
+            )
+        )
         pos = triples_end + 1
     return quads
 
@@ -139,8 +149,8 @@ def _find_next_operation(text: str, start: int) -> re.Match | None:
 
 def _fast_parse_update(
     update_query: str,
-) -> list[tuple[str, list[tuple[str, str, str, str]]]]:
-    operations: list[tuple[str, list[tuple[str, str, str, str]]]] = []
+) -> list[tuple[str, list[tuple[str, ...]]]]:
+    operations: list[tuple[str, list[tuple[str, ...]]]] = []
     query_len = len(update_query)
     pos = 0
 
@@ -190,7 +200,7 @@ def _apply_inverse_update(
 
 
 def _apply_update_ops(
-    operations: list[tuple[str, list[tuple[str, str, str, str]]]],
+    operations: list[tuple[str, list[tuple[str, ...]]]],
     additions: set[tuple[str, ...]],
     deletions: set[tuple[str, ...]],
 ) -> None:

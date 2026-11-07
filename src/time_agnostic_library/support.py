@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
+from time_agnostic_library.sparql import _typed_literal_n3
+
 CONFIG_PATH = "./config.json"
 
 _TRIPLE_LEN = 3
@@ -27,7 +29,7 @@ def _nt_match_to_n3(match: re.Match) -> str:
     if match.group(1) is not None:
         return f"<{match.group(1)}>"
     if match.group(2) is not None:
-        return f'"{match.group(2)}"^^<{match.group(3)}>'
+        return _typed_literal_n3(match.group(2), match.group(3))
     if match.group(4) is not None:
         return f'"{match.group(4)}"@{match.group(5)}'
     if match.group(6) is not None:

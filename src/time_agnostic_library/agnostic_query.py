@@ -213,9 +213,7 @@ def _expected_quad_slots(triple: tuple) -> tuple[str | None, str | None, str | N
     )
 
 
-def _matching_update_quads(
-    update_query: str, triple: tuple
-) -> list[tuple[str, str, str, str]]:
+def _matching_update_quads(update_query: str, triple: tuple) -> list[tuple[str, ...]]:
     quad_matches = _quad_filter_for_pattern(triple)
     return [
         quad

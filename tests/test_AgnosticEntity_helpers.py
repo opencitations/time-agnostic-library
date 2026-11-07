@@ -1602,6 +1602,21 @@ class TestAgnosticEntityHelpers:
         ]
         assert output == expected_output
 
+    def test_apply_inverse_update_matches_xsd_string_with_simple_literal(self):
+        entity = "<https://github.com/arcangelo7/time_agnostic/br/1>"
+        title = "<http://purl.org/dc/terms/title>"
+        graph = "<https://github.com/arcangelo7/time_agnostic/br/>"
+        xsd_string = "<http://www.w3.org/2001/XMLSchema#string>"
+        current_state = {(entity, title, '"New title"', graph)}
+        update_query = f"""
+            DELETE DATA {{ GRAPH {graph} {{ {entity} {title} "Old title" . }} }};
+            INSERT DATA {{ GRAPH {graph} {{
+                {entity} {title} "New title"^^{xsd_string} .
+            }} }}
+        """
+        _apply_inverse_update(current_state, update_query)
+        assert current_state == {(entity, title, '"Old title"', graph)}
+
     def test_apply_inverse_update_with_multiple_operations(self):
         input_1 = set()
         input_2 = """

@@ -6,6 +6,7 @@
 import atexit
 import threading
 import zipfile
+from pathlib import Path, PurePath
 
 from rdflib import Dataset
 from rdflib.term import Literal, URIRef
@@ -18,6 +19,7 @@ __all__ = [
     "_binding_to_n3",
     "_n3_to_binding",
     "_n3_value",
+    "_typed_literal_n3",
 ]
 
 CONFIG_PATH = "./config.json"
@@ -57,6 +59,55 @@ def _close_all_clients() -> None:
 
 atexit.register(_close_all_clients)
 
+FILE_FORMATS: dict[str, str] = {
+    ".json": "json-ld",
+    ".jsonld": "json-ld",
+    ".nq": "nquads",
+    ".nt": "nt",
+    ".trig": "trig",
+    ".ttl": "turtle",
+}
+
+_file_cache: dict[str, tuple[int, int, Dataset]] = {}
+_file_lock = threading.Lock()
+
+
+def _file_format(name: str) -> str:
+    suffix = PurePath(name).suffix
+    if suffix not in FILE_FORMATS:
+        msg = (
+            f"Unsupported file extension '{suffix}' in {name}."
+            f" Available extensions: {sorted(FILE_FORMATS)} and .zip."
+        )
+        raise ValueError(msg)
+    return FILE_FORMATS[suffix]
+
+
+def _parse_file(file_path: str) -> Dataset:
+    dataset = Dataset(default_union=True)
+    if file_path.endswith(".zip"):
+        with zipfile.ZipFile(file_path, "r") as z:
+            member = z.namelist()[0]
+            with z.open(member) as file:
+                dataset.parse(file=file, format=_file_format(member))  # type: ignore[arg-type]
+    else:
+        dataset.parse(location=file_path, format=_file_format(file_path))
+    return dataset
+
+
+# A file is parsed again only after it changes on disk, so a long-running
+# process sees what other processes write.
+def _load_file(file_path: str) -> Dataset:
+    stat = Path(file_path).stat()
+    with _file_lock:
+        if file_path in _file_cache:
+            mtime, size, dataset = _file_cache[file_path]
+            if (mtime, size) == (stat.st_mtime_ns, stat.st_size):
+                return dataset
+        dataset = _parse_file(file_path)
+        _file_cache[file_path] = (stat.st_mtime_ns, stat.st_size, dataset)
+        return dataset
+
 
 def _escape_n3(v: str) -> str:
     return (
@@ -67,6 +118,17 @@ def _escape_n3(v: str) -> str:
     )
 
 
+XSD_STRING = "http://www.w3.org/2001/XMLSchema#string"
+
+
+def _typed_literal_n3(escaped_value: str, datatype: str) -> str:
+    # In RDF 1.1 an xsd:string literal and a simple literal are the same term,
+    # and triplestores such as QLever return it without a datatype.
+    if datatype == XSD_STRING:
+        return f'"{escaped_value}"'
+    return f'"{escaped_value}"^^<{datatype}>'
+
+
 def _binding_to_n3(val: dict) -> str:
     if val["type"] == "uri":
         return f"<{val['value']}>"
@@ -74,7 +136,7 @@ def _binding_to_n3(val: dict) -> str:
         return f"_:{val['value']}"
     escaped = _escape_n3(val["value"])
     if "datatype" in val:
-        return f'"{escaped}"^^<{val["datatype"]}>'
+        return _typed_literal_n3(escaped, val["datatype"])
     if "xml:lang" in val:
         return f'"{escaped}"@{val["xml:lang"]}'
     return f'"{escaped}"'
@@ -182,18 +244,8 @@ class Sparql:
         return output
 
     def _get_results_from_files(self, output: dict) -> dict:
-        storer: list[str] = self.storer["file_paths"]
-        for file_path in storer:
-            file_cg = Dataset(default_union=True)
-            if file_path.endswith(".zip"):
-                with (
-                    zipfile.ZipFile(file_path, "r") as z,
-                    z.open(z.namelist()[0]) as file,
-                ):
-                    file_cg.parse(file=file, format="json-ld")  # type: ignore[arg-type]
-            else:
-                file_cg.parse(location=file_path, format="json-ld")
-            query_results = file_cg.query(self.query)
+        for file_path in self.storer["file_paths"]:
+            query_results = _load_file(file_path).query(self.query)
             vars_list = [str(var) for var in query_results.vars or []]
             output["head"]["vars"] = vars_list
             for result in query_results:
@@ -244,9 +296,12 @@ class Sparql:
         return output
 
     def run_ask_query(self) -> bool:
-        storer = self.storer["triplestore_urls"]
-        for url in storer:
-            return self._client(url).ask(self.query)
+        for file_path in self.storer["file_paths"]:
+            if _load_file(file_path).query(self.query).askAnswer:
+                return True
+        for url in self.storer["triplestore_urls"]:
+            if self._client(url).ask(self.query):
+                return True
         return False
 
     @classmethod
